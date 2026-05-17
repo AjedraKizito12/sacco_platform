@@ -1,0 +1,94 @@
+name: sacco-platform
+
+networks:
+  sacco_net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  rabbitmqdata:
+  esdata:
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    networks: [sacco_net]
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: sacco
+      POSTGRES_PASSWORD: sacco
+      POSTGRES_DB: sacco
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sacco -d sacco"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    networks: [sacco_net]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    restart: unless-stopped
+    networks: [sacco_net]
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  elasticsearch:
+    image: elasticsearch:8.17.0
+    restart: unless-stopped
+    networks: [sacco_net]
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qv '\"status\":\"red\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+
+  api:
+    build: .
+    restart: unless-stopped
+    networks: [sacco_net]
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
