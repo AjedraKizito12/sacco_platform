@@ -1,7 +1,7 @@
-import logging
 import re
 from collections.abc import AsyncGenerator
 
+import structlog
 from fastapi import HTTPException, Request
 from redis.asyncio import Redis
 from sqlalchemy import text
@@ -19,7 +19,7 @@ settings = get_settings()
 _SLUG_RE = re.compile(r"^[a-z0-9-]{1,40}$")
 _SCHEMA_RE = re.compile(r"^tenant_[a-z0-9_]{1,40}$")
 
-_log = logging.getLogger(__name__)
+_log = structlog.get_logger(__name__)
 
 engine = create_async_engine(
     settings.database_url,
@@ -95,7 +95,8 @@ async def get_tenant_session(
     if not _SCHEMA_RE.match(schema_name):
         _log.error(
             "Resolved schema_name failed validation — possible data corruption",
-            extra={"slug": slug, "schema_name": schema_name},
+            slug=slug,
+            schema_name=schema_name,
         )
         raise HTTPException(status_code=500, detail="Internal configuration error")
 

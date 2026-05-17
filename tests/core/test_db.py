@@ -1,10 +1,6 @@
-import re
 import pytest
 
-# These regexes are the exact ones used in db.py.
-# Test them here independently to document the contract.
-_SLUG_RE = re.compile(r"^[a-z0-9-]{1,40}$")
-_SCHEMA_RE = re.compile(r"^tenant_[a-z0-9_]{1,40}$")
+from app.core.db import _SCHEMA_RE, _SLUG_RE
 
 
 @pytest.mark.parametrize(
