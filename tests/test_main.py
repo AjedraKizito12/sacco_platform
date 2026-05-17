@@ -1,12 +1,12 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.main import app
+from app.main import app, lifespan
 
 
 @pytest.fixture
 async def client() -> AsyncClient:
-    async with AsyncClient(
+    async with lifespan(app), AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as c:
         yield c

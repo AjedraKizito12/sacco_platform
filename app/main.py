@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any
@@ -22,7 +21,6 @@ def _configure_logging() -> None:
     processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.ExceptionRenderer(),
@@ -35,7 +33,7 @@ def _configure_logging() -> None:
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, settings.log_level.upper())
+            structlog.stdlib.NAME_TO_LEVEL[settings.log_level.lower()]  # type: ignore[attr-defined]
         ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
