@@ -1,0 +1,160 @@
+import asyncio
+import logging
+import uuid
+from contextlib import asynccontextmanager
+from typing import Any
+
+import aio_pika
+import structlog
+from elasticsearch import AsyncElasticsearch
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from redis.asyncio import Redis
+
+from app.core.config import get_settings
+from app.core.db import engine
+
+settings = get_settings()
+
+
+def _configure_logging() -> None:
+    processors: list[Any] = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.ExceptionRenderer(),
+    ]
+    if settings.structlog_json:
+        processors.append(structlog.processors.JSONRenderer())
+    else:
+        processors.append(structlog.dev.ConsoleRenderer())
+
+    structlog.configure(
+        processors=processors,
+        wrapper_class=structlog.make_filtering_bound_logger(
+            getattr(logging, settings.log_level.upper())
+        ),
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+
+_configure_logging()
+_log = structlog.get_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> Any:
+    app.state.redis = Redis.from_url(settings.redis_url, decode_responses=False)
+    _log.info("Startup complete", env=settings.app_env)
+    yield
+    await app.state.redis.aclose()
+    await engine.dispose()
+    _log.info("Shutdown complete")
+
+
+app = FastAPI(title="SACCO Platform API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next: Any) -> Any:
+    request_id = request.headers.get(settings.request_id_header) or str(uuid.uuid4())
+    structlog.contextvars.bind_contextvars(request_id=request_id)
+    response = await call_next(request)
+    response.headers[settings.request_id_header] = request_id
+    structlog.contextvars.clear_contextvars()
+    return response
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    _log.exception("Unhandled exception", path=request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "internal server error"},
+    )
+
+
+# ── Health endpoints ──────────────────────────────────────────────────────────
+
+
+@app.get("/healthz", tags=["ops"])
+async def healthz() -> dict[str, str]:
+    """Liveness probe — returns 200 immediately without touching dependencies."""
+    return {"status": "ok"}
+
+
+async def _check_postgres() -> str:
+    from sqlalchemy import text
+
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return "ok"
+    except Exception as exc:
+        return f"error: {exc}"
+
+
+async def _check_redis(redis_client: Redis) -> str:
+    try:
+        await redis_client.ping()
+        return "ok"
+    except Exception as exc:
+        return f"error: {exc}"
+
+
+async def _check_rabbitmq() -> str:
+    try:
+        conn = await asyncio.wait_for(
+            aio_pika.connect_robust(settings.rabbitmq_url),
+            timeout=3.0,
+        )
+        await conn.close()
+        return "ok"
+    except Exception as exc:
+        return f"error: {exc}"
+
+
+async def _check_elasticsearch() -> str:
+    es = AsyncElasticsearch(settings.elasticsearch_url)
+    try:
+        await asyncio.wait_for(es.cluster.health(), timeout=3.0)
+        return "ok"
+    except Exception as exc:
+        return f"error: {exc}"
+    finally:
+        await es.close()
+
+
+@app.get("/readyz", tags=["ops"])
+async def readyz(request: Request) -> JSONResponse:
+    """Readiness probe — checks all four infra dependencies concurrently."""
+    postgres, redis, rabbitmq, elasticsearch = await asyncio.gather(
+        _check_postgres(),
+        _check_redis(request.app.state.redis),
+        _check_rabbitmq(),
+        _check_elasticsearch(),
+    )
+    checks = {
+        "postgres": postgres,
+        "redis": redis,
+        "rabbitmq": rabbitmq,
+        "elasticsearch": elasticsearch,
+    }
+    all_ok = all(v == "ok" for v in checks.values())
+    return JSONResponse(
+        status_code=200 if all_ok else 503,
+        content={"status": "ok" if all_ok else "degraded", "checks": checks},
+    )
