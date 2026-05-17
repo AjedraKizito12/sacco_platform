@@ -1,4 +1,3 @@
-import os
 import pytest
 
 # conftest.py sets DATABASE_URL and APP_SECRET_KEY before this import.
