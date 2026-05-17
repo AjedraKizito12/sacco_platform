@@ -1,5 +1,5 @@
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
-FROM python:3.11-slim AS builder
+FROM python:3.11.12-slim AS builder
 
 WORKDIR /build
 
@@ -12,14 +12,13 @@ COPY pyproject.toml .
 # Create a minimal package structure so hatchling can find the project
 RUN mkdir -p app && touch app/__init__.py
 
-RUN pip install --no-cache-dir --prefix=/install ".[dev]"
+RUN pip install --no-cache-dir --prefix=/install .
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
-FROM python:3.11-slim AS runtime
+FROM python:3.11.12-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /install /usr/local
@@ -30,6 +29,9 @@ RUN groupadd --gid 1000 appgroup && \
 WORKDIR /app
 
 COPY --chown=appuser:appgroup . .
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')" || exit 1
 
 USER appuser
 
