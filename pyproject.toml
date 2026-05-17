@@ -21,6 +21,7 @@ dependencies = [
     "structlog==24.4.0",
     "python-jose[cryptography]==3.3.0",
     "passlib[bcrypt]==1.7.4",
+    "bcrypt>=3.1.0,<4.0",
 ]
 
 [project.optional-dependencies]
@@ -49,7 +50,7 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "UP", "SIM", "TCH"]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "TCH", "S"]
 
 [tool.mypy]
 python_version = "3.11"
