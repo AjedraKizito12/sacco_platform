@@ -112,4 +112,5 @@ async def get_platform_session() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency: yield an AsyncSession with search_path set to platform."""
     async with AsyncSessionFactory() as session:
         await session.execute(text("SET LOCAL search_path TO platform"))
+        session.sync_session.info["is_platform"] = True
         yield session

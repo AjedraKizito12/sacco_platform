@@ -14,6 +14,7 @@ from sqlalchemy import create_engine, pool, text
 # (Initially empty; add `from app.modules.platform_.models import *` as
 # platform models are created.)
 import app.core.audit.models  # noqa: F401 — registers audit tables in Base.metadata
+import app.core.outbox.models  # noqa: F401 — registers outbox tables in Base.metadata
 from alembic import context
 from app.core.db import Base
 
