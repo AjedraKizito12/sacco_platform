@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     request_id_header: str = "X-Request-ID"
     tenant_header: str = "X-Tenant-Slug"
 
+    # Outbox retention
+    outbox_retention_days: int = 90
+
 
 @lru_cache
 def get_settings() -> Settings:
