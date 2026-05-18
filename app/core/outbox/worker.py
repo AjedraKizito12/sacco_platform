@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -25,6 +26,7 @@ _MAX_ROWS_PER_TICK = 1_000
 _BATCH_SIZE = 100
 _WALL_CLOCK_LIMIT = 30.0  # seconds
 _MAX_ATTEMPTS = 10
+_SCHEMA_RE = re.compile(r"^tenant_[a-z0-9_]{1,40}$")
 
 
 def _next_attempt_delta(attempts: int) -> timedelta:
@@ -47,7 +49,6 @@ async def _relay_outbox(
     conn = await aio_pika.connect_robust(rabbitmq_url)
     try:
         channel = await conn.channel()
-        await channel.set_qos(prefetch_count=_BATCH_SIZE)
         exchange = await channel.declare_exchange(
             "sacco.events", aio_pika.ExchangeType.TOPIC, durable=True
         )
@@ -94,10 +95,11 @@ async def _relay_outbox(
                         row.published_at = datetime.now(UTC)
                         row.attempts += 1
                     except Exception as exc:
+                        current_attempts = row.attempts  # before incrementing
                         row.attempts += 1
                         row.last_error = str(exc)
                         row.next_attempt_at = datetime.now(UTC) + _next_attempt_delta(
-                            row.attempts
+                            current_attempts
                         )
                         if row.attempts >= _MAX_ATTEMPTS:
                             row.is_dead_lettered = True
@@ -117,43 +119,52 @@ async def _relay_outbox(
 async def _run_platform_relay() -> None:
     settings = get_settings()
     engine = create_async_engine(settings.database_url)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with factory() as session:
-        session.sync_session.info["is_platform"] = True
-        await _relay_outbox(
-            session, PlatformOutboxEvent, "platform", settings.rabbitmq_url, search_path="platform"
-        )
-    await engine.dispose()
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            session.sync_session.info["is_platform"] = True
+            await _relay_outbox(
+                session,
+                PlatformOutboxEvent,
+                "platform",
+                settings.rabbitmq_url,
+                search_path="platform",
+            )
+    finally:
+        await engine.dispose()
 
 
 async def _run_tenant_relay() -> None:
     settings = get_settings()
     engine = create_async_engine(settings.database_url)
-
-    # Get active tenant schemas from platform.tenants (table exists after platform_ module).
-    # For now, query safely and skip if table doesn't exist yet.
     try:
-        async with engine.connect() as conn:
-            result = await conn.execute(
-                text("SELECT schema_name, slug FROM platform.tenants WHERE is_active = true")
-            )
-            tenants = result.fetchall()
-    except Exception:
-        await engine.dispose()
-        return
-
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    for schema_name, slug in tenants:
+        # Get active tenant schemas from platform.tenants (table exists after platform_ module).
+        # For now, query safely and skip if table doesn't exist yet.
         try:
-            async with factory() as session:
-                await _relay_outbox(
-                    session, TenantOutboxEvent, slug, settings.rabbitmq_url,
-                    search_path=f"{schema_name}, platform",  # noqa: S608
+            async with engine.connect() as conn:
+                result = await conn.execute(
+                    text("SELECT schema_name, slug FROM platform.tenants WHERE is_active = true")
                 )
+                tenants = result.fetchall()
         except Exception as exc:
-            _log.error("outbox.tenant_relay_error", schema=schema_name, error=str(exc))
+            _log.warning("outbox.tenant_list_unavailable", error=str(exc))
+            return
 
-    await engine.dispose()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        for schema_name, slug in tenants:
+            if not _SCHEMA_RE.match(schema_name):
+                _log.error("outbox.invalid_schema", schema=schema_name)
+                continue
+            try:
+                async with factory() as session:
+                    await _relay_outbox(
+                        session, TenantOutboxEvent, slug, settings.rabbitmq_url,
+                        search_path=f"{schema_name}, platform",  # noqa: S608
+                    )
+            except Exception as exc:
+                _log.error("outbox.tenant_relay_error", schema=schema_name, error=str(exc))
+    finally:
+        await engine.dispose()
 
 
 @celery_app.task(name="app.core.outbox.worker.relay_platform_outbox")  # type: ignore[misc]
