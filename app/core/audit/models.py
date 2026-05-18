@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime  # noqa: TC003 (used at runtime by SQLAlchemy)
 from typing import Any
 
-from sqlalchemy import UUID, Index, Text
+from sqlalchemy import UUID, Index, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -32,6 +32,7 @@ class PlatformAuditLog(_AuditLogBase, Base):
     __tablename__ = "audit_log"
     __table_args__ = (
         Index("ix_platform_audit_log_table_record", "table_name", "record_id"),
+        Index("ix_platform_audit_log_occurred_at", text("occurred_at DESC")),
         {"schema": "platform"},
     )
 
@@ -40,4 +41,5 @@ class TenantAuditLog(_AuditLogBase, Base):
     __tablename__ = "audit_log"
     __table_args__ = (
         Index("ix_tenant_audit_log_table_record", "table_name", "record_id"),
+        Index("ix_tenant_audit_log_occurred_at", text("occurred_at DESC")),
     )

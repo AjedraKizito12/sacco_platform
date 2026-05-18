@@ -9,6 +9,7 @@ Version numbers do not correlate across chains.
 from __future__ import annotations
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -29,10 +30,11 @@ def upgrade() -> None:
         sa.Column("actor_type", sa.Text(), nullable=False),
         sa.Column("actor_id", sa.UUID(), nullable=True),
         sa.Column("actor_label", sa.Text(), nullable=True),
-        sa.Column("before_state", sa.JSON(), nullable=True),
-        sa.Column("after_state", sa.JSON(), nullable=True),
+        sa.Column("before_state", postgresql.JSONB(), nullable=True),
+        sa.Column("after_state", postgresql.JSONB(), nullable=True),
         sa.Column("occurred_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("request_id", sa.Text(), nullable=True),
+        sa.CheckConstraint("operation IN ('insert', 'update', 'delete')", name="ck_audit_log_operation"),
     )
     op.create_index("ix_tenant_audit_log_table_record", "audit_log", ["table_name", "record_id"])
     op.create_index("ix_tenant_audit_log_occurred_at", "audit_log", [sa.text("occurred_at DESC")])
@@ -43,7 +45,7 @@ def upgrade() -> None:
         sa.Column("aggregate_type", sa.Text(), nullable=False),
         sa.Column("aggregate_id", sa.UUID(), nullable=False),
         sa.Column("event_type", sa.Text(), nullable=False),
-        sa.Column("payload", sa.JSON(), nullable=False),
+        sa.Column("payload", postgresql.JSONB(), nullable=False),
         sa.Column("occurred_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("published_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("attempts", sa.Integer(), server_default="0", nullable=False),
@@ -70,14 +72,14 @@ def upgrade() -> None:
         "approval_requests",
         sa.Column("id", sa.UUID(), server_default=sa.text("gen_random_uuid()"), primary_key=True),
         sa.Column("operation_type", sa.Text(), nullable=False),
-        sa.Column("payload", sa.JSON(), nullable=False),
+        sa.Column("payload", postgresql.JSONB(), nullable=False),
         sa.Column("requested_by", sa.UUID(), nullable=False),
         sa.Column("requested_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("required_approvals", sa.Integer(), server_default="1", nullable=False),
         sa.Column("status", sa.Text(), server_default="pending", nullable=False),
         sa.Column("expires_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("executed_at", sa.TIMESTAMP(timezone=True), nullable=True),
-        sa.Column("execution_result", sa.JSON(), nullable=True),
+        sa.Column("execution_result", postgresql.JSONB(), nullable=True),
         sa.Column("rejection_reason", sa.Text(), nullable=True),
     )
 

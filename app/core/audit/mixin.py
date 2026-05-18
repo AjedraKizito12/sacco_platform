@@ -7,6 +7,7 @@ from typing import Any
 
 import structlog
 from sqlalchemy import event
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session, attributes
 
 
@@ -39,9 +40,16 @@ def _before_snapshot(mapper: Any, target: Any) -> dict[str, Any]:
 
 def _actor_context() -> dict[str, Any]:
     ctx = structlog.contextvars.get_contextvars()
+    raw_actor_id = ctx.get("actor_id")
+    try:
+        actor_id: uuid.UUID | None = (
+            uuid.UUID(str(raw_actor_id)) if raw_actor_id is not None else None
+        )
+    except ValueError:
+        actor_id = None
     return {
         "actor_type": ctx.get("actor_type", "system"),
-        "actor_id": ctx.get("actor_id"),
+        "actor_id": actor_id,
         "actor_label": ctx.get("actor_label"),
         "request_id": ctx.get("request_id"),
     }
@@ -68,10 +76,13 @@ def _write_audit(
         and any(isinstance(a, dict) and a.get("schema") == "platform" for a in table_args)
     )
 
+    identity = sa_inspect(target).identity
+    record_id = identity[0] if identity else None
+
     model_cls = PlatformAuditLog if is_platform else TenantAuditLog
     row = model_cls(
         table_name=target.__tablename__,
-        record_id=getattr(target, "id", None),
+        record_id=record_id,
         operation=operation,
         before_state=before_state,
         after_state=after_state,
