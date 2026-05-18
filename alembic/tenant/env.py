@@ -10,11 +10,12 @@ import os
 import re
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import create_engine, pool, text
 
 # Import Base so tenant model metadata is available.
 # (Add `from app.modules.<name>.models import *` as tenant models are created.)
+import app.core.audit.models  # noqa: F401 — registers audit tables in Base.metadata
+from alembic import context
 from app.core.db import Base
 
 config = context.config

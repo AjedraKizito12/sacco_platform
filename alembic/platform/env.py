@@ -8,12 +8,13 @@ import os
 import re
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import create_engine, pool, text
 
 # Import Base so platform model metadata is available.
 # (Initially empty; add `from app.modules.platform_.models import *` as
 # platform models are created.)
+import app.core.audit.models  # noqa: F401 — registers audit tables in Base.metadata
+from alembic import context
 from app.core.db import Base
 
 config = context.config
