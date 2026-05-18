@@ -1,10 +1,16 @@
-import asyncio
 import os
+from collections.abc import AsyncGenerator
 
 import pytest
 import structlog
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import NullPool
 
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://sacco:sacco@localhost:5432/sacco_test")
 os.environ.setdefault("APP_SECRET_KEY", "test-secret-key-not-used-in-production")
@@ -20,17 +26,17 @@ structlog.configure(
 
 
 @pytest.fixture(scope="session")
-def anyio_backend():
+def anyio_backend() -> str:
     return "asyncio"
 
 
 @pytest.fixture(scope="session")
-async def test_engine():
+async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     """One engine per test session. Schemas created once; dropped on teardown."""
     from app.core.db import Base  # noqa: F401 — triggers metadata registration
 
     url = os.environ["DATABASE_URL"]
-    engine = create_async_engine(url, echo=False)
+    engine = create_async_engine(url, echo=False, poolclass=NullPool)
 
     async with engine.begin() as conn:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS platform"))
@@ -44,18 +50,19 @@ async def test_engine():
 
     yield engine
 
-    async with engine.begin() as conn:
-        await conn.execute(text(f"DROP SCHEMA IF EXISTS {TEST_TENANT_SCHEMA} CASCADE"))
-        await conn.execute(text("DROP SCHEMA IF EXISTS platform CASCADE"))
-
-    await engine.dispose()
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(f"DROP SCHEMA IF EXISTS {TEST_TENANT_SCHEMA} CASCADE"))
+            await conn.execute(text("DROP SCHEMA IF EXISTS platform CASCADE"))
+    finally:
+        await engine.dispose()
 
 
 @pytest.fixture
-async def platform_session(test_engine) -> AsyncSession:
+async def platform_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     """Rolled-back platform session per test."""
     factory = async_sessionmaker(test_engine, expire_on_commit=False)
-    async with factory() as session:
+    async with factory() as session:  # noqa: SIM117
         async with session.begin():
             await session.execute(text("SET LOCAL search_path TO platform"))
             session.sync_session.info["is_platform"] = True
@@ -64,10 +71,10 @@ async def platform_session(test_engine) -> AsyncSession:
 
 
 @pytest.fixture
-async def tenant_session(test_engine) -> AsyncSession:
+async def tenant_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     """Rolled-back tenant session per test."""
     factory = async_sessionmaker(test_engine, expire_on_commit=False)
-    async with factory() as session:
+    async with factory() as session:  # noqa: SIM117
         async with session.begin():
             await session.execute(
                 text(f"SET LOCAL search_path TO {TEST_TENANT_SCHEMA}, platform")
