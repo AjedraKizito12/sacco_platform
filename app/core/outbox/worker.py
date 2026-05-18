@@ -5,6 +5,7 @@ publish to RabbitMQ with publisher confirms. At-least-once delivery.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -36,6 +37,7 @@ async def _relay_outbox(
     model_cls: type[Any],
     context: str,
     rabbitmq_url: str,
+    search_path: str = "platform",
 ) -> None:
     """Drain unpublished rows from one outbox table."""
     now = datetime.now(UTC)
@@ -52,6 +54,7 @@ async def _relay_outbox(
 
         while total_processed < _MAX_ROWS_PER_TICK and time.monotonic() < deadline:
             async with session.begin():
+                await session.execute(text(f"SET LOCAL search_path TO {search_path}"))  # noqa: S608
                 rows = (
                     await session.execute(
                         select(model_cls)
@@ -75,7 +78,7 @@ async def _relay_outbox(
                     routing_key = f"{context}.{row.aggregate_type}.{row.event_type}"
                     try:
                         msg = aio_pika.Message(
-                            body=str(row.payload).encode(),
+                            body=json.dumps(row.payload).encode(),
                             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
                             message_id=str(row.id),
                         )
@@ -116,9 +119,10 @@ async def _run_platform_relay() -> None:
     engine = create_async_engine(settings.database_url)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as session:
-        await session.execute(text("SET LOCAL search_path TO platform"))
         session.sync_session.info["is_platform"] = True
-        await _relay_outbox(session, PlatformOutboxEvent, "platform", settings.rabbitmq_url)
+        await _relay_outbox(
+            session, PlatformOutboxEvent, "platform", settings.rabbitmq_url, search_path="platform"
+        )
     await engine.dispose()
 
 
@@ -142,10 +146,10 @@ async def _run_tenant_relay() -> None:
     for schema_name, slug in tenants:
         try:
             async with factory() as session:
-                await session.execute(
-                    text(f"SET LOCAL search_path TO {schema_name}, platform")  # noqa: S608
+                await _relay_outbox(
+                    session, TenantOutboxEvent, slug, settings.rabbitmq_url,
+                    search_path=f"{schema_name}, platform",  # noqa: S608
                 )
-                await _relay_outbox(session, TenantOutboxEvent, slug, settings.rabbitmq_url)
         except Exception as exc:
             _log.error("outbox.tenant_relay_error", schema=schema_name, error=str(exc))
 
