@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from datetime import datetime  # noqa: TC003 (used at runtime by SQLAlchemy)
+from typing import Any
 
 from sqlalchemy import UUID, Index, Text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
-
-if TYPE_CHECKING:
-    from datetime import datetime
 
 
 class _AuditLogBase:
