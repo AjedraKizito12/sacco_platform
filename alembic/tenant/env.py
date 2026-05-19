@@ -30,10 +30,17 @@ target_metadata = Base.metadata
 _DATABASE_URL = os.environ["DATABASE_URL"]
 _SYNC_URL = re.sub(r"^postgresql\+asyncpg", "postgresql+psycopg2", _DATABASE_URL)
 
-_TENANT_SCHEMA = os.environ.get("TENANT_SCHEMA", "").strip()
+# Support programmatic invocation via config.attributes["tenant_schema"]
+# (preferred for the provisioning task) with fallback to env var (CLI usage).
+_TENANT_SCHEMA = (
+    context.config.attributes.get("tenant_schema")
+    or os.environ.get("TENANT_SCHEMA", "")
+).strip()
+
 if not _TENANT_SCHEMA:
     raise RuntimeError(
-        "TENANT_SCHEMA environment variable is required for tenant migrations. "
+        "TENANT_SCHEMA must be set — either via config.attributes['tenant_schema'] "
+        "(programmatic) or the TENANT_SCHEMA environment variable (CLI). "
         "Example: TENANT_SCHEMA=tenant_acme alembic -c alembic-tenant.ini upgrade head"
     )
 

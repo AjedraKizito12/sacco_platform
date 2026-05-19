@@ -10,6 +10,7 @@ celery_app = Celery(
     include=[
         "app.core.outbox.worker",
         "app.core.outbox.retention",
+        "app.platform_.provisioning.tasks",
     ],
 )
 
