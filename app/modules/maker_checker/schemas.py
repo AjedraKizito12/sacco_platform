@@ -1,12 +1,8 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Any
+import uuid
+from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
-
-if TYPE_CHECKING:
-    import uuid
-    from datetime import datetime
 
 
 class SubmitApprovalRequest(BaseModel):
