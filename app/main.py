@@ -49,6 +49,12 @@ _log = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
     app.state.redis = Redis.from_url(settings.redis_url, decode_responses=False)
+    # Refuse to boot stub auth in production.
+    if settings.app_env == "production" and settings.platform_auth_mode == "stub":
+        raise RuntimeError(
+            "Refusing to boot: PLATFORM_AUTH_MODE=stub is forbidden in production. "
+            "Set PLATFORM_AUTH_MODE to a non-stub value when IAM ships."
+        )
     _log.info("Startup complete", env=settings.app_env)
     yield
     await app.state.redis.aclose()
