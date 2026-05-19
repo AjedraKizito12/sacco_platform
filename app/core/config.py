@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # Outbox retention
     outbox_retention_days: int = 90
 
+    # Platform auth
+    platform_auth_mode: str = "stub"  # change to 'jwt' when IAM ships
+    platform_bootstrap_email: str = ""
+    platform_bootstrap_full_name: str = "Platform Admin"
+
 
 @lru_cache
 def get_settings() -> Settings:

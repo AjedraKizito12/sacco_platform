@@ -7,13 +7,14 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
-    async_sessionmaker,
     create_async_engine,
 )
 from sqlalchemy.pool import NullPool
 
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://sacco:sacco@localhost:5432/sacco_test")
 os.environ.setdefault("APP_SECRET_KEY", "test-secret-key-not-used-in-production")
+os.environ.setdefault("PLATFORM_BOOTSTRAP_EMAIL", "admin@test.example")
+os.environ.setdefault("PLATFORM_AUTH_MODE", "stub")
 
 TEST_TENANT_SCHEMA = "tenant_test"
 TEST_TENANT_SLUG = "test-tenant"
@@ -60,24 +61,44 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
 
 @pytest.fixture
 async def platform_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Rolled-back platform session per test."""
-    factory = async_sessionmaker(test_engine, expire_on_commit=False)
-    async with factory() as session:  # noqa: SIM117
-        async with session.begin():
-            await session.execute(text("SET LOCAL search_path TO platform"))
-            session.sync_session.info["is_platform"] = True
+    """Rolled-back platform session per test.
+
+    Binds the AsyncSession to a single connection whose outer transaction is
+    rolled back on teardown. This avoids the asyncpg protocol-state error that
+    occurs when session.flush() is called inside a long-lived
+    async with session.begin() context in pytest-asyncio ≥0.21 with a
+    session-scoped event loop.
+    """
+    async with test_engine.connect() as conn:
+        await conn.begin()
+        await conn.execute(text("SET LOCAL search_path TO platform"))
+        session = AsyncSession(bind=conn, expire_on_commit=False)
+        session.sync_session.info["is_platform"] = True
+        try:
             yield session
-            await session.rollback()
+        finally:
+            await session.close()
+            await conn.rollback()
 
 
 @pytest.fixture
 async def tenant_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Rolled-back tenant session per test."""
-    factory = async_sessionmaker(test_engine, expire_on_commit=False)
-    async with factory() as session:  # noqa: SIM117
-        async with session.begin():
-            await session.execute(
-                text(f"SET LOCAL search_path TO {TEST_TENANT_SCHEMA}, platform")
-            )
+    """Rolled-back tenant session per test.
+
+    Binds the AsyncSession to a single connection whose outer transaction is
+    rolled back on teardown. This avoids the asyncpg protocol-state error that
+    occurs when session.flush() is called inside a long-lived
+    async with session.begin() context in pytest-asyncio ≥0.21 with a
+    session-scoped event loop.
+    """
+    async with test_engine.connect() as conn:
+        await conn.begin()
+        await conn.execute(
+            text(f"SET LOCAL search_path TO {TEST_TENANT_SCHEMA}, platform")
+        )
+        session = AsyncSession(bind=conn, expire_on_commit=False)
+        try:
             yield session
-            await session.rollback()
+        finally:
+            await session.close()
+            await conn.rollback()
