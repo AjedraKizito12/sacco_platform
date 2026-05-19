@@ -13,6 +13,7 @@ from redis.asyncio import Redis
 
 from app.core.config import get_settings
 from app.core.db import engine
+from app.modules.maker_checker.api import router as maker_checker_router
 
 settings = get_settings()
 
@@ -74,6 +75,9 @@ async def request_id_middleware(request: Request, call_next: Any) -> Any:
     response.headers[settings.request_id_header] = request_id
     structlog.contextvars.clear_contextvars()
     return response
+
+
+app.include_router(maker_checker_router)
 
 
 @app.exception_handler(Exception)
