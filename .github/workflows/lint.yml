@@ -24,8 +24,11 @@ jobs:
       - name: Enforce outbox import boundary
         run: |
           # Fail if aio_pika / pika / kombu is imported outside app/core/outbox/
+          # app/main.py is excluded: it uses aio_pika only for the /readyz health check.
           if rg "import (pika|aio_pika|kombu)" --glob "**/*.py" \
-               --glob "!app/core/outbox/**" app/ tests/ 2>/dev/null; then
+               --glob "!app/core/outbox/**" \
+               --glob "!app/main.py" \
+               app/ tests/ 2>/dev/null; then
             echo "ERROR: Direct RabbitMQ client import detected outside app/core/outbox/"
             exit 1
           fi
