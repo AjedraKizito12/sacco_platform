@@ -68,3 +68,10 @@ Schema-per-tenant on PostgreSQL. Each tenant SACCO gets its own schema.
 - Direct RabbitMQ client usage is forbidden outside `app/core/outbox/`. All events go through `EventPublisher.publish()`.
 - All event consumers must check `processed_events` before acting. At-least-once delivery is the contract.
 - Approvable operations must be registered via `@approval_executor` and invoked through `ApprovalService`. Direct execution paths for approvable operations are forbidden.
+
+## Platform_ module contracts (do not violate)
+- Tenant provisioning is asynchronous. POST /platform/tenants returns 202 with a status_url. Clients poll GET /platform/tenants/{id}. Direct schema creation outside the provisioning workflow is forbidden.
+- Platform auth is a stub. get_current_platform_user validates X-Platform-Actor-ID against platform.platform_users but does NOT authenticate. Production deployment requires PLATFORM_AUTH_MODE != stub (enforced at startup).
+- Do not add password handling, login routes, or /me endpoints to platform_. Those belong in IAM.
+- Platform users acting inside a tenant context send both X-Platform-Actor-ID and X-Tenant-Slug. Audit records actor_type='platform_user' and actor_id=<platform_user.id> in the tenant audit_log.
+- run_tenant_migrations() in app/platform_/provisioning/migrations.py is the canonical way to run tenant Alembic migrations. Do not use subprocess or direct psycopg2 calls for this.

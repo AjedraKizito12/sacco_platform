@@ -14,6 +14,8 @@ from redis.asyncio import Redis
 from app.core.config import get_settings
 from app.core.db import engine
 from app.modules.maker_checker.api import router as maker_checker_router
+from app.platform_.tenants.api import router as platform_tenants_router
+from app.platform_.users.api import router as platform_users_router
 
 settings = get_settings()
 
@@ -84,6 +86,8 @@ async def request_id_middleware(request: Request, call_next: Any) -> Any:
 
 
 app.include_router(maker_checker_router)
+app.include_router(platform_tenants_router)
+app.include_router(platform_users_router)
 
 
 @app.exception_handler(Exception)
