@@ -7,7 +7,6 @@ from typing import Any
 
 import structlog
 from sqlalchemy import event
-from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session, attributes
 
 
@@ -55,7 +54,26 @@ def _actor_context() -> dict[str, Any]:
     }
 
 
+def _get_record_id(mapper: Any, target: Any) -> uuid.UUID | None:
+    """Return the primary-key UUID of *target*, reading directly from the
+    instance rather than the identity map so that Python-side defaults
+    (uuid.uuid4) are captured even before the mapper has registered the
+    identity (which can be None immediately after after_insert fires)."""
+    pk_attrs = [prop.key for prop in mapper.mapper.column_attrs
+                if any(c.primary_key for c in prop.columns)]
+    if not pk_attrs:
+        return None
+    raw = getattr(target, pk_attrs[0], None)
+    if raw is None:
+        return None
+    try:
+        return uuid.UUID(str(raw))
+    except (ValueError, AttributeError):
+        return None
+
+
 def _write_audit(
+    mapper: Any,
     target: Any,
     operation: str,
     before_state: dict[str, Any] | None,
@@ -76,8 +94,7 @@ def _write_audit(
         and any(isinstance(a, dict) and a.get("schema") == "platform" for a in table_args)
     )
 
-    identity = sa_inspect(target).identity
-    record_id = identity[0] if identity else None
+    record_id = _get_record_id(mapper, target)
 
     model_cls = PlatformAuditLog if is_platform else TenantAuditLog
     row = model_cls(
@@ -101,14 +118,14 @@ class AuditableMixin:
 
         @event.listens_for(cls, "after_insert")
         def after_insert(mapper: Any, connection: Any, target: Any) -> None:
-            _write_audit(target, "insert", None, _snapshot(mapper, target))
+            _write_audit(mapper, target, "insert", None, _snapshot(mapper, target))
 
         @event.listens_for(cls, "after_update")
         def after_update(mapper: Any, connection: Any, target: Any) -> None:
             before = _before_snapshot(mapper, target)
             after = _snapshot(mapper, target)
-            _write_audit(target, "update", before, after)
+            _write_audit(mapper, target, "update", before, after)
 
         @event.listens_for(cls, "after_delete")
         def after_delete(mapper: Any, connection: Any, target: Any) -> None:
-            _write_audit(target, "delete", _snapshot(mapper, target), None)
+            _write_audit(mapper, target, "delete", _snapshot(mapper, target), None)
