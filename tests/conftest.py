@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://sacco:sacco@localhost:5432/sacco_test")
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://sacco:sacco@localhost:5433/sacco_test")
 os.environ.setdefault("APP_SECRET_KEY", "test-secret-key-not-used-in-production")
 os.environ.setdefault("PLATFORM_BOOTSTRAP_EMAIL", "admin@test.example")
 os.environ.setdefault("PLATFORM_AUTH_MODE", "stub")
