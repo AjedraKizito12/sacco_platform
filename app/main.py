@@ -6,14 +6,16 @@ from typing import Any
 import aio_pika
 import structlog
 from elasticsearch import AsyncElasticsearch
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 
 from app.core.config import get_settings
 from app.core.db import engine
+from app.modules.iam.keys.api import jwks_router, key_mgmt_router
 from app.modules.maker_checker.api import router as maker_checker_router
+from app.platform_.auth import get_current_superuser
 from app.platform_.tenants.api import router as platform_tenants_router
 from app.platform_.users.api import router as platform_users_router
 
@@ -51,12 +53,19 @@ _log = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
     app.state.redis = Redis.from_url(settings.redis_url, decode_responses=False)
-    # Refuse to boot stub auth in production.
+
+    # Refuse stub auth in production.
     if settings.app_env == "production" and settings.platform_auth_mode == "stub":
         raise RuntimeError(
             "Refusing to boot: PLATFORM_AUTH_MODE=stub is forbidden in production. "
-            "Set PLATFORM_AUTH_MODE to a non-stub value when IAM ships."
+            "Set PLATFORM_AUTH_MODE=jwt when IAM ships."
         )
+
+    # Verify active signing keys exist when JWT auth is enabled.
+    if settings.platform_auth_mode == "jwt":
+        from app.modules.iam.keys.service import verify_boot_keys
+        await verify_boot_keys()
+
     _log.info("Startup complete", env=settings.app_env)
     yield
     await app.state.redis.aclose()
@@ -88,6 +97,11 @@ async def request_id_middleware(request: Request, call_next: Any) -> Any:
 app.include_router(maker_checker_router)
 app.include_router(platform_tenants_router)
 app.include_router(platform_users_router)
+app.include_router(jwks_router)
+app.include_router(
+    key_mgmt_router,
+    dependencies=[Depends(get_current_superuser)],
+)
 
 
 @app.exception_handler(Exception)
