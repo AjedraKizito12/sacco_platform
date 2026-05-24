@@ -9,15 +9,16 @@ Superuser-only (platform auth dependency):
 from __future__ import annotations
 
 import base64
+from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 
 from app.core.db import get_platform_session
 from app.modules.iam.keys.models import JwtSigningKey
-from app.modules.iam.keys.schemas import JwtKeyOut, JwkOut, JwksResponse
+from app.modules.iam.keys.schemas import JwkOut, JwksResponse, JwtKeyOut
 
 _log = structlog.get_logger(__name__)
 
@@ -27,14 +28,19 @@ jwks_router = APIRouter(tags=["jwks"])
 # Superuser admin endpoints.
 key_mgmt_router = APIRouter(prefix="/platform/jwt-keys", tags=["platform-jwt-keys"])
 
+PlatformSession = Annotated["AsyncSession", Depends(get_platform_session)]
+
 
 def _rsa_pem_to_jwk(kid: str, public_key_pem: str, algorithm: str) -> JwkOut:
     """Convert an RSA public key PEM to a JWK dict."""
+    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
     from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
-    key = load_pem_public_key(public_key_pem.encode())
-    numbers = key.public_key().public_numbers()  # type: ignore[attr-defined]
-    key_size_bytes = (key.key_size + 7) // 8  # type: ignore[attr-defined]
+    raw_key = load_pem_public_key(public_key_pem.encode())
+    if not isinstance(raw_key, RSAPublicKey):
+        raise ValueError(f"Expected RSA public key, got {type(raw_key).__name__}")
+    numbers = raw_key.public_numbers()
+    key_size_bytes = (raw_key.key_size + 7) // 8
 
     def _b64url(n: int, byte_length: int) -> str:
         return (
@@ -52,9 +58,7 @@ def _rsa_pem_to_jwk(kid: str, public_key_pem: str, algorithm: str) -> JwkOut:
 
 
 @jwks_router.get("/.well-known/jwks.json", response_model=JwksResponse)
-async def get_jwks(
-    session: AsyncSession = Depends(get_platform_session),
-) -> JwksResponse:
+async def get_jwks(session: PlatformSession) -> JwksResponse:
     """Return active and retiring public keys in JWK Set format.
 
     Public endpoint — no authentication required.
@@ -78,9 +82,7 @@ async def get_jwks(
 
 
 @key_mgmt_router.get("/", response_model=list[JwtKeyOut])
-async def list_jwt_keys(
-    session: AsyncSession = Depends(get_platform_session),
-) -> list[JwtKeyOut]:
+async def list_jwt_keys(session: PlatformSession) -> list[JwtKeyOut]:
     """List all non-deleted signing keys. Requires superuser.
 
     When ``PLATFORM_AUTH_MODE`` is flipped to ``jwt`` in plan 09, the

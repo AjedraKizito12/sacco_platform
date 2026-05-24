@@ -1,8 +1,8 @@
 """Pydantic schemas for JWT key management responses."""
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
+import uuid  # noqa: TC003 — used at runtime by Pydantic for field validation
+from datetime import datetime  # noqa: TC003 — used at runtime by Pydantic for field validation
 
 from pydantic import BaseModel
 

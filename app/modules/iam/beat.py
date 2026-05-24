@@ -8,15 +8,16 @@ worker pattern) to avoid connection-pool sharing across Celery processes.
 from __future__ import annotations
 
 import asyncio
-import structlog
 from datetime import UTC, datetime
+
+import structlog
 
 from app.workers.celery_app import celery_app
 
 _log = structlog.get_logger(__name__)
 
 
-async def _run_advance_lifecycle() -> dict:
+async def _run_advance_lifecycle() -> dict[str, int]:
     from sqlalchemy import text
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -90,12 +91,12 @@ async def _run_rotate_if_due() -> dict[str, list[str]]:
 
 
 @celery_app.task(name="app.modules.iam.beat.advance_key_lifecycle")  # type: ignore[misc]
-def advance_key_lifecycle() -> dict:
+def advance_key_lifecycle() -> dict[str, int]:
     """Hourly: advance retiring→retired; soft-delete aged retired keys."""
     return asyncio.run(_run_advance_lifecycle())
 
 
 @celery_app.task(name="app.modules.iam.beat.rotate_signing_keys_if_due")  # type: ignore[misc]
-def rotate_signing_keys_if_due() -> dict:
+def rotate_signing_keys_if_due() -> dict[str, list[str]]:
     """Daily: rotate the active key for each audience if it has exceeded JWT_KEY_ROTATION_DAYS."""
     return asyncio.run(_run_rotate_if_due())

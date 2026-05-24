@@ -62,7 +62,7 @@ def validate_kek(kek_b64: str) -> bytes:
     try:
         kek = base64.b64decode(kek_b64, validate=True)
     except Exception:
-        raise ValueError("JWT_KEK must be valid base64")
+        raise ValueError("JWT_KEK must be valid base64") from None
     if len(kek) != 32:
         raise ValueError(
             f"JWT_KEK must decode to exactly 32 bytes; got {len(kek)}"

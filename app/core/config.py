@@ -68,7 +68,7 @@ class Settings(BaseSettings):
         try:
             decoded = base64.b64decode(v, validate=True)
         except Exception:
-            raise ValueError("JWT_KEK must be valid base64")
+            raise ValueError("JWT_KEK must be valid base64") from None
         if len(decoded) != 32:
             raise ValueError(
                 f"JWT_KEK must decode to exactly 32 bytes; got {len(decoded)}"

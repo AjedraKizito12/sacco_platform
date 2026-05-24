@@ -49,7 +49,7 @@ def encode_access_token(
             an already-expired token.
     """
     now = datetime.now(UTC)
-    payload: dict = {
+    payload: dict[str, object] = {
         "sub": sub,
         "aud": audience,
         "iat": now,
@@ -58,12 +58,12 @@ def encode_access_token(
         "actor_type": actor_type,
         "session_id": session_id,
     }
-    return pyjwt.encode(
+    return str(pyjwt.encode(
         payload,
         private_key_pem,
         algorithm=algorithm,
         headers={"kid": kid},
-    )
+    ))
 
 
 def encode_refresh_token(
@@ -84,7 +84,7 @@ def encode_refresh_token(
     authorise resource access directly.
     """
     now = datetime.now(UTC)
-    payload: dict = {
+    payload: dict[str, object] = {
         "sub": sub,
         "aud": audience,
         "iat": now,
@@ -92,12 +92,12 @@ def encode_refresh_token(
         "jti": str(uuid.uuid4()),
         "session_id": session_id,
     }
-    return pyjwt.encode(
+    return str(pyjwt.encode(
         payload,
         private_key_pem,
         algorithm=algorithm,
         headers={"kid": kid},
-    )
+    ))
 
 
 def get_unverified_kid(token: str) -> str:
@@ -114,7 +114,7 @@ def get_unverified_kid(token: str) -> str:
     kid = header.get("kid")
     if not kid:
         raise ValueError("JWT header is missing required 'kid' field")
-    return kid
+    return str(kid)
 
 
 def decode_token(
@@ -123,7 +123,7 @@ def decode_token(
     audience: str,
     public_key_pem: bytes,
     algorithm: str,
-) -> dict:
+) -> dict[str, object]:
     """Verify and decode a JWT, returning the claims dict.
 
     Validates: signature, expiry (``exp``), and audience (``aud``).
@@ -135,7 +135,7 @@ def decode_token(
     mismatch, bad signature, or malformed token.
     """
     try:
-        claims: dict = pyjwt.decode(
+        claims: dict[str, object] = pyjwt.decode(
             token,
             public_key_pem,
             algorithms=[algorithm],

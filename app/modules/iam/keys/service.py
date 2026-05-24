@@ -13,11 +13,13 @@ from __future__ import annotations
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,  # noqa: TC002 — used at runtime in function signatures
+)
 
 from app.core.config import get_settings
 from app.modules.iam.keys.crypto import (
@@ -150,7 +152,7 @@ class KeyService:
         """
         cached = _active_key_cache.get(audience)
         if cached is not None:
-            return cached  # type: ignore[return-value]
+            return cast(tuple[str, bytes, str], cached)
 
         result = await self._session.execute(
             select(JwtSigningKey)
@@ -188,7 +190,7 @@ class KeyService:
         """
         cached = _verification_key_cache.get(kid)
         if cached is not None:
-            return cached  # type: ignore[return-value]
+            return cast(tuple[bytes, str, str], cached)
 
         result = await self._session.execute(
             select(JwtSigningKey).where(JwtSigningKey.kid == kid)
