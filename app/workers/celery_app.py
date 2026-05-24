@@ -48,5 +48,9 @@ celery_app.conf.update(
             "task": "app.modules.iam.beat.rotate_signing_keys_if_due",
             "schedule": 24 * 3600.0,  # daily
         },
+        "cleanup-iam-sessions": {
+            "task": "app.modules.iam.beat.cleanup_sessions",
+            "schedule": 24 * 3600.0,  # daily
+        },
     },
 )

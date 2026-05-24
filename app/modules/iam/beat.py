@@ -100,3 +100,68 @@ def advance_key_lifecycle() -> dict[str, int]:
 def rotate_signing_keys_if_due() -> dict[str, list[str]]:
     """Daily: rotate the active key for each audience if it has exceeded JWT_KEY_ROTATION_DAYS."""
     return asyncio.run(_run_rotate_if_due())
+
+
+async def _run_cleanup_sessions() -> dict[str, int]:
+    """Delete expired session rows for both platform and all active tenant schemas."""
+    import re
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.core.config import get_settings
+    from app.modules.iam.sessions.models import PlatformSession, TenantSession
+    from app.modules.iam.sessions.service import SessionService
+
+    _SCHEMA_RE = re.compile(r"^tenant_[a-z0-9_]{1,40}$")
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    totals: dict[str, int] = {"platform": 0, "tenant": 0}
+
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        # Platform sessions
+        async with factory() as session:
+            await session.execute(text("SET LOCAL search_path TO platform"))
+            svc = SessionService(db=session, model_cls=PlatformSession)
+            totals["platform"] = await svc.cleanup_expired()
+            await session.commit()
+
+        # Tenant sessions — iterate active tenant schemas
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text("SELECT schema_name FROM platform.tenants WHERE is_active = true")
+            )
+            tenant_schemas = [row[0] for row in result.fetchall()]
+
+        for schema_name in tenant_schemas:
+            if not _SCHEMA_RE.match(schema_name):
+                _log.error("iam.cleanup.invalid_schema", schema=schema_name)
+                continue
+            try:
+                async with factory() as session:
+                    await session.execute(
+                        text(f"SET LOCAL search_path TO {schema_name}, platform")  # noqa: S608
+                    )
+                    svc = SessionService(db=session, model_cls=TenantSession)
+                    deleted = await svc.cleanup_expired()
+                    await session.commit()
+                    totals["tenant"] += deleted
+            except Exception as exc:
+                _log.error(
+                    "iam.cleanup.tenant_error",
+                    schema=schema_name,
+                    error=str(exc),
+                )
+    finally:
+        await engine.dispose()
+
+    _log.info("iam.sessions.cleanup_complete", **totals)
+    return totals
+
+
+@celery_app.task(name="app.modules.iam.beat.cleanup_sessions")  # type: ignore[misc]
+def cleanup_sessions() -> dict[str, int]:
+    """Daily: delete expired session rows for platform and all tenant schemas."""
+    return asyncio.run(_run_cleanup_sessions())
