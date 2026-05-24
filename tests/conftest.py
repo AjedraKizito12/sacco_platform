@@ -1,3 +1,4 @@
+import base64
 import os
 from collections.abc import AsyncGenerator
 
@@ -15,6 +16,8 @@ os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://sacco:sacco@localhos
 os.environ.setdefault("APP_SECRET_KEY", "test-secret-key-not-used-in-production")
 os.environ.setdefault("PLATFORM_BOOTSTRAP_EMAIL", "admin@test.example")
 os.environ.setdefault("PLATFORM_AUTH_MODE", "stub")
+os.environ.setdefault("JWT_KEK", base64.b64encode(b"\x01" * 32).decode())
+os.environ.setdefault("TENANT_AUTH_MODE", "stub")
 
 TEST_TENANT_SCHEMA = "tenant_test"
 TEST_TENANT_SLUG = "test-tenant"
@@ -35,6 +38,7 @@ def anyio_backend() -> str:
 async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     """One engine per test session. Schemas created once; dropped on teardown."""
     from app.core.db import Base  # noqa: F401 — triggers metadata registration
+    import app.modules.iam.keys.models  # noqa: F401 — registers JwtSigningKey in Base.metadata
 
     url = os.environ["DATABASE_URL"]
     engine = create_async_engine(url, echo=False, poolclass=NullPool)
