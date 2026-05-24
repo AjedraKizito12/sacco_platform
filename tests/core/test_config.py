@@ -49,6 +49,8 @@ def test_jwt_kek_validator_rejects_wrong_length():
         Settings(
             database_url="postgresql+asyncpg://x:x@localhost/x",
             app_secret_key="x",
+            platform_auth_mode="stub",
+            tenant_auth_mode="stub",
             jwt_kek=base64.b64encode(b"tooshort").decode(),
         )
 
@@ -60,14 +62,21 @@ def test_jwt_kek_validator_rejects_bad_base64():
         Settings(
             database_url="postgresql+asyncpg://x:x@localhost/x",
             app_secret_key="x",
+            platform_auth_mode="stub",
+            tenant_auth_mode="stub",
             jwt_kek="!!!not-valid-base64!!!",
         )
 
 
 def test_jwt_kek_validator_accepts_empty_string():
+    """Field-level validator accepts empty string — model validator permits it
+    when auth modes are stub. Production enforcement is handled by the model
+    validator (test_model_validator_rejects_empty_kek_with_jwt_* tests above)."""
     s = Settings(
         database_url="postgresql+asyncpg://x:x@localhost/x",
         app_secret_key="x",
+        platform_auth_mode="stub",
+        tenant_auth_mode="stub",
         jwt_kek="",
     )
     assert s.jwt_kek == ""
@@ -83,10 +92,15 @@ def test_jwt_kek_validator_accepts_valid_32_byte_key():
     assert s.jwt_kek == kek
 
 
+_VALID_KEK = base64.b64encode(b"\x01" * 32).decode()
+_STUB_MODES = {"platform_auth_mode": "stub", "tenant_auth_mode": "stub"}
+
+
 def test_auth_password_min_length_defaults_to_12():
     s = Settings(
         database_url="postgresql+asyncpg://x:x@localhost/x",
         app_secret_key="x",
+        **_STUB_MODES,
     )
     assert s.auth_password_min_length == 12
 
@@ -95,6 +109,108 @@ def test_auth_password_min_length_is_configurable():
     s = Settings(
         database_url="postgresql+asyncpg://x:x@localhost/x",
         app_secret_key="x",
+        **_STUB_MODES,
         auth_password_min_length=16,
     )
     assert s.auth_password_min_length == 16
+
+
+def test_lockout_defaults():
+    s = Settings(
+        database_url="postgresql+asyncpg://x:x@localhost/x",
+        app_secret_key="x",
+        **_STUB_MODES,
+    )
+    assert s.auth_lockout_threshold == 5
+    assert s.auth_lockout_window_minutes == 15
+    assert s.auth_lockout_duration_minutes == 30
+
+
+def test_lockout_settings_are_configurable():
+    s = Settings(
+        database_url="postgresql+asyncpg://x:x@localhost/x",
+        app_secret_key="x",
+        **_STUB_MODES,
+        auth_lockout_threshold=3,
+        auth_lockout_window_minutes=10,
+        auth_lockout_duration_minutes=60,
+    )
+    assert s.auth_lockout_threshold == 3
+    assert s.auth_lockout_window_minutes == 10
+    assert s.auth_lockout_duration_minutes == 60
+
+
+def test_tenant_auth_mode_defaults_to_jwt():
+    """After Plan 12 the model-field default for TENANT_AUTH_MODE is 'jwt'.
+
+    We check the class-level default rather than instantiating Settings, because
+    conftest.py pre-seeds TENANT_AUTH_MODE=stub in os.environ (keeping the test
+    suite in stub mode) — pydantic-settings would resolve the env var first.
+    """
+    assert Settings.model_fields["tenant_auth_mode"].default == "jwt"
+
+
+def test_platform_auth_mode_defaults_to_jwt():
+    """After Plan 12 the model-field default for PLATFORM_AUTH_MODE is 'jwt'.
+
+    See test_tenant_auth_mode_defaults_to_jwt for why we check the class default.
+    """
+    assert Settings.model_fields["platform_auth_mode"].default == "jwt"
+
+
+def test_tenant_auth_mode_is_configurable():
+    s = Settings(
+        database_url="postgresql+asyncpg://x:x@localhost/x",
+        app_secret_key="x",
+        platform_auth_mode="stub",
+        tenant_auth_mode="stub",
+    )
+    assert s.tenant_auth_mode == "stub"
+
+
+def test_model_validator_rejects_empty_kek_with_jwt_platform_mode():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="JWT_KEK"):
+        Settings(
+            database_url="postgresql://x",
+            app_secret_key="y",
+            platform_auth_mode="jwt",
+            tenant_auth_mode="stub",
+            jwt_kek="",
+        )
+
+
+def test_model_validator_rejects_empty_kek_with_jwt_tenant_mode():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="JWT_KEK"):
+        Settings(
+            database_url="postgresql://x",
+            app_secret_key="y",
+            platform_auth_mode="stub",
+            tenant_auth_mode="jwt",
+            jwt_kek="",
+        )
+
+
+def test_model_validator_permits_empty_kek_in_full_stub_mode():
+    """Both modes stub → jwt_kek not required."""
+    s = Settings(
+        database_url="postgresql://x",
+        app_secret_key="y",
+        **_STUB_MODES,
+        jwt_kek="",
+    )
+    assert s.jwt_kek == ""
+
+
+def test_model_validator_accepts_valid_kek_with_jwt_modes():
+    s = Settings(
+        database_url="postgresql://x",
+        app_secret_key="y",
+        platform_auth_mode="jwt",
+        tenant_auth_mode="jwt",
+        jwt_kek=_VALID_KEK,
+    )
+    assert s.jwt_kek == _VALID_KEK

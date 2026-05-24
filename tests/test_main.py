@@ -42,3 +42,17 @@ async def test_request_id_generated_when_absent(client: AsyncClient) -> None:
 async def test_unknown_route_returns_404(client: AsyncClient) -> None:
     response = await client.get("/does-not-exist")
     assert response.status_code == 404
+
+
+def test_tenant_auth_mode_stub_in_test_env():
+    """Confirm test environment defaults to stub — existing tests are safe."""
+    from app.core.config import get_settings
+
+    assert get_settings().tenant_auth_mode == "stub"
+
+
+def test_platform_auth_mode_stub_in_test_env():
+    """Confirm test environment has platform auth mode as stub — existing tests are safe."""
+    from app.core.config import get_settings
+
+    assert get_settings().platform_auth_mode == "stub"

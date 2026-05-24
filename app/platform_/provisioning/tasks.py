@@ -31,11 +31,11 @@ _SCHEMA_RE = re.compile(r"^tenant_[a-z0-9_]{1,40}$")
 
 
 @celery_app.task(name="app.platform_.provisioning.tasks.provision_tenant")  # type: ignore[misc]
-def provision_tenant(tenant_id_str: str) -> None:
-    asyncio.run(_run_provision(uuid.UUID(tenant_id_str)))
+def provision_tenant(tenant_id_str: str, admin_email: str | None = None) -> None:
+    asyncio.run(_run_provision(uuid.UUID(tenant_id_str), admin_email=admin_email))
 
 
-async def _run_provision(tenant_id: uuid.UUID) -> None:
+async def _run_provision(tenant_id: uuid.UUID, admin_email: str | None = None) -> None:
     from app.core.config import get_settings
 
     settings = get_settings()
@@ -60,7 +60,7 @@ async def _run_provision(tenant_id: uuid.UUID) -> None:
                 return
 
             try:
-                await _execute_steps(engine, factory, tenant_id)
+                await _execute_steps(engine, factory, tenant_id, admin_email=admin_email)
             finally:
                 await lock_conn.execute(
                     text("SELECT pg_advisory_unlock(hashtext(:key))"),
@@ -74,6 +74,7 @@ async def _execute_steps(
     engine: Any,
     factory: async_sessionmaker[AsyncSession],
     tenant_id: uuid.UUID,
+    admin_email: str | None = None,
 ) -> None:
     tenant_data = await load_tenant(factory, tenant_id)
     if tenant_data is None:
@@ -110,7 +111,7 @@ async def _execute_steps(
                 run_migrations_step(schema_name)  # sync
 
             elif step_name == "seed_defaults":
-                await run_seed_defaults_step(engine, schema_name)
+                await run_seed_defaults_step(engine, schema_name, admin_email=admin_email)
 
             elif step_name == "finalize":
                 await run_finalize(

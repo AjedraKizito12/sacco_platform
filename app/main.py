@@ -14,6 +14,8 @@ from redis.asyncio import Redis
 from app.core.config import get_settings
 from app.core.db import engine
 from app.modules.iam.keys.api import jwks_router, key_mgmt_router
+from app.modules.iam.platform_auth.api import router as platform_auth_router
+from app.modules.iam.tenant_auth.api import router as tenant_auth_router
 from app.modules.maker_checker.api import router as maker_checker_router
 from app.platform_.auth import get_current_superuser
 from app.platform_.tenants.api import router as platform_tenants_router
@@ -60,9 +62,14 @@ async def lifespan(app: FastAPI) -> Any:
             "Refusing to boot: PLATFORM_AUTH_MODE=stub is forbidden in production. "
             "Set PLATFORM_AUTH_MODE=jwt when IAM ships."
         )
+    if settings.app_env == "production" and settings.tenant_auth_mode == "stub":
+        raise RuntimeError(
+            "Refusing to boot: TENANT_AUTH_MODE=stub is forbidden in production. "
+            "Set TENANT_AUTH_MODE=jwt when IAM ships."
+        )
 
     # Verify active signing keys exist when JWT auth is enabled.
-    if settings.platform_auth_mode == "jwt":
+    if settings.platform_auth_mode == "jwt" or settings.tenant_auth_mode == "jwt":
         from app.modules.iam.keys.service import verify_boot_keys
         await verify_boot_keys()
 
@@ -95,6 +102,8 @@ async def request_id_middleware(request: Request, call_next: Any) -> Any:
 
 
 app.include_router(maker_checker_router)
+app.include_router(platform_auth_router)
+app.include_router(tenant_auth_router)
 app.include_router(platform_tenants_router)
 app.include_router(platform_users_router)
 app.include_router(jwks_router)

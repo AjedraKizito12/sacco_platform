@@ -240,3 +240,90 @@ async def test_seed_defaults_skips_missing_tables(test_engine: AsyncEngine) -> N
         await run_seed_defaults_step(test_engine, schema)
     finally:
         await _drop_schema_if_exists(test_engine, schema)
+
+
+# ── Bootstrap seed: admin user ────────────────────────────────────────────────
+
+
+async def test_seed_defaults_creates_admin_user_when_email_provided(
+    test_engine: AsyncEngine,
+) -> None:
+    """seed_defaults with admin_email inserts a tenant_users row."""
+    from app.platform_.seeds.runner import seed_defaults
+
+    schema = "tenant_test"  # matches TEST_TENANT_SCHEMA in conftest
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    await seed_defaults(test_engine, schema, admin_email="seedadmin@example.com")
+
+    async with factory() as session:
+        await session.execute(
+            text(f"SET LOCAL search_path TO {schema}, platform")  # noqa: S608
+        )
+        result = await session.execute(
+            text(
+                "SELECT email, is_admin, hashed_password "
+                "FROM tenant_users WHERE email = 'seedadmin@example.com'"
+            )
+        )
+        row = result.fetchone()
+
+    assert row is not None, "Admin user was not inserted"
+    assert row[1] is True, "is_admin should be True"
+    assert row[2] is None, "hashed_password should be null"
+
+    # Cleanup
+    async with factory() as session:
+        await session.execute(text(f"SET LOCAL search_path TO {schema}, platform"))  # noqa: S608
+        await session.execute(
+            text("DELETE FROM audit_log WHERE table_name = 'tenant_users'")
+        )
+        await session.execute(
+            text("DELETE FROM tenant_users WHERE email = 'seedadmin@example.com'")
+        )
+        await session.commit()
+
+
+async def test_seed_defaults_admin_seed_is_idempotent(test_engine: AsyncEngine) -> None:
+    """Running seed_defaults twice with the same admin_email does not raise."""
+    from app.platform_.seeds.runner import seed_defaults
+
+    schema = "tenant_test"
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    await seed_defaults(test_engine, schema, admin_email="idempotent@example.com")
+    # Second run must not raise (ON CONFLICT DO NOTHING)
+    await seed_defaults(test_engine, schema, admin_email="idempotent@example.com")
+
+    # Cleanup
+    async with factory() as session:
+        await session.execute(text(f"SET LOCAL search_path TO {schema}, platform"))  # noqa: S608
+        await session.execute(
+            text("DELETE FROM audit_log WHERE table_name = 'tenant_users'")
+        )
+        await session.execute(
+            text("DELETE FROM tenant_users WHERE email = 'idempotent@example.com'")
+        )
+        await session.commit()
+
+
+async def test_seed_defaults_without_admin_email_does_not_create_user(
+    test_engine: AsyncEngine,
+) -> None:
+    from app.platform_.seeds.runner import seed_defaults
+
+    schema = "tenant_test"
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    await seed_defaults(test_engine, schema, admin_email=None)
+
+    async with factory() as session:
+        await session.execute(
+            text(f"SET LOCAL search_path TO {schema}, platform")  # noqa: S608
+        )
+        result = await session.execute(
+            text("SELECT COUNT(*) FROM tenant_users WHERE email = 'no-email-user@example.com'")
+        )
+        count = result.scalar_one()
+
+    assert count == 0

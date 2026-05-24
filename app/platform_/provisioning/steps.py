@@ -72,9 +72,13 @@ def run_migrations_step(schema_name: str) -> None:
     _log.info("provision.migrations_done", schema=schema_name)
 
 
-async def run_seed_defaults_step(engine: AsyncEngine, schema_name: str) -> None:
+async def run_seed_defaults_step(
+    engine: AsyncEngine,
+    schema_name: str,
+    admin_email: str | None = None,
+) -> None:
     """Step 3: seed default data. All inserts are ON CONFLICT DO NOTHING."""
-    await seed_defaults(engine, schema_name)
+    await seed_defaults(engine, schema_name, admin_email=admin_email)
     _log.info("provision.seed_done", schema=schema_name)
 
 

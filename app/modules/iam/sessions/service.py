@@ -22,7 +22,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import structlog
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 
 from app.modules.iam.sessions.models import PlatformSession, TenantSession
@@ -180,6 +180,15 @@ class SessionService:
                 deleted=count,
             )
         return count
+
+    async def update_last_used(self, session_id: uuid.UUID) -> None:
+        """Update the ``last_used_at`` timestamp on a session row."""
+        now = datetime.now(UTC)
+        await self._db.execute(
+            update(self._model)
+            .where(self._model.id == session_id)
+            .values(last_used_at=now)
+        )
 
     async def is_jti_valid(self, jti: str) -> bool:
         """Return ``True`` if the refresh token JTI is still valid.

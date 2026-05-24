@@ -142,6 +142,7 @@ def test_refresh_token_omits_actor_type_claim(rsa_keypair):
         sub=str(uuid.uuid4()),
         audience="platform",
         session_id=str(uuid.uuid4()),
+        jti=str(uuid.uuid4()),
         kid=kid,
         private_key_pem=private_pem,
         algorithm="RS256",

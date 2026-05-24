@@ -43,7 +43,7 @@ async def create_tenant(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     await session.commit()
 
-    provision_tenant.delay(str(tenant.id))
+    provision_tenant.delay(str(tenant.id), body.admin_email)
 
     return TenantCreateResponse(
         tenant=TenantOut.model_validate(tenant),

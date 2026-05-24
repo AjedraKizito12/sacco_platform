@@ -2,7 +2,7 @@ import re
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 _SLUG_RE = re.compile(r"^[a-z0-9-]{1,40}$")
 
@@ -13,6 +13,13 @@ class CreateTenantRequest(BaseModel):
         description="URL-safe slug, lowercase letters/digits/hyphens, max 40 chars",
     )
     name: str = Field(..., min_length=1, max_length=200)
+    admin_email: EmailStr | None = Field(
+        None,
+        description=(
+            "If provided, seeds an initial admin user in the tenant. "
+            "The user must set their password via the reset flow."
+        ),
+    )
 
     @field_validator("slug")
     @classmethod

@@ -1,7 +1,7 @@
 import base64
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,12 +46,12 @@ class Settings(BaseSettings):
     outbox_retention_days: int = 90
 
     # Platform auth
-    platform_auth_mode: str = "stub"  # "stub" | "jwt"
+    platform_auth_mode: str = "jwt"  # "stub" | "jwt" — stub requires explicit opt-in
     platform_bootstrap_email: str = ""
     platform_bootstrap_full_name: str = "Platform Admin"
 
     # Tenant auth
-    tenant_auth_mode: str = "stub"  # "stub" | "jwt"
+    tenant_auth_mode: str = "jwt"  # "stub" | "jwt" — stub requires explicit opt-in
 
     # JWT signing key infrastructure
     jwt_kek: str = ""  # base64-encoded 32-byte key-encryption-key; required when auth_mode=jwt
@@ -63,11 +63,16 @@ class Settings(BaseSettings):
     # Password policy
     auth_password_min_length: int = 12  # characters; no complexity rules in v1
 
+    # Lockout policy
+    auth_lockout_threshold: int = 5          # failed attempts before lockout
+    auth_lockout_window_minutes: int = 15    # sliding window for counting attempts
+    auth_lockout_duration_minutes: int = 30  # how long the account stays locked
+
     @field_validator("jwt_kek")
     @classmethod
     def validate_jwt_kek(cls, v: str) -> str:
         if not v:
-            return v  # empty is permitted; lifespan rejects the jwt+empty combination at boot
+            return v  # empty is permitted at field level; model validator enforces presence
         try:
             decoded = base64.b64decode(v, validate=True)
         except Exception:
@@ -77,6 +82,27 @@ class Settings(BaseSettings):
                 f"JWT_KEK must decode to exactly 32 bytes; got {len(decoded)}"
             )
         return v
+
+    @model_validator(mode="after")
+    def validate_kek_required_for_jwt_mode(self) -> "Settings":
+        """Require a non-empty JWT_KEK whenever either auth mode is 'jwt'.
+
+        The field-level validator (validate_jwt_kek) already enforces that if
+        jwt_kek is non-empty it must be valid base64 of exactly 32 bytes. This
+        model-level validator enforces that it is non-empty when needed.
+
+        Generate a key:
+            python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"
+        """
+        if (
+            self.platform_auth_mode == "jwt" or self.tenant_auth_mode == "jwt"
+        ) and not self.jwt_kek:
+            raise ValueError(
+                "JWT_KEK must be set when PLATFORM_AUTH_MODE or TENANT_AUTH_MODE is 'jwt'. "
+                "Generate with: "
+                "python -c \"import os,base64; print(base64.b64encode(os.urandom(32)).decode())\""
+            )
+        return self
 
 
 @lru_cache
