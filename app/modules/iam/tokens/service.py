@@ -1,0 +1,160 @@
+"""JWT encode/decode using PyJWT (RS256 or EdDSA).
+
+Token claims:
+    sub         — subject (user UUID string)
+    aud         — audience: "platform" or "tenant:<slug>"
+    iat         — issued-at (UTC epoch seconds; set automatically by PyJWT)
+    exp         — expiry (UTC epoch seconds)
+    jti         — unique token ID (UUID4 string); used for refresh-token revocation
+    kid         — key ID placed in the JWT *header* (not payload); used to select the key
+    actor_type  — "platform_user" or "tenant_user" (access tokens only)
+    session_id  — server-side session row UUID (both access and refresh tokens)
+
+Refresh tokens omit ``actor_type`` — they are only used to issue new access tokens,
+not to authorise resource access.
+"""
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime, timedelta
+
+import jwt as pyjwt
+import structlog
+
+_log = structlog.get_logger(__name__)
+
+
+def encode_access_token(
+    *,
+    sub: str,
+    audience: str,
+    session_id: str,
+    actor_type: str,
+    kid: str,
+    private_key_pem: bytes,
+    algorithm: str,
+    ttl_seconds: int,
+) -> str:
+    """Issue a signed access token.
+
+    Args:
+        sub: Subject (user UUID as string).
+        audience: JWT ``aud`` claim — "platform" or "tenant:<slug>".
+        session_id: Server-side session UUID; used to revoke on logout.
+        actor_type: "platform_user" or "tenant_user".
+        kid: Key ID placed in the JWT header for key selection by verifiers.
+        private_key_pem: PKCS8 PEM bytes of the RS256 or EdDSA private key.
+        algorithm: "RS256" or "EdDSA".
+        ttl_seconds: Token lifetime. Pass a negative value in tests to produce
+            an already-expired token.
+    """
+    now = datetime.now(UTC)
+    payload: dict = {
+        "sub": sub,
+        "aud": audience,
+        "iat": now,
+        "exp": now + timedelta(seconds=ttl_seconds),
+        "jti": str(uuid.uuid4()),
+        "actor_type": actor_type,
+        "session_id": session_id,
+    }
+    return pyjwt.encode(
+        payload,
+        private_key_pem,
+        algorithm=algorithm,
+        headers={"kid": kid},
+    )
+
+
+def encode_refresh_token(
+    *,
+    sub: str,
+    audience: str,
+    session_id: str,
+    kid: str,
+    private_key_pem: bytes,
+    algorithm: str,
+    ttl_seconds: int,
+) -> str:
+    """Issue a signed refresh token.
+
+    Refresh tokens are minimal — they carry ``sub``, ``aud``, ``iat``, ``exp``,
+    ``jti``, and ``session_id``. They deliberately omit ``actor_type`` and other
+    identity claims: they are only used to obtain new access tokens, not to
+    authorise resource access directly.
+    """
+    now = datetime.now(UTC)
+    payload: dict = {
+        "sub": sub,
+        "aud": audience,
+        "iat": now,
+        "exp": now + timedelta(seconds=ttl_seconds),
+        "jti": str(uuid.uuid4()),
+        "session_id": session_id,
+    }
+    return pyjwt.encode(
+        payload,
+        private_key_pem,
+        algorithm=algorithm,
+        headers={"kid": kid},
+    )
+
+
+def get_unverified_kid(token: str) -> str:
+    """Extract the ``kid`` from the JWT header without verifying the signature.
+
+    Called before ``decode_token`` to select the correct public key.
+
+    Raises ``ValueError`` if the token is malformed or has no ``kid`` header.
+    """
+    try:
+        header = pyjwt.get_unverified_header(token)
+    except pyjwt.exceptions.DecodeError as exc:
+        raise ValueError(f"Malformed JWT header: {exc}") from exc
+    kid = header.get("kid")
+    if not kid:
+        raise ValueError("JWT header is missing required 'kid' field")
+    return kid
+
+
+def decode_token(
+    token: str,
+    *,
+    audience: str,
+    public_key_pem: bytes,
+    algorithm: str,
+) -> dict:
+    """Verify and decode a JWT, returning the claims dict.
+
+    Validates: signature, expiry (``exp``), and audience (``aud``).
+
+    Also adds ``kid`` from the header into the returned claims dict so callers
+    do not need a second header parse.
+
+    Raises ``ValueError`` for any validation failure — expired token, audience
+    mismatch, bad signature, or malformed token.
+    """
+    try:
+        claims: dict = pyjwt.decode(
+            token,
+            public_key_pem,
+            algorithms=[algorithm],
+            audience=audience,
+        )
+    except pyjwt.exceptions.ExpiredSignatureError as exc:
+        raise ValueError("Token has expired") from exc
+    except pyjwt.exceptions.InvalidAudienceError as exc:
+        raise ValueError(f"Audience mismatch: expected '{audience}'") from exc
+    except pyjwt.exceptions.DecodeError as exc:
+        raise ValueError(f"Token decode failed: {exc}") from exc
+    except pyjwt.exceptions.PyJWTError as exc:
+        raise ValueError(f"JWT validation failed: {exc}") from exc
+
+    # Propagate kid from the header into the claims dict.
+    try:
+        header = pyjwt.get_unverified_header(token)
+        claims["kid"] = header.get("kid", "")
+    except pyjwt.exceptions.DecodeError:
+        pass  # already validated above; this re-read is best-effort
+
+    return claims
