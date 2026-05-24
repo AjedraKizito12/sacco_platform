@@ -43,6 +43,7 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     import app.modules.iam.tenant_users.models  # noqa: F401 — registers TenantUser in Base.metadata
     import app.modules.ledger.models  # noqa: F401 — registers ledger tables in Base.metadata
     import app.modules.members.models  # noqa: F401 — registers members table in Base.metadata
+    import app.modules.shares.models  # noqa: F401 — registers shares tables in Base.metadata
 
     url = os.environ["DATABASE_URL"]
     engine = create_async_engine(url, echo=False, poolclass=NullPool)
