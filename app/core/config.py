@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     jwt_refresh_ttl_platform_seconds: int = 3600  # 1 h
     jwt_refresh_ttl_tenant_seconds: int = 28800   # 8 h
 
+    # Password policy
+    auth_password_min_length: int = 12  # characters; no complexity rules in v1
+
     @field_validator("jwt_kek")
     @classmethod
     def validate_jwt_kek(cls, v: str) -> str:

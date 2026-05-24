@@ -81,3 +81,20 @@ def test_jwt_kek_validator_accepts_valid_32_byte_key():
         jwt_kek=kek,
     )
     assert s.jwt_kek == kek
+
+
+def test_auth_password_min_length_defaults_to_12():
+    s = Settings(
+        database_url="postgresql+asyncpg://x:x@localhost/x",
+        app_secret_key="x",
+    )
+    assert s.auth_password_min_length == 12
+
+
+def test_auth_password_min_length_is_configurable():
+    s = Settings(
+        database_url="postgresql+asyncpg://x:x@localhost/x",
+        app_secret_key="x",
+        auth_password_min_length=16,
+    )
+    assert s.auth_password_min_length == 16
