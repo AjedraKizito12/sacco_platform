@@ -9,6 +9,13 @@ Usage:
 import os
 import re
 from logging.config import fileConfig
+from pathlib import Path
+
+# Load .env so DATABASE_URL is available when invoked from Celery or CLI.
+_env_file = Path(__file__).parents[2] / ".env"
+if _env_file.exists():
+    from dotenv import load_dotenv
+    load_dotenv(_env_file, override=False)
 
 from sqlalchemy import create_engine, pool, text
 
@@ -59,8 +66,6 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        # _TENANT_SCHEMA is validated above — safe to interpolate.
-        connection.execute(text(f"SET search_path TO {_TENANT_SCHEMA}"))  # noqa: S608
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
@@ -68,6 +73,12 @@ def run_migrations_online() -> None:
             version_table="alembic_version",
         )
         with context.begin_transaction():
+            # SET search_path inside the migration transaction — it's a session-level
+            # statement so it persists for the connection, but running it here avoids
+            # triggering SA 2.0 autobegin before begin_transaction(), which would
+            # demote begin_transaction() to a SAVEPOINT that never commits.
+            # _TENANT_SCHEMA is validated above — safe to interpolate.
+            connection.execute(text(f"SET search_path TO {_TENANT_SCHEMA}"))  # noqa: S608
             context.run_migrations()
 
 
