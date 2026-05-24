@@ -16,7 +16,7 @@ from app.modules.members.models import Member
 from app.modules.members.service import MemberService
 from app.modules.maker_checker.models.tenant import TenantApprovalRequest, TenantApprovalAction
 from app.modules.maker_checker.service import ApprovalService
-# import app.modules.members.executors  # noqa: F401 — registers members executor (added in Task 5)
+import app.modules.members.executors  # noqa: F401 — registers members executor (added in Task 5)
 
 TEST_TENANT_SCHEMA = "tenant_test"
 
@@ -185,3 +185,110 @@ async def test_get_member_not_found_raises(test_engine):
             await svc.get_member(uuid.uuid4())
     finally:
         await session.close()
+
+
+# ── Maker-Checker Status Change ───────────────────────────────────────────────
+
+
+async def test_submit_invalid_status_transition_raises(test_engine):
+    """'exited' is a terminal state; transitioning from it raises ValueError."""
+    session = await _new_session(test_engine)
+    try:
+        svc = MemberService(session)
+        member = await svc.register_member(**_member_kwargs())
+        member.status = "exited"
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = MemberService(session2)
+        with pytest.raises(ValueError, match="Cannot transition"):
+            await svc2.submit_status_change(
+                member_id=member.id,
+                new_status="active",
+                submitted_by=uuid.uuid4(),
+                idempotency_key="idem-bad-transition",
+            )
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+async def test_submit_status_change_creates_pending_approval(test_engine):
+    session = await _new_session(test_engine)
+    try:
+        svc = MemberService(session)
+        member = await svc.register_member(**_member_kwargs())
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = MemberService(session2)
+        approval_id = await svc2.submit_status_change(
+            member_id=member.id,
+            new_status="active",
+            submitted_by=uuid.uuid4(),
+            idempotency_key="idem-status-001",
+        )
+        await session2.commit()
+
+        assert isinstance(approval_id, uuid.UUID)
+    finally:
+        await session2.close()
+        await _cleanup_approvals(test_engine)
+        await _cleanup(test_engine)
+
+
+async def test_executor_activates_member_and_sets_joined_at(test_engine):
+    """Full maker-checker flow: register → submit activation → approve → verify active."""
+    maker_id = uuid.uuid4()
+    checker_id = uuid.uuid4()
+
+    # Register
+    session = await _new_session(test_engine)
+    try:
+        svc = MemberService(session)
+        member = await svc.register_member(**_member_kwargs(created_by=maker_id))
+        await session.commit()
+        member_id = member.id
+    finally:
+        await session.close()
+
+    # Submit status change
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = MemberService(session2)
+        approval_id = await svc2.submit_status_change(
+            member_id=member_id,
+            new_status="active",
+            submitted_by=maker_id,
+            idempotency_key="idem-activate-001",
+        )
+        await session2.commit()
+    finally:
+        await session2.close()
+
+    # Approve (triggers executor which applies the status change)
+    session3 = await _new_session(test_engine)
+    try:
+        approval_svc = ApprovalService(session3)
+        await approval_svc.approve(request_id=approval_id, actor_user_id=checker_id)
+        await session3.commit()
+    finally:
+        await session3.close()
+
+    # Verify
+    session4 = await _new_session(test_engine)
+    try:
+        svc4 = MemberService(session4)
+        updated = await svc4.get_member(member_id)
+        assert updated.status == "active"
+        assert updated.joined_at is not None
+    finally:
+        await session4.close()
+        await _cleanup_approvals(test_engine)
+        await _cleanup(test_engine)
