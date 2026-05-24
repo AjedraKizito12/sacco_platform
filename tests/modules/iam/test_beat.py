@@ -21,3 +21,10 @@ def test_rotate_signing_keys_if_due_is_registered_celery_task():
     from app.workers.celery_app import celery_app
 
     assert "app.modules.iam.beat.rotate_signing_keys_if_due" in celery_app.tasks
+
+
+def test_cleanup_sessions_is_registered_celery_task():
+    from app.modules.iam.beat import cleanup_sessions
+    from app.workers.celery_app import celery_app
+
+    assert "app.modules.iam.beat.cleanup_sessions" in celery_app.tasks
