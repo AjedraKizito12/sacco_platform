@@ -29,6 +29,22 @@ services:
       timeout: 5s
       retries: 10
 
+  postgres-test:
+    image: postgres:16
+    restart: unless-stopped
+    networks: [sacco_net]
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: sacco
+      POSTGRES_PASSWORD: sacco
+      POSTGRES_DB: sacco_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sacco -d sacco_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   redis:
     image: redis:7
     restart: unless-stopped

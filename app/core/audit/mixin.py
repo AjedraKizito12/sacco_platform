@@ -17,6 +17,8 @@ def _serialize(val: Any) -> Any:
         return val.isoformat()
     if isinstance(val, Decimal):
         return str(val)
+    if isinstance(val, bytes):
+        return val.hex()
     return val
 
 
