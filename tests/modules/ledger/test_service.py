@@ -6,6 +6,7 @@ to avoid asyncpg protocol-state errors with flush() in session-scoped event loop
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import delete, text
@@ -153,3 +154,163 @@ async def test_get_account_not_found_raises(test_engine):
             await svc.get_account(uuid.uuid4())
     finally:
         await session.close()
+
+
+# ── Journal Posting ───────────────────────────────────────────────────────────
+
+
+async def _create_accounts(engine: AsyncEngine) -> tuple[uuid.UUID, uuid.UUID]:
+    """Helper: create asset + liability account, return (asset_id, liability_id)."""
+    session = await _new_session(engine)
+    try:
+        svc = LedgerService(session)
+        actor = uuid.uuid4()
+        asset = await svc.create_account(code="1100", name="Cash", account_type="asset", created_by=actor)
+        liab = await svc.create_account(code="3100", name="Equity Capital", account_type="liability", created_by=actor)
+        await session.commit()
+        return asset.id, liab.id
+    finally:
+        await session.close()
+
+
+async def test_post_journal_entry_balanced(test_engine):
+    asset_id, liab_id = await _create_accounts(test_engine)
+    session = await _new_session(test_engine)
+    try:
+        svc = LedgerService(session)
+        entry = await svc.post_journal_entry(
+            reference="TEST-001",
+            description="Initial capital injection",
+            posted_by=uuid.uuid4(),
+            idempotency_key="idem-test-001",
+            lines=[
+                {"account_id": asset_id, "debit_amount": Decimal("1000.00"), "credit_amount": Decimal("0")},
+                {"account_id": liab_id, "debit_amount": Decimal("0"), "credit_amount": Decimal("1000.00")},
+            ],
+        )
+        await session.commit()
+
+        assert entry.id is not None
+        assert len(entry.lines) == 2
+        total_debit = sum(ln.debit_amount for ln in entry.lines)
+        total_credit = sum(ln.credit_amount for ln in entry.lines)
+        assert total_debit == total_credit == Decimal("1000.00")
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_post_journal_entry_unbalanced_raises(test_engine):
+    asset_id, liab_id = await _create_accounts(test_engine)
+    session = await _new_session(test_engine)
+    try:
+        svc = LedgerService(session)
+        with pytest.raises(ValueError, match="balanced"):
+            await svc.post_journal_entry(
+                reference="TEST-UNBAL",
+                description="Unbalanced entry",
+                posted_by=uuid.uuid4(),
+                idempotency_key="idem-unbal",
+                lines=[
+                    {"account_id": asset_id, "debit_amount": Decimal("1000.00"), "credit_amount": Decimal("0")},
+                    {"account_id": liab_id, "debit_amount": Decimal("0"), "credit_amount": Decimal("500.00")},
+                ],
+            )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_post_journal_entry_idempotency(test_engine):
+    asset_id, liab_id = await _create_accounts(test_engine)
+
+    async def _post(idem_key: str):
+        session = await _new_session(test_engine)
+        try:
+            svc = LedgerService(session)
+            entry = await svc.post_journal_entry(
+                reference="TEST-IDEM",
+                description="Capital",
+                posted_by=uuid.uuid4(),
+                idempotency_key=idem_key,
+                lines=[
+                    {"account_id": asset_id, "debit_amount": Decimal("500.00"), "credit_amount": Decimal("0")},
+                    {"account_id": liab_id, "debit_amount": Decimal("0"), "credit_amount": Decimal("500.00")},
+                ],
+            )
+            await session.commit()
+            return entry
+        finally:
+            await session.close()
+
+    try:
+        e1 = await _post("idem-duplicate")
+        e2 = await _post("idem-duplicate")
+        assert e1.id == e2.id  # Same entry returned, not duplicated
+    finally:
+        await _cleanup(test_engine)
+
+
+# ── Balance Derivation ────────────────────────────────────────────────────────
+
+
+async def test_get_account_balance_asset_debit_normal(test_engine):
+    """Asset accounts: balance = SUM(debit) - SUM(credit) — positive when debited."""
+    asset_id, liab_id = await _create_accounts(test_engine)
+    session = await _new_session(test_engine)
+    try:
+        svc = LedgerService(session)
+        await svc.post_journal_entry(
+            reference="BAL-001",
+            description="Debit asset 1000",
+            posted_by=uuid.uuid4(),
+            idempotency_key="bal-idem-001",
+            lines=[
+                {"account_id": asset_id, "debit_amount": Decimal("1000.00"), "credit_amount": Decimal("0")},
+                {"account_id": liab_id, "debit_amount": Decimal("0"), "credit_amount": Decimal("1000.00")},
+            ],
+        )
+        await session.commit()
+
+        balance = await svc.get_account_balance(asset_id)
+        assert balance == Decimal("1000.00")
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_get_account_balance_liability_credit_normal(test_engine):
+    """Liability accounts: balance = SUM(credit) - SUM(debit) — positive when credited."""
+    asset_id, liab_id = await _create_accounts(test_engine)
+    session = await _new_session(test_engine)
+    try:
+        svc = LedgerService(session)
+        await svc.post_journal_entry(
+            reference="BAL-002",
+            description="Credit liability 1000",
+            posted_by=uuid.uuid4(),
+            idempotency_key="bal-idem-002",
+            lines=[
+                {"account_id": asset_id, "debit_amount": Decimal("1000.00"), "credit_amount": Decimal("0")},
+                {"account_id": liab_id, "debit_amount": Decimal("0"), "credit_amount": Decimal("1000.00")},
+            ],
+        )
+        await session.commit()
+
+        balance = await svc.get_account_balance(liab_id)
+        assert balance == Decimal("1000.00")
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_get_account_balance_zero_when_no_lines(test_engine):
+    asset_id, _ = await _create_accounts(test_engine)
+    session = await _new_session(test_engine)
+    try:
+        svc = LedgerService(session)
+        balance = await svc.get_account_balance(asset_id)
+        assert balance == Decimal("0")
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
