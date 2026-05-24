@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     TIMESTAMP,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,7 +49,10 @@ class ChartOfAccount(AuditableMixin, Base):
         TIMESTAMP(timezone=True), server_default="now()", nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), server_default="now()", nullable=False
+        TIMESTAMP(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
 
     parent: Mapped[ChartOfAccount | None] = relationship(
@@ -58,7 +62,7 @@ class ChartOfAccount(AuditableMixin, Base):
         "ChartOfAccount", back_populates="parent"
     )
     lines: Mapped[list[JournalLine]] = relationship(
-        "JournalLine", back_populates="account"
+        "JournalLine", back_populates="account", lazy="raise"
     )
 
     __table_args__ = (
@@ -84,6 +88,7 @@ class JournalEntry(Base):
     )
     reference: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    # FK omitted intentionally — actor may be a platform_user (cross-schema) or tenant_user.
     posted_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     posted_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default="now()", nullable=False
@@ -129,14 +134,15 @@ class JournalLine(Base):
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    entry: Mapped[JournalEntry] = relationship("JournalEntry", back_populates="lines")
+    entry: Mapped[JournalEntry] = relationship("JournalEntry", back_populates="lines", lazy="raise")
     account: Mapped[ChartOfAccount] = relationship(
-        "ChartOfAccount", back_populates="lines"
+        "ChartOfAccount", back_populates="lines", lazy="raise"
     )
 
     __table_args__ = (
         CheckConstraint(
             "debit_amount >= 0 AND credit_amount >= 0"
+            " AND (debit_amount > 0 OR credit_amount > 0)"
             " AND NOT (debit_amount > 0 AND credit_amount > 0)",
             name="ck_jl_amounts",
         ),

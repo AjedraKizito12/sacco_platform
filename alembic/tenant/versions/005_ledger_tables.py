@@ -118,6 +118,7 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint(
             "debit_amount >= 0 AND credit_amount >= 0"
+            " AND (debit_amount > 0 OR credit_amount > 0)"
             " AND NOT (debit_amount > 0 AND credit_amount > 0)",
             name="ck_jl_amounts",
         ),
