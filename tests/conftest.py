@@ -56,6 +56,10 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
             text(f"SET search_path TO {TEST_TENANT_SCHEMA}, platform")
         )
         await conn.run_sync(Base.metadata.create_all)
+        # Create tenant sequences that are not part of SQLAlchemy metadata
+        await conn.execute(
+            text(f"CREATE SEQUENCE IF NOT EXISTS {TEST_TENANT_SCHEMA}.member_number_seq START 1")
+        )
 
     yield engine
 
