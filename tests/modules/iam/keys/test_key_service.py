@@ -272,3 +272,154 @@ async def test_verify_boot_keys_raises_when_no_keys_exist(test_engine: AsyncEngi
                 await verify_boot_keys(_override_session=s)
     finally:
         await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_rotate_promotes_new_key_and_demotes_current_to_retiring(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        original_kid = None
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            original = await svc.generate_and_insert(audience="platform")
+            await s.commit()
+            original_kid = original.kid
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            new_key = await svc.rotate(audience="platform")
+            await s.commit()
+
+            assert new_key.status == "active"
+            assert new_key.kid != original_kid
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            result = await s.execute(
+                select(JwtSigningKey).where(JwtSigningKey.kid == original_kid)
+            )
+            original = result.scalar_one()
+            assert original.status == "retiring"
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_rotate_with_no_existing_key_creates_first_active_key(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            new_key = await svc.rotate(audience="tenant")
+            await s.commit()
+
+            assert new_key.status == "active"
+            assert new_key.audience == "tenant"
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_advance_lifecycle_retires_old_retiring_keys(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        kid_ref = None
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            key = await svc.generate_and_insert(audience="platform")
+            await s.commit()
+            kid_ref = key.kid
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            result = await s.execute(select(JwtSigningKey).where(JwtSigningKey.kid == kid_ref))
+            key = result.scalar_one()
+            key.status = "retiring"
+            key.retired_at = datetime.now(UTC) - timedelta(hours=2)
+            await s.commit()
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            counts = await svc.advance_lifecycle(datetime.now(UTC))
+            await s.commit()
+
+            assert counts["retired"] == 1
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            result = await s.execute(select(JwtSigningKey).where(JwtSigningKey.kid == kid_ref))
+            key = result.scalar_one()
+            assert key.status == "retired"
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_advance_lifecycle_soft_deletes_aged_retired_keys(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        kid_ref = None
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            key = await svc.generate_and_insert(audience="platform")
+            await s.commit()
+            kid_ref = key.kid
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            result = await s.execute(select(JwtSigningKey).where(JwtSigningKey.kid == kid_ref))
+            key = result.scalar_one()
+            key.status = "retired"
+            key.retired_at = datetime.now(UTC) - timedelta(days=8)
+            await s.commit()
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            counts = await svc.advance_lifecycle(datetime.now(UTC))
+            await s.commit()
+
+            assert counts["deleted"] == 1
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            result = await s.execute(select(JwtSigningKey).where(JwtSigningKey.kid == kid_ref))
+            key = result.scalar_one()
+            assert key.deleted_at is not None
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_advance_lifecycle_ignores_recently_retiring_keys(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            key = await svc.generate_and_insert(audience="platform")
+            await s.commit()
+            kid_ref = key.kid
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            result = await s.execute(select(JwtSigningKey).where(JwtSigningKey.kid == kid_ref))
+            key = result.scalar_one()
+            key.status = "retiring"
+            key.retired_at = datetime.now(UTC) - timedelta(minutes=10)
+            await s.commit()
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            counts = await svc.advance_lifecycle(datetime.now(UTC))
+            assert counts["retired"] == 0
+            assert counts["deleted"] == 0
+    finally:
+        await _cleanup(factory)
