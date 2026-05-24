@@ -154,6 +154,58 @@ class LedgerService:
 
     # ── Balance Derivation ────────────────────────────────────────────────────
 
+    # ── Maker-Checker ─────────────────────────────────────────────────────────
+
+    async def submit_manual_entry(
+        self,
+        *,
+        reference: str,
+        description: str,
+        submitted_by: uuid.UUID,
+        idempotency_key: str,
+        lines: list[dict],
+    ) -> uuid.UUID:
+        """Submit a manual GL entry for maker-checker approval.
+
+        Returns the approval_request.id. The journal entry is NOT posted until
+        the request is approved via ApprovalService.approve().
+        """
+        from app.modules.maker_checker.service import ApprovalService
+
+        # Validate balance before submitting (fail fast before creating an approval row)
+        total_debit = sum(Decimal(str(ln["debit_amount"])) for ln in lines)
+        total_credit = sum(Decimal(str(ln["credit_amount"])) for ln in lines)
+        if total_debit != total_credit:
+            raise ValueError(
+                f"Journal entry is not balanced: debits={total_debit}, credits={total_credit}"
+            )
+        if len(lines) < 2:
+            raise ValueError("Journal entry must have at least 2 lines")
+
+        payload = {
+            "reference": reference,
+            "description": description,
+            "posted_by": str(submitted_by),
+            "idempotency_key": idempotency_key,
+            "lines": [
+                {
+                    "account_id": str(ln["account_id"]),
+                    "debit_amount": str(ln["debit_amount"]),
+                    "credit_amount": str(ln["credit_amount"]),
+                    "description": ln.get("description"),
+                }
+                for ln in lines
+            ],
+        }
+
+        approval_svc = ApprovalService(self._session)
+        request = await approval_svc.submit(
+            operation_type="ledger.post_journal_entry",
+            payload=payload,
+            requested_by=submitted_by,
+        )
+        return request.id
+
     async def get_account_balance(self, account_id: uuid.UUID) -> Decimal:
         """Derive balance from journal_lines. Never stored — computed on demand.
 

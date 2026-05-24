@@ -14,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
 
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
 from app.modules.ledger.service import LedgerService
+from app.modules.maker_checker.models.tenant import TenantApprovalRequest, TenantApprovalAction
+from app.modules.maker_checker.service import ApprovalService
+import app.modules.ledger.executors  # noqa: F401 — registers ledger executor in approval_registry
 
 TEST_TENANT_SCHEMA = "tenant_test"
 
@@ -313,4 +316,84 @@ async def test_get_account_balance_zero_when_no_lines(test_engine):
         assert balance == Decimal("0")
     finally:
         await session.close()
+        await _cleanup(test_engine)
+
+
+# ── Maker-Checker for Manual GL Entries ──────────────────────────────────────
+
+
+async def _cleanup_approvals(engine: AsyncEngine) -> None:
+    async with _factory(engine)() as s:
+        await s.execute(text(f"SET search_path TO {TEST_TENANT_SCHEMA}, platform"))
+        await s.execute(delete(TenantApprovalAction))
+        await s.execute(delete(TenantApprovalRequest))
+        await s.commit()
+
+
+async def test_submit_manual_entry_creates_pending_approval(test_engine):
+    asset_id, liab_id = await _create_accounts(test_engine)
+    session = await _new_session(test_engine)
+    try:
+        svc = LedgerService(session)
+        approval_id = await svc.submit_manual_entry(
+            reference="MANUAL-001",
+            description="Manual adjustment",
+            submitted_by=uuid.uuid4(),
+            idempotency_key="manual-idem-001",
+            lines=[
+                {"account_id": str(asset_id), "debit_amount": "200.00", "credit_amount": "0"},
+                {"account_id": str(liab_id), "debit_amount": "0", "credit_amount": "200.00"},
+            ],
+        )
+        await session.commit()
+
+        assert isinstance(approval_id, uuid.UUID)
+    finally:
+        await session.close()
+        await _cleanup_approvals(test_engine)
+        await _cleanup(test_engine)
+
+
+async def test_executor_posts_journal_entry_on_approve(test_engine):
+    """Full maker-checker flow: submit → approve → verify journal entry created."""
+    asset_id, liab_id = await _create_accounts(test_engine)
+    maker_id = uuid.uuid4()
+    checker_id = uuid.uuid4()
+
+    # Submit
+    session = await _new_session(test_engine)
+    try:
+        svc = LedgerService(session)
+        approval_id = await svc.submit_manual_entry(
+            reference="MANUAL-002",
+            description="Board adjustment",
+            submitted_by=maker_id,
+            idempotency_key="manual-idem-002",
+            lines=[
+                {"account_id": str(asset_id), "debit_amount": "300.00", "credit_amount": "0"},
+                {"account_id": str(liab_id), "debit_amount": "0", "credit_amount": "300.00"},
+            ],
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    # Approve (triggers executor which posts the journal entry)
+    session2 = await _new_session(test_engine)
+    try:
+        approval_svc = ApprovalService(session2)
+        await approval_svc.approve(request_id=approval_id, actor_user_id=checker_id)
+        await session2.commit()
+    finally:
+        await session2.close()
+
+    # Verify: journal entry created — balance reflects the posting
+    session3 = await _new_session(test_engine)
+    try:
+        svc3 = LedgerService(session3)
+        balance = await svc3.get_account_balance(asset_id)
+        assert balance == Decimal("300.00")
+    finally:
+        await session3.close()
+        await _cleanup_approvals(test_engine)
         await _cleanup(test_engine)

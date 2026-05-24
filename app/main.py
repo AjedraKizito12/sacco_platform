@@ -17,6 +17,7 @@ from app.modules.iam.keys.api import jwks_router, key_mgmt_router
 from app.modules.iam.platform_auth.api import router as platform_auth_router
 from app.modules.iam.tenant_auth.api import router as tenant_auth_router
 from app.modules.maker_checker.api import router as maker_checker_router
+import app.modules.ledger.executors  # noqa: F401 — registers ledger maker-checker executor
 from app.platform_.auth import get_current_superuser
 from app.platform_.tenants.api import router as platform_tenants_router
 from app.platform_.users.api import router as platform_users_router
