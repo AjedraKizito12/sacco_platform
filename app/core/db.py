@@ -105,7 +105,12 @@ async def get_tenant_session(
         await session.execute(
             text(f"SET LOCAL search_path TO {schema_name}, platform")  # noqa: S608
         )
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def get_platform_session() -> AsyncGenerator[AsyncSession, None]:
@@ -113,4 +118,9 @@ async def get_platform_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionFactory() as session:
         await session.execute(text("SET LOCAL search_path TO platform"))
         session.sync_session.info["is_platform"] = True
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
