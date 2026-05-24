@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.audit.models import PlatformAuditLog
 from app.modules.iam.keys.models import JwtSigningKey
+from app.modules.iam.keys.service import KeyService, clear_key_caches, verify_boot_keys
 
 
 def _factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
@@ -30,6 +31,14 @@ async def _cleanup(factory: async_sessionmaker[AsyncSession]) -> None:
         await s.execute(delete(PlatformAuditLog))
         await s.execute(delete(JwtSigningKey))
         await s.commit()
+
+
+@pytest.fixture(autouse=True)
+def reset_key_caches():
+    """Prevent cross-test cache pollution."""
+    clear_key_caches()
+    yield
+    clear_key_caches()
 
 
 @pytest.mark.anyio
@@ -64,5 +73,202 @@ async def test_jwt_signing_key_model_persists(test_engine: AsyncEngine):
             assert fetched.status == "active"
             assert isinstance(fetched.id, uuid.UUID)
             assert fetched.private_key_encrypted == b"\x00" * 32
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_generate_and_insert_creates_active_rs256_key(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            key = await svc.generate_and_insert(audience="platform")
+            await s.commit()
+
+            assert key.status == "active"
+            assert key.algorithm == "RS256"
+            assert key.audience == "platform"
+            assert key.kid.startswith("platform-")
+            assert "PUBLIC KEY" in key.public_key
+            assert len(key.private_key_nonce) == 12
+            assert len(key.private_key_tag) == 16
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_get_active_signing_key_returns_decrypted_pem(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            await svc.generate_and_insert(audience="platform")
+            await s.commit()
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            kid, private_pem, algorithm = await svc.get_active_signing_key("platform")
+
+            assert kid.startswith("platform-")
+            assert b"PRIVATE KEY" in private_pem
+            assert algorithm == "RS256"
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_get_active_signing_key_raises_when_no_key_exists(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            with pytest.raises(RuntimeError, match="No active signing key"):
+                await svc.get_active_signing_key("platform")
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_get_verification_key_returns_public_pem_for_active_key(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        kid_ref = None
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            key = await svc.generate_and_insert(audience="platform")
+            await s.commit()
+            kid_ref = key.kid
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            public_pem, algorithm, audience = await svc.get_verification_key(kid_ref)
+
+            assert b"PUBLIC KEY" in public_pem
+            assert algorithm == "RS256"
+            assert audience == "platform"
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_get_verification_key_accepts_retiring_status(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        kid_ref = None
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            key = await svc.generate_and_insert(audience="platform")
+            await s.commit()
+            kid_ref = key.kid
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            result = await s.execute(select(JwtSigningKey).where(JwtSigningKey.kid == kid_ref))
+            key = result.scalar_one()
+            key.status = "retiring"
+            await s.commit()
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            public_pem, _, _ = await svc.get_verification_key(kid_ref)
+            assert b"PUBLIC KEY" in public_pem
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_get_verification_key_rejects_retired_key(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        kid_ref = None
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            key = await svc.generate_and_insert(audience="platform")
+            await s.commit()
+            kid_ref = key.kid
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            result = await s.execute(select(JwtSigningKey).where(JwtSigningKey.kid == kid_ref))
+            key = result.scalar_one()
+            key.status = "retired"
+            await s.commit()
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            with pytest.raises(ValueError, match="retired"):
+                await svc.get_verification_key(kid_ref)
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_get_verification_key_raises_for_unknown_kid(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            with pytest.raises(ValueError, match="Unknown kid"):
+                await svc.get_verification_key("does-not-exist")
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_verify_boot_keys_passes_when_active_keys_exist(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            await svc.generate_and_insert(audience="platform")
+            await svc.generate_and_insert(audience="tenant")
+            await s.commit()
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            await verify_boot_keys(_override_session=s)
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_verify_boot_keys_raises_when_platform_key_missing(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            svc = KeyService(s)
+            await svc.generate_and_insert(audience="tenant")
+            await s.commit()
+
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            with pytest.raises(RuntimeError, match="platform"):
+                await verify_boot_keys(_override_session=s)
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_verify_boot_keys_raises_when_no_keys_exist(test_engine: AsyncEngine):
+    factory = _factory(test_engine)
+    try:
+        async with factory() as s:
+            await s.execute(text("SET search_path TO platform"))
+            with pytest.raises(RuntimeError, match="No active JWT signing key"):
+                await verify_boot_keys(_override_session=s)
     finally:
         await _cleanup(factory)
