@@ -7,6 +7,13 @@ before running migrations.
 import os
 import re
 from logging.config import fileConfig
+from pathlib import Path
+
+# Load .env so `alembic upgrade head` works without manually exporting vars.
+_env_file = Path(__file__).parents[2] / ".env"
+if _env_file.exists():
+    from dotenv import load_dotenv
+    load_dotenv(_env_file, override=False)
 
 from sqlalchemy import create_engine, pool, text
 
@@ -35,13 +42,20 @@ def run_migrations_online() -> None:
     cfg = config.get_section(config.config_ini_section) or {}
     cfg["sqlalchemy.url"] = _SYNC_URL
 
+    # Create the platform schema before alembic tries to write its version table
+    # into it. Must use AUTOCOMMIT so the schema persists before the migration
+    # transaction begins (SA 2.0 outer connections roll back on close otherwise).
+    bootstrap_engine = create_engine(_SYNC_URL, poolclass=pool.NullPool, isolation_level="AUTOCOMMIT")
+    with bootstrap_engine.connect() as bootstrap_conn:
+        bootstrap_conn.execute(text("CREATE SCHEMA IF NOT EXISTS platform"))
+    bootstrap_engine.dispose()
+
     connectable = create_engine(
         _SYNC_URL,
         poolclass=pool.NullPool,
     )
 
     with connectable.connect() as connection:
-        connection.execute(text("SET search_path TO platform"))
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
