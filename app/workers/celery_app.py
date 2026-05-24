@@ -11,6 +11,7 @@ celery_app = Celery(
         "app.core.outbox.worker",
         "app.core.outbox.retention",
         "app.platform_.provisioning.tasks",
+        "app.modules.iam.beat",
     ],
 )
 
@@ -38,6 +39,14 @@ celery_app.conf.update(
         "expire-approval-requests": {
             "task": "app.modules.maker_checker.service.expire_approval_requests",
             "schedule": 3600.0,  # hourly
+        },
+        "advance-jwt-key-lifecycle": {
+            "task": "app.modules.iam.beat.advance_key_lifecycle",
+            "schedule": 3600.0,  # hourly
+        },
+        "rotate-jwt-keys-if-due": {
+            "task": "app.modules.iam.beat.rotate_signing_keys_if_due",
+            "schedule": 24 * 3600.0,  # daily
         },
     },
 )
