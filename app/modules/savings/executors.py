@@ -39,6 +39,20 @@ async def execute_withdraw(session: AsyncSession, payload: dict) -> dict:
     narration = payload.get("narration")
     idempotency_key = payload["idempotency_key"]
 
+    # Idempotency guard — return early if already executed.
+    from sqlalchemy import select as sa_select
+    existing = await session.scalar(
+        sa_select(SavingsTransaction).where(
+            SavingsTransaction.idempotency_key == idempotency_key
+        )
+    )
+    if existing is not None:
+        return {
+            "savings_account_id": str(savings_account_id),
+            "amount": str(amount),
+            "journal_entry_id": str(existing.journal_entry_id),
+        }
+
     # GL: DEBIT savings liability, CREDIT payment account (cash/bank).
     # Exact reversal of a deposit.
     ledger_svc = LedgerService(session)

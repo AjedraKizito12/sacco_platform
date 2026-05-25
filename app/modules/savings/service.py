@@ -167,7 +167,8 @@ class SavingsService:
         """
         existing = await self._session.scalar(
             select(SavingsTransaction).where(
-                SavingsTransaction.idempotency_key == idempotency_key
+                SavingsTransaction.idempotency_key == idempotency_key,
+                SavingsTransaction.savings_account_id == savings_account_id,
             )
         )
         if existing is not None:
