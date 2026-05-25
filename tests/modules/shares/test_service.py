@@ -16,12 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
 from app.modules.ledger.service import LedgerService
 from app.modules.maker_checker.models.tenant import TenantApprovalAction, TenantApprovalRequest
+from app.modules.maker_checker.service import ApprovalService
 from app.modules.members.models import Member
 from app.modules.members.service import MemberService
 from app.modules.shares.models import MemberShareAccount, ShareProduct, ShareTransaction
 from app.modules.shares.service import ShareService
 
-# import app.modules.shares.executors  # noqa: F401 — registers shares executor (added in Task 6)
+import app.modules.shares.executors  # noqa: F401 — registers shares executor in approval_registry
 
 TEST_TENANT_SCHEMA = "tenant_test"
 
@@ -436,4 +437,96 @@ async def test_purchase_shares_posts_balanced_gl_entry(test_engine):
         assert equity_balance == Decimal("2000.00")  # equity credit-normal
     finally:
         await session.close()
+        await _cleanup(test_engine)
+
+
+# ── Share Redemption (Maker-Checker) ──────────────────────────────────────────
+
+
+async def test_submit_redemption_insufficient_shares_raises(test_engine):
+    cash_id, equity_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, equity_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    # Account has 0 shares — try to redeem 5
+    session = await _new_session(test_engine)
+    try:
+        svc = ShareService(session)
+        with pytest.raises(ValueError, match="Insufficient shares"):
+            await svc.submit_redemption(
+                share_account_id=account_id,
+                quantity=5,
+                payment_account_id=cash_id,
+                submitted_by=uuid.uuid4(),
+                idempotency_key="redeem-fail-001",
+            )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_executor_redeems_shares_and_posts_gl(test_engine):
+    """Full maker-checker flow: purchase → submit redemption → approve → verify balance + GL."""
+    cash_id, equity_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, equity_id)
+    account_id = await _setup_account(test_engine, product_id)
+    maker_id = uuid.uuid4()
+    checker_id = uuid.uuid4()
+
+    # Purchase 10 shares first
+    session = await _new_session(test_engine)
+    try:
+        svc = ShareService(session)
+        await svc.purchase_shares(
+            share_account_id=account_id,
+            quantity=10,
+            payment_account_id=cash_id,
+            posted_by=maker_id,
+            idempotency_key="buy-for-redeem-001",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    # Submit redemption of 3 shares
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = ShareService(session2)
+        approval_id = await svc2.submit_redemption(
+            share_account_id=account_id,
+            quantity=3,
+            payment_account_id=cash_id,
+            submitted_by=maker_id,
+            idempotency_key="redeem-001",
+        )
+        await session2.commit()
+    finally:
+        await session2.close()
+
+    # Approve — triggers executor
+    session3 = await _new_session(test_engine)
+    try:
+        approval_svc = ApprovalService(session3)
+        await approval_svc.approve(request_id=approval_id, actor_user_id=checker_id)
+        await session3.commit()
+    finally:
+        await session3.close()
+
+    # Verify balance = 10 - 3 = 7 shares
+    session4 = await _new_session(test_engine)
+    try:
+        svc4 = ShareService(session4)
+        shares_held, total_value = await svc4.get_balance(account_id)
+        assert shares_held == 7
+        assert total_value == Decimal("7000.00")  # 7 × 1000.00
+
+        # GL: cash net balance = 10000 purchased - 3000 redeemed = 7000 debited net
+        ledger_svc = LedgerService(session4)
+        cash_balance = await ledger_svc.get_account_balance(cash_id)
+        equity_balance = await ledger_svc.get_account_balance(equity_id)
+        assert cash_balance == Decimal("7000.00")   # 10000 debit - 3000 credit
+        assert equity_balance == Decimal("7000.00")  # 10000 credit - 3000 debit
+    finally:
+        await session4.close()
+        await _cleanup_approvals(test_engine)
         await _cleanup(test_engine)
