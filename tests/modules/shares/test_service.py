@@ -129,9 +129,26 @@ async def _setup_member(engine: AsyncEngine) -> uuid.UUID:
 
 
 async def _setup_account(
-    engine: AsyncEngine, product_id: uuid.UUID, member_id: uuid.UUID
+    engine: AsyncEngine, product_id: uuid.UUID
 ) -> uuid.UUID:
-    """Open a member share account and return its ID."""
+    """Create a member and open a share account, returning the account ID."""
+    # First create a member
+    session = await _new_session(engine)
+    try:
+        member_svc = MemberService(session)
+        actor = uuid.uuid4()
+        member = await member_svc.register_member(
+            full_name="Test Member",
+            date_of_birth=date(1990, 5, 15),
+            gender="female",
+            created_by=actor,
+        )
+        await session.commit()
+        member_id = member.id
+    finally:
+        await session.close()
+
+    # Then open account
     session = await _new_session(engine)
     try:
         svc = ShareService(session)
@@ -193,7 +210,21 @@ async def test_create_product_invalid_par_value_raises(test_engine):
 async def test_open_account_returns_account(test_engine):
     cash_id, equity_id = await _setup_gl_accounts(test_engine)
     product_id = await _setup_product(test_engine, equity_id)
-    member_id = await _setup_member(test_engine)
+
+    session = await _new_session(test_engine)
+    try:
+        member_svc = MemberService(session)
+        actor = uuid.uuid4()
+        member = await member_svc.register_member(
+            full_name="Alice Nakato",
+            date_of_birth=date(1990, 5, 15),
+            gender="female",
+            created_by=actor,
+        )
+        await session.commit()
+        member_id = member.id
+    finally:
+        await session.close()
 
     session = await _new_session(test_engine)
     try:
@@ -215,7 +246,22 @@ async def test_open_account_returns_account(test_engine):
 async def test_open_account_duplicate_raises(test_engine):
     cash_id, equity_id = await _setup_gl_accounts(test_engine)
     product_id = await _setup_product(test_engine, equity_id)
-    member_id = await _setup_member(test_engine)
+
+    # Create a member
+    session = await _new_session(test_engine)
+    try:
+        member_svc = MemberService(session)
+        actor = uuid.uuid4()
+        member = await member_svc.register_member(
+            full_name="Alice Nakato",
+            date_of_birth=date(1990, 5, 15),
+            gender="female",
+            created_by=actor,
+        )
+        await session.commit()
+        member_id = member.id
+    finally:
+        await session.close()
 
     # Open first account with a specific member_id
     session = await _new_session(test_engine)
@@ -247,8 +293,7 @@ async def test_open_account_duplicate_raises(test_engine):
 async def test_get_balance_zero_for_new_account(test_engine):
     cash_id, equity_id = await _setup_gl_accounts(test_engine)
     product_id = await _setup_product(test_engine, equity_id)
-    member_id = await _setup_member(test_engine)
-    account_id = await _setup_account(test_engine, product_id, member_id)
+    account_id = await _setup_account(test_engine, product_id)
 
     session = await _new_session(test_engine)
     try:
@@ -269,3 +314,126 @@ async def test_get_account_not_found_raises(test_engine):
             await svc.get_account(uuid.uuid4())
     finally:
         await session.close()
+
+
+# ── Share Purchase ────────────────────────────────────────────────────────────
+
+
+async def test_purchase_shares_returns_transaction(test_engine):
+    cash_id, equity_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, equity_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = ShareService(session)
+        txn = await svc.purchase_shares(
+            share_account_id=account_id,
+            quantity=5,
+            payment_account_id=cash_id,
+            posted_by=uuid.uuid4(),
+            idempotency_key="buy-shares-001",
+        )
+        await session.commit()
+
+        assert txn.id is not None
+        assert txn.transaction_type == "purchase"
+        assert txn.quantity == 5
+        assert txn.amount == Decimal("5000.00")  # 5 × 1000.00
+        assert txn.journal_entry_id is not None
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_purchase_shares_updates_balance(test_engine):
+    cash_id, equity_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, equity_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = ShareService(session)
+        await svc.purchase_shares(
+            share_account_id=account_id,
+            quantity=10,
+            payment_account_id=cash_id,
+            posted_by=uuid.uuid4(),
+            idempotency_key="buy-shares-002",
+        )
+        await session.commit()
+
+        shares_held, total_value = await svc.get_balance(account_id)
+        assert shares_held == 10
+        assert total_value == Decimal("10000.00")  # 10 × 1000.00
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_purchase_shares_idempotency(test_engine):
+    """Calling purchase_shares twice with the same key returns the same transaction."""
+    cash_id, equity_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, equity_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    async def _buy(idem_key: str) -> uuid.UUID:
+        session = await _new_session(test_engine)
+        try:
+            svc = ShareService(session)
+            txn = await svc.purchase_shares(
+                share_account_id=account_id,
+                quantity=3,
+                payment_account_id=cash_id,
+                posted_by=uuid.uuid4(),
+                idempotency_key=idem_key,
+            )
+            await session.commit()
+            return txn.id
+        finally:
+            await session.close()
+
+    try:
+        id1 = await _buy("idem-buy-003")
+        id2 = await _buy("idem-buy-003")
+        assert id1 == id2  # same transaction returned on retry
+
+        # Balance should reflect only one purchase, not two
+        session = await _new_session(test_engine)
+        try:
+            svc = ShareService(session)
+            shares_held, _ = await svc.get_balance(account_id)
+            assert shares_held == 3
+        finally:
+            await session.close()
+    finally:
+        await _cleanup(test_engine)
+
+
+async def test_purchase_shares_posts_balanced_gl_entry(test_engine):
+    """Verify the GL entry debits cash and credits share capital."""
+    cash_id, equity_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, equity_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = ShareService(session)
+        txn = await svc.purchase_shares(
+            share_account_id=account_id,
+            quantity=2,
+            payment_account_id=cash_id,
+            posted_by=uuid.uuid4(),
+            idempotency_key="buy-shares-004",
+        )
+        await session.commit()
+
+        # Verify GL balances: cash debited 2000, equity credited 2000
+        ledger_svc = LedgerService(session)
+        cash_balance = await ledger_svc.get_account_balance(cash_id)
+        equity_balance = await ledger_svc.get_account_balance(equity_id)
+        assert cash_balance == Decimal("2000.00")   # asset debit-normal
+        assert equity_balance == Decimal("2000.00")  # equity credit-normal
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
