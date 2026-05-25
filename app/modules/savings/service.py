@@ -160,7 +160,61 @@ class SavingsService:
         idempotency_key: str,
         narration: str | None = None,
     ) -> SavingsTransaction:
-        raise NotImplementedError
+        """Deposit funds directly (no maker-checker). Posts a balanced GL entry.
+
+        GL: DEBIT payment_account (cash/bank), CREDIT account.liability_account_id.
+        Idempotent: returns existing transaction if idempotency_key already used.
+        """
+        existing = await self._session.scalar(
+            select(SavingsTransaction).where(
+                SavingsTransaction.idempotency_key == idempotency_key
+            )
+        )
+        if existing is not None:
+            _log.info("savings.deposit.idempotent_hit", idempotency_key=idempotency_key)
+            return existing
+
+        account = await self.get_account(savings_account_id)
+
+        from app.modules.ledger.service import LedgerService
+
+        ledger_svc = LedgerService(self._session)
+        entry = await ledger_svc.post_journal_entry(
+            reference=f"SAV-DEP-{savings_account_id}",
+            description=f"Savings deposit: {amount}",
+            posted_by=posted_by,
+            idempotency_key=f"savings-deposit-{idempotency_key}",
+            lines=[
+                {
+                    "account_id": payment_account_id,
+                    "debit_amount": amount,
+                    "credit_amount": Decimal("0"),
+                },
+                {
+                    "account_id": account.liability_account_id,
+                    "debit_amount": Decimal("0"),
+                    "credit_amount": amount,
+                },
+            ],
+        )
+
+        txn = SavingsTransaction(
+            savings_account_id=savings_account_id,
+            transaction_type="deposit",
+            amount=amount,
+            narration=narration,
+            journal_entry_id=entry.id,
+            posted_by=posted_by,
+            idempotency_key=idempotency_key,
+        )
+        self._session.add(txn)
+        await self._session.flush()
+        _log.info(
+            "savings.deposited",
+            savings_account_id=str(savings_account_id),
+            amount=str(amount),
+        )
+        return txn
 
     # ── Withdrawal (Maker-Checker) ────────────────────────────────────────────
 

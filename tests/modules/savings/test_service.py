@@ -260,3 +260,124 @@ async def test_get_account_not_found_raises(test_engine):
             await svc.get_account(uuid.uuid4())
     finally:
         await session.close()
+
+
+# ── Deposit ───────────────────────────────────────────────────────────────────
+
+
+async def test_deposit_returns_transaction(test_engine):
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = SavingsService(session)
+        txn = await svc.deposit(
+            savings_account_id=account_id,
+            amount=Decimal("10000.00"),
+            payment_account_id=cash_id,
+            posted_by=uuid.uuid4(),
+            idempotency_key="dep-001",
+        )
+        await session.commit()
+
+        assert txn.id is not None
+        assert txn.transaction_type == "deposit"
+        assert txn.amount == Decimal("10000.00")
+        assert txn.journal_entry_id is not None
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_deposit_posts_balanced_gl_entry(test_engine):
+    """Verify the GL entry debits cash (asset) and credits savings liability."""
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = SavingsService(session)
+        await svc.deposit(
+            savings_account_id=account_id,
+            amount=Decimal("5000.00"),
+            payment_account_id=cash_id,
+            posted_by=uuid.uuid4(),
+            idempotency_key="dep-002",
+        )
+        await session.commit()
+
+        # cash (asset, debit-normal): SUM(debits) - SUM(credits) = 5000
+        # savings liability (credit-normal): SUM(credits) - SUM(debits) = 5000
+        ledger_svc = LedgerService(session)
+        cash_balance = await ledger_svc.get_account_balance(cash_id)
+        liability_balance = await ledger_svc.get_account_balance(liability_id)
+        assert cash_balance == Decimal("5000.00")
+        assert liability_balance == Decimal("5000.00")
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_deposit_updates_balance(test_engine):
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = SavingsService(session)
+        await svc.deposit(
+            savings_account_id=account_id,
+            amount=Decimal("2000.00"),
+            payment_account_id=cash_id,
+            posted_by=uuid.uuid4(),
+            idempotency_key="dep-003",
+        )
+        await session.commit()
+
+        balance = await svc.get_balance(account_id)
+        assert balance == Decimal("2000.00")
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_deposit_idempotency(test_engine):
+    """Calling deposit twice with the same key returns the same transaction."""
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    async def _deposit(idem_key: str) -> uuid.UUID:
+        s = await _new_session(test_engine)
+        try:
+            svc = SavingsService(s)
+            txn = await svc.deposit(
+                savings_account_id=account_id,
+                amount=Decimal("1000.00"),
+                payment_account_id=cash_id,
+                posted_by=uuid.uuid4(),
+                idempotency_key=idem_key,
+            )
+            await s.commit()
+            return txn.id
+        finally:
+            await s.close()
+
+    try:
+        id1 = await _deposit("idem-dep-004")
+        id2 = await _deposit("idem-dep-004")
+        assert id1 == id2
+
+        # Balance should reflect only one deposit
+        s = await _new_session(test_engine)
+        try:
+            balance = await SavingsService(s).get_balance(account_id)
+            assert balance == Decimal("1000.00")
+        finally:
+            await s.close()
+    finally:
+        await _cleanup(test_engine)
