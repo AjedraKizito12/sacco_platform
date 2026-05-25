@@ -13,14 +13,14 @@ import pytest
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.modules.shares.models import MemberShareAccount, ShareProduct, ShareTransaction
-from app.modules.shares.service import ShareService
-from app.modules.members.models import Member
-from app.modules.members.service import MemberService
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
 from app.modules.ledger.service import LedgerService
 from app.modules.maker_checker.models.tenant import TenantApprovalAction, TenantApprovalRequest
-from app.modules.maker_checker.service import ApprovalService
+from app.modules.members.models import Member
+from app.modules.members.service import MemberService
+from app.modules.shares.models import MemberShareAccount, ShareProduct, ShareTransaction
+from app.modules.shares.service import ShareService
+
 # import app.modules.shares.executors  # noqa: F401 — registers shares executor (added in Task 6)
 
 TEST_TENANT_SCHEMA = "tenant_test"
@@ -221,7 +221,7 @@ async def test_open_account_duplicate_raises(test_engine):
     session = await _new_session(test_engine)
     try:
         svc = ShareService(session)
-        account = await svc.open_account(
+        _ = await svc.open_account(
             member_id=member_id, share_product_id=product_id
         )
         await session.commit()
