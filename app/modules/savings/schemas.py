@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-import uuid
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
+
+if TYPE_CHECKING:
+    import uuid
 
 
 class SavingsProductIn(BaseModel):

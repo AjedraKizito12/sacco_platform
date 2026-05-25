@@ -13,16 +13,13 @@ import pytest
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+import app.modules.savings.executors  # noqa: F401 — registers savings executor
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
 from app.modules.ledger.service import LedgerService
-from app.modules.maker_checker.models.tenant import TenantApprovalAction, TenantApprovalRequest
-from app.modules.maker_checker.service import ApprovalService
 from app.modules.members.models import Member
 from app.modules.members.service import MemberService
 from app.modules.savings.models import SavingsAccount, SavingsProduct, SavingsTransaction
 from app.modules.savings.service import SavingsService
-
-import app.modules.savings.executors  # noqa: F401 — registers savings executor
 
 TEST_TENANT_SCHEMA = "tenant_test"
 
@@ -60,16 +57,6 @@ async def _cleanup(engine: AsyncEngine) -> None:
         await session.execute(delete(JournalEntry))
         await session.execute(delete(ChartOfAccount))
         await session.execute(delete(Member))
-        await session.commit()
-
-
-async def _cleanup_approvals(engine: AsyncEngine) -> None:
-    async with _factory(engine)() as session:
-        await session.execute(
-            text(f"SET search_path TO {TEST_TENANT_SCHEMA}, platform")
-        )
-        await session.execute(delete(TenantApprovalAction))
-        await session.execute(delete(TenantApprovalRequest))
         await session.commit()
 
 

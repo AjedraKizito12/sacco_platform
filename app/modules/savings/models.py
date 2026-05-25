@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
-from decimal import Decimal
+from datetime import datetime  # noqa: TC003 — needed by SQLAlchemy Mapped[] at runtime
+from decimal import Decimal  # noqa: TC003 — needed by SQLAlchemy Mapped[] at runtime
 
 from sqlalchemy import (
+    TIMESTAMP,
     Boolean,
     CheckConstraint,
     ForeignKey,
     Index,
     Numeric,
     Text,
-    TIMESTAMP,
     UniqueConstraint,
     func,
 )
