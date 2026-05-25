@@ -141,6 +141,7 @@ class ShareService:
     async def list_transactions(
         self, share_account_id: uuid.UUID
     ) -> list[ShareTransaction]:
+        await self.get_account(share_account_id)
         result = await self._session.execute(
             select(ShareTransaction)
             .where(ShareTransaction.share_account_id == share_account_id)
@@ -177,6 +178,18 @@ class ShareService:
         product = await self.get_product(account.share_product_id)
         if not product.is_active:
             raise ValueError("Share product is not active")
+
+        if quantity < product.minimum_shares:
+            raise ValueError(
+                f"quantity must be >= minimum_shares ({product.minimum_shares})"
+            )
+        if product.maximum_shares is not None:
+            shares_held, _ = await self.get_balance(share_account_id)
+            if shares_held + quantity > product.maximum_shares:
+                raise ValueError(
+                    f"Purchase would exceed maximum_shares ({product.maximum_shares}); "
+                    f"currently holding {shares_held}"
+                )
 
         amount = Decimal(quantity) * product.par_value
 
@@ -240,6 +253,21 @@ class ShareService:
         """
         account = await self.get_account(share_account_id)
         product = await self.get_product(account.share_product_id)
+
+        from sqlalchemy import select as sa_select
+        from app.modules.maker_checker.models.tenant import TenantApprovalRequest
+
+        existing_req = await self._session.scalar(
+            sa_select(TenantApprovalRequest).where(
+                TenantApprovalRequest.operation_type == "shares.redeem_shares",
+                TenantApprovalRequest.payload["idempotency_key"].astext == idempotency_key,
+            )
+        )
+        if existing_req is not None:
+            _log.info(
+                "shares.redemption.idempotent_hit", idempotency_key=idempotency_key
+            )
+            return existing_req.id
 
         shares_held, _ = await self.get_balance(share_account_id)
         if quantity > shares_held:
