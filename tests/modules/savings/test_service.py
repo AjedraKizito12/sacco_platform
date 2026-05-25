@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 import app.modules.savings.executors  # noqa: F401 — registers savings executor
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
 from app.modules.ledger.service import LedgerService
+from app.modules.maker_checker.models.tenant import TenantApprovalAction, TenantApprovalRequest
+from app.modules.maker_checker.service import ApprovalService
 from app.modules.members.models import Member
 from app.modules.members.service import MemberService
 from app.modules.savings.models import SavingsAccount, SavingsProduct, SavingsTransaction
@@ -380,4 +382,147 @@ async def test_deposit_idempotency(test_engine):
         finally:
             await s.close()
     finally:
+        await _cleanup(test_engine)
+
+
+async def _cleanup_approvals(engine: AsyncEngine) -> None:
+    async with _factory(engine)() as session:
+        await session.execute(
+            text(f"SET search_path TO {TEST_TENANT_SCHEMA}, platform")
+        )
+        await session.execute(delete(TenantApprovalAction))
+        await session.execute(delete(TenantApprovalRequest))
+        await session.commit()
+
+
+# ── Withdrawal (Maker-Checker) ────────────────────────────────────────────────
+
+
+async def test_submit_withdrawal_below_minimum_balance_raises(test_engine):
+    """Withdrawal that would drop balance below minimum_balance is rejected."""
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    # product minimum_balance = 500.00
+    account_id = await _setup_account(test_engine, product_id)
+
+    # Deposit 600 first
+    session = await _new_session(test_engine)
+    try:
+        svc = SavingsService(session)
+        await svc.deposit(
+            savings_account_id=account_id,
+            amount=Decimal("600.00"),
+            payment_account_id=cash_id,
+            posted_by=uuid.uuid4(),
+            idempotency_key="dep-for-wdraw-001",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    # Try to withdraw 200 — would leave 400 < minimum_balance 500
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = SavingsService(session2)
+        with pytest.raises(ValueError, match="minimum balance"):
+            await svc2.submit_withdrawal(
+                savings_account_id=account_id,
+                amount=Decimal("200.00"),
+                payment_account_id=cash_id,
+                submitted_by=uuid.uuid4(),
+                idempotency_key="wdraw-fail-001",
+            )
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+async def test_submit_withdrawal_insufficient_balance_raises(test_engine):
+    """Withdrawal larger than current balance is rejected."""
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    # Account has zero balance — try to withdraw anything
+    session = await _new_session(test_engine)
+    try:
+        svc = SavingsService(session)
+        with pytest.raises(ValueError, match="Insufficient"):
+            await svc.submit_withdrawal(
+                savings_account_id=account_id,
+                amount=Decimal("100.00"),
+                payment_account_id=cash_id,
+                submitted_by=uuid.uuid4(),
+                idempotency_key="wdraw-fail-002",
+            )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_executor_withdraws_and_posts_gl(test_engine):
+    """Full maker-checker flow: deposit → submit withdrawal → approve → verify balance + GL."""
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    # product minimum_balance = 500.00
+    account_id = await _setup_account(test_engine, product_id)
+    maker_id = uuid.uuid4()
+    checker_id = uuid.uuid4()
+
+    # Deposit 2000 first
+    session = await _new_session(test_engine)
+    try:
+        svc = SavingsService(session)
+        await svc.deposit(
+            savings_account_id=account_id,
+            amount=Decimal("2000.00"),
+            payment_account_id=cash_id,
+            posted_by=maker_id,
+            idempotency_key="dep-for-wdraw-exec-001",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    # Submit withdrawal of 1000 (leaves 1000 >= minimum_balance 500)
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = SavingsService(session2)
+        approval_id = await svc2.submit_withdrawal(
+            savings_account_id=account_id,
+            amount=Decimal("1000.00"),
+            payment_account_id=cash_id,
+            submitted_by=maker_id,
+            idempotency_key="wdraw-exec-001",
+        )
+        await session2.commit()
+    finally:
+        await session2.close()
+
+    # Approve — triggers executor
+    session3 = await _new_session(test_engine)
+    try:
+        approval_svc = ApprovalService(session3)
+        await approval_svc.approve(request_id=approval_id, actor_user_id=checker_id)
+        await session3.commit()
+    finally:
+        await session3.close()
+
+    # Verify balance = 2000 - 1000 = 1000
+    session4 = await _new_session(test_engine)
+    try:
+        svc4 = SavingsService(session4)
+        balance = await svc4.get_balance(account_id)
+        assert balance == Decimal("1000.00")
+
+        # GL: cash net (debit-normal) = 2000 dep - 1000 wdraw = 1000
+        # liability net (credit-normal) = 2000 dep - 1000 wdraw = 1000
+        ledger_svc = LedgerService(session4)
+        cash_balance = await ledger_svc.get_account_balance(cash_id)
+        liability_balance = await ledger_svc.get_account_balance(liability_id)
+        assert cash_balance == Decimal("1000.00")
+        assert liability_balance == Decimal("1000.00")
+    finally:
+        await session4.close()
+        await _cleanup_approvals(test_engine)
         await _cleanup(test_engine)

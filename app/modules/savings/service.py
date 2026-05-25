@@ -228,4 +228,66 @@ class SavingsService:
         idempotency_key: str,
         narration: str | None = None,
     ) -> uuid.UUID:
-        raise NotImplementedError
+        """Submit a savings withdrawal for maker-checker approval.
+
+        Validates that (current_balance - amount) >= account.minimum_balance.
+        Returns the approval_request.id.
+        Idempotent: returns existing request.id if idempotency_key already used.
+        """
+        account = await self.get_account(savings_account_id)
+
+        from sqlalchemy import select as sa_select
+
+        from app.modules.maker_checker.models.tenant import TenantApprovalRequest
+
+        existing_req = await self._session.scalar(
+            sa_select(TenantApprovalRequest).where(
+                TenantApprovalRequest.operation_type == "savings.withdraw",
+                TenantApprovalRequest.payload["idempotency_key"].astext == idempotency_key,
+            )
+        )
+        if existing_req is not None:
+            _log.info(
+                "savings.withdrawal.idempotent_hit", idempotency_key=idempotency_key
+            )
+            return existing_req.id
+
+        balance = await self.get_balance(savings_account_id)
+
+        if amount > balance:
+            raise ValueError(
+                f"Insufficient balance: requested {amount}, available {balance}"
+            )
+
+        remaining = balance - amount
+        if remaining < account.minimum_balance:
+            raise ValueError(
+                f"Withdrawal would breach minimum balance: "
+                f"balance after withdrawal {remaining} < minimum {account.minimum_balance}"
+            )
+
+        from app.modules.maker_checker.service import ApprovalService
+
+        payload = {
+            "savings_account_id": str(savings_account_id),
+            "amount": str(amount),
+            "payment_account_id": str(payment_account_id),
+            "liability_account_id": str(account.liability_account_id),
+            "posted_by": str(submitted_by),
+            "narration": narration,
+            "idempotency_key": idempotency_key,
+        }
+
+        approval_svc = ApprovalService(self._session)
+        request = await approval_svc.submit(
+            operation_type="savings.withdraw",
+            payload=payload,
+            requested_by=submitted_by,
+        )
+        _log.info(
+            "savings.withdrawal_submitted",
+            savings_account_id=str(savings_account_id),
+            amount=str(amount),
+            approval_id=str(request.id),
+        )
+        return request.id
