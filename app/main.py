@@ -20,9 +20,11 @@ from app.modules.maker_checker.api import router as maker_checker_router
 import app.modules.ledger.executors  # noqa: F401 — registers ledger maker-checker executor
 import app.modules.members.executors  # noqa: F401 — registers members maker-checker executor
 import app.modules.shares.executors  # noqa: F401 — registers shares maker-checker executor
+import app.modules.savings.executors  # noqa: F401 — registers savings maker-checker executor
 from app.modules.ledger.api import router as ledger_router
 from app.modules.members.api import router as members_router
 from app.modules.shares.api import router as shares_router
+from app.modules.savings.api import router as savings_router
 from app.platform_.auth import get_current_superuser
 from app.platform_.tenants.api import router as platform_tenants_router
 from app.platform_.users.api import router as platform_users_router
@@ -111,6 +113,7 @@ app.include_router(maker_checker_router)
 app.include_router(ledger_router)
 app.include_router(members_router)
 app.include_router(shares_router)
+app.include_router(savings_router)
 app.include_router(platform_auth_router)
 app.include_router(tenant_auth_router)
 app.include_router(platform_tenants_router)

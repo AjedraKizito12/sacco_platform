@@ -27,6 +27,7 @@ import app.modules.maker_checker.models  # noqa: F401 — registers maker-checke
 import app.modules.ledger.models  # noqa: F401 — registers ledger tables in Base.metadata
 import app.modules.members.models  # noqa: F401 — registers members table in Base.metadata
 import app.modules.shares.models  # noqa: F401 — registers shares tables in Base.metadata
+import app.modules.savings.models  # noqa: F401 — registers savings tables in Base.metadata
 from alembic import context
 from app.core.db import Base
 
