@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncGenerator
 from decimal import Decimal
-from datetime import date
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -274,3 +273,30 @@ async def test_submit_redemption_returns_202(client):
 async def test_get_account_not_found_returns_404(client):
     resp = await client.get(f"/shares/accounts/{uuid.uuid4()}", headers=HEADERS)
     assert resp.status_code == 404, resp.text
+
+
+async def test_list_products_returns_200(client):
+    equity_id = await _create_gl_account(
+        client, f"3-{uuid.uuid4().hex[:6]}", "Share Capital", "equity"
+    )
+    await _create_product(client, equity_id)
+
+    resp = await client.get("/shares/products", headers=HEADERS)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    assert data[0]["is_active"] is True
+
+
+async def test_get_product_returns_200(client):
+    equity_id = await _create_gl_account(
+        client, f"3-{uuid.uuid4().hex[:6]}", "Share Capital", "equity"
+    )
+    product_id = await _create_product(client, equity_id)
+
+    resp = await client.get(f"/shares/products/{product_id}", headers=HEADERS)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["id"] == product_id
+    assert data["name"] == "Ordinary Shares"
