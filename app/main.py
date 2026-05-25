@@ -19,6 +19,7 @@ from app.modules.iam.tenant_auth.api import router as tenant_auth_router
 from app.modules.maker_checker.api import router as maker_checker_router
 import app.modules.ledger.executors  # noqa: F401 — registers ledger maker-checker executor
 import app.modules.members.executors  # noqa: F401 — registers members maker-checker executor
+import app.modules.shares.executors  # noqa: F401 — registers shares maker-checker executor
 from app.modules.ledger.api import router as ledger_router
 from app.modules.members.api import router as members_router
 from app.platform_.auth import get_current_superuser
