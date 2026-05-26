@@ -18,6 +18,8 @@ class FeeTypeOut(BaseModel):
     applicable_to: str
     amount_kind: str
     amount: Decimal
+    percentage_basis: str | None
+    percentage_rate: Decimal | None
     currency: str
     trigger_kind: str
     event_name: str | None
@@ -67,6 +69,8 @@ class FeeAssessmentOut(BaseModel):
     assessed_at: datetime
     due_at: datetime | None
     paid_at: datetime | None
+    waived_by: uuid.UUID | None
+    waiver_reason: str | None
     journal_entry_id: uuid.UUID
 
 
