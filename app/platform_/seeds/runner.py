@@ -72,25 +72,38 @@ async def _seed_roles(session: AsyncSession, schema_name: str) -> None:
 
 
 async def _seed_fee_types(session: AsyncSession, schema_name: str) -> None:
+    import json
     for ft in DEFAULT_FEE_TYPES:
         try:
             async with session.begin_nested():
                 await session.execute(
                     text(
                         "INSERT INTO fee_types "
-                        "(code, name, description, amount_minor_units, currency, "
-                        "is_recurring, created_at, updated_at) "
-                        "VALUES (:code, :name, :description, :amount, "
-                        ":currency, :recurring, now(), now()) "
+                        "(code, name, description, applicable_to, amount_kind, amount, currency, "
+                        "trigger_kind, event_name, schedule_config, "
+                        "gl_income_account_code, gl_receivable_account_code, "
+                        "is_active, requires_collection, created_at, updated_at) "
+                        "VALUES (:code, :name, :description, :applicable_to, :amount_kind, "
+                        ":amount, :currency, :trigger_kind, :event_name, :schedule_config::jsonb, "
+                        ":gl_income_account_code, :gl_receivable_account_code, "
+                        ":is_active, :requires_collection, now(), now()) "
                         "ON CONFLICT (code) DO NOTHING"
                     ),
                     {
                         "code": ft["code"],
                         "name": ft["name"],
-                        "description": ft["description"],
-                        "amount": ft["amount_minor_units"],
+                        "description": ft.get("description"),
+                        "applicable_to": ft["applicable_to"],
+                        "amount_kind": ft["amount_kind"],
+                        "amount": ft["amount"],
                         "currency": ft["currency"],
-                        "recurring": ft["is_recurring"],
+                        "trigger_kind": ft["trigger_kind"],
+                        "event_name": ft.get("event_name"),
+                        "schedule_config": json.dumps(ft["schedule_config"]) if ft.get("schedule_config") else None,
+                        "gl_income_account_code": ft["gl_income_account_code"],
+                        "gl_receivable_account_code": ft["gl_receivable_account_code"],
+                        "is_active": ft["is_active"],
+                        "requires_collection": ft["requires_collection"],
                     },
                 )
         except ProgrammingError:

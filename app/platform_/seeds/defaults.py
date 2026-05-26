@@ -17,20 +17,35 @@ DEFAULT_ROLES: list[dict[str, str]] = [
 DEFAULT_FEE_TYPES: list[dict[str, object]] = [
     {
         "code": "MEMBERSHIP",
-        "name": "Membership Fee",
-        "description": "One-time fee paid on joining",
-        "amount_minor_units": 5000_00,  # 5,000 UGX in minor units
+        "name": "Membership Registration Fee",
+        "description": "One-time fee charged when a member is activated",
+        "applicable_to": "member",
+        "amount_kind": "fixed",
+        "amount": "20000.0000",  # 20,000 UGX — override per tenant via PATCH after provisioning
         "currency": "UGX",
-        "is_recurring": False,
+        "trigger_kind": "event",
+        "event_name": "MemberActivated",
+        "schedule_config": None,
+        "gl_income_account_code": "4100",  # Fee Income
+        "gl_receivable_account_code": "1200",  # Fee Receivable
+        "is_active": True,
+        "requires_collection": True,
     },
     {
-        "code": "ANNUAL_SUBSCRIPTION",
-        "name": "Annual Subscription",
-        "description": "Annual renewal fee",
-        "amount_minor_units": 2000_00,  # 2,000 UGX in minor units
+        "code": "ANNUAL_SUB",
+        "name": "Annual Subscription Fee",
+        "description": "Annual renewal fee for active members",
+        "applicable_to": "member",
+        "amount_kind": "fixed",
+        "amount": "50000.0000",  # 50,000 UGX
         "currency": "UGX",
-        "is_recurring": True,
-        "recurrence_months": 12,
+        "trigger_kind": "schedule",
+        "event_name": None,
+        "schedule_config": {"recurrence": "yearly", "month": 1, "day": 1},
+        "gl_income_account_code": "4101",  # Annual Sub Income
+        "gl_receivable_account_code": "1201",  # Annual Sub Receivable
+        "is_active": True,
+        "requires_collection": True,
     },
 ]
 
