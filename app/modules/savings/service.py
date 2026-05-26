@@ -348,6 +348,12 @@ class SavingsService:
           'fail'    — raise ValueError if balance < amount (default)
           'partial' — debit min(balance, amount); return shortfall
           'allow_negative' — restricted to modules in _ALLOW_NEGATIVE_MODULES
+
+        Note on idempotency replay: if idempotency_key was already processed, returns
+        a SystemDebitResult reconstructed from the existing transaction. On replay,
+        requested_amount == debited_amount and shortfall_amount == 0 regardless of
+        the original shortfall (the SavingsTransaction row does not store requested_amount).
+        Callers must not rely on shortfall_amount/status fields of a replayed result.
         """
         if on_insufficient_funds == "allow_negative" and source_module not in _ALLOW_NEGATIVE_MODULES:
             raise ValueError(
@@ -391,6 +397,9 @@ class SavingsService:
                 status="zero",
             )
 
+        # NOTE: partial mode intentionally ignores minimum_balance.
+        # System-initiated fee collection must be able to drain savings below the
+        # product minimum — the minimum_balance constraint applies to user withdrawals only.
         actual_amount = amount if on_insufficient_funds != "partial" else min(balance, amount)
 
         from app.modules.ledger.service import LedgerService
