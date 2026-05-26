@@ -12,6 +12,8 @@ celery_app = Celery(
         "app.core.outbox.retention",
         "app.platform_.provisioning.tasks",
         "app.modules.iam.beat",
+        "app.modules.fees.consumer",
+        "app.modules.fees.beat",
     ],
 )
 
@@ -50,6 +52,18 @@ celery_app.conf.update(
         },
         "cleanup-iam-sessions": {
             "task": "app.modules.iam.beat.cleanup_sessions",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "consume-fee-events": {
+            "task": "app.modules.fees.consumer.consume_fee_events",
+            "schedule": 60.0,  # every minute
+        },
+        "assess-scheduled-fees": {
+            "task": "app.modules.fees.beat.assess_scheduled_fees",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "retry-partial-fee-collections": {
+            "task": "app.modules.fees.beat.retry_partial_fee_collections",
             "schedule": 24 * 3600.0,  # daily
         },
     },
