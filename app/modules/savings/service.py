@@ -354,6 +354,24 @@ class SavingsService:
                 f"'allow_negative' is not permitted for source_module='{source_module}'"
             )
 
+        # Idempotency guard.
+        existing = await self._session.scalar(
+            select(SavingsTransaction).where(
+                SavingsTransaction.idempotency_key == idempotency_key,
+                SavingsTransaction.savings_account_id == savings_account_id,
+            )
+        )
+        if existing is not None:
+            _log.info("savings.system_debit.idempotent_hit", idempotency_key=idempotency_key)
+            return SystemDebitResult(
+                transaction_id=existing.id,
+                journal_entry_id=existing.journal_entry_id,
+                debited_amount=existing.amount,
+                requested_amount=existing.amount,
+                shortfall_amount=Decimal("0"),
+                status="full",
+            )
+
         account = await self.get_account(savings_account_id)
         balance = await self.get_balance(savings_account_id)
 
@@ -443,6 +461,17 @@ class SavingsService:
         narration: str | None = None,
     ) -> SavingsTransaction:
         """System-initiated credit. NOT callable from API routes."""
+        # Idempotency guard.
+        existing = await self._session.scalar(
+            select(SavingsTransaction).where(
+                SavingsTransaction.idempotency_key == idempotency_key,
+                SavingsTransaction.savings_account_id == savings_account_id,
+            )
+        )
+        if existing is not None:
+            _log.info("savings.system_credit.idempotent_hit", idempotency_key=idempotency_key)
+            return existing
+
         account = await self.get_account(savings_account_id)
 
         from app.modules.ledger.service import LedgerService
