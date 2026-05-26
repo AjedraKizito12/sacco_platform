@@ -1,7 +1,4 @@
-"""Maker-checker executors for member lifecycle operations.
-
-Import this module at app startup to register executors in approval_registry.
-"""
+"""Maker-checker executors for member lifecycle operations."""
 from __future__ import annotations
 
 import uuid
@@ -25,7 +22,7 @@ async def execute_change_status(
         reason: str | None
         idempotency_key: str
     """
-    # Import inside function to avoid circular import at module load time.
+    from app.core.outbox.publisher import EventPublisher
     from app.modules.members.service import MemberService
 
     member_id = uuid.UUID(payload["member_id"])
@@ -37,11 +34,25 @@ async def execute_change_status(
     old_status = member.status
     member.status = new_status
 
-    # Set joined_at the first time the member becomes active.
     if new_status == "active" and member.joined_at is None:
         member.joined_at = date.today()
 
     await session.flush()
+
+    # Publish domain event so fee engine and other consumers can react.
+    if new_status == "active":
+        await EventPublisher.publish(
+            session,
+            aggregate_type="member",
+            aggregate_id=member_id,
+            event_type="MemberActivated",
+            payload={
+                "member_id": str(member_id),
+                "member_number": member.member_number,
+                "activated_at": member.joined_at.isoformat() if member.joined_at else None,
+            },
+        )
+
     return {
         "member_id": str(member_id),
         "old_status": old_status,
