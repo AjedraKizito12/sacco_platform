@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,18 @@ if TYPE_CHECKING:
     import uuid
 
     from sqlalchemy.ext.asyncio import AsyncSession
+
+_ALLOW_NEGATIVE_MODULES: frozenset[str] = frozenset()  # extended by credit module
+
+
+@dataclass
+class SystemDebitResult:
+    transaction_id: uuid.UUID | None
+    journal_entry_id: uuid.UUID | None
+    debited_amount: Decimal
+    requested_amount: Decimal
+    shortfall_amount: Decimal
+    status: str  # 'full' | 'partial' | 'zero'
 
 from app.modules.savings.models import SavingsAccount, SavingsProduct, SavingsTransaction
 
@@ -119,17 +132,25 @@ class SavingsService:
         """
         await self.get_account(savings_account_id)
 
+        from sqlalchemy import or_
+
         deposits = await self._session.scalar(
             select(func.coalesce(func.sum(SavingsTransaction.amount), Decimal("0"))).where(
                 SavingsTransaction.savings_account_id == savings_account_id,
-                SavingsTransaction.transaction_type == "deposit",
+                or_(
+                    SavingsTransaction.transaction_type == "deposit",
+                    SavingsTransaction.transaction_type == "SYSTEM_CREDIT",
+                ),
             )
         ) or Decimal("0")
 
         withdrawals = await self._session.scalar(
             select(func.coalesce(func.sum(SavingsTransaction.amount), Decimal("0"))).where(
                 SavingsTransaction.savings_account_id == savings_account_id,
-                SavingsTransaction.transaction_type == "withdrawal",
+                or_(
+                    SavingsTransaction.transaction_type == "withdrawal",
+                    SavingsTransaction.transaction_type == "SYSTEM_DEBIT",
+                ),
             )
         ) or Decimal("0")
 
@@ -292,3 +313,178 @@ class SavingsService:
             approval_id=str(request.id),
         )
         return request.id
+
+    # ── System-initiated debits/credits ───────────────────────────────────────
+
+    async def get_primary_account_for_member(
+        self, member_id: uuid.UUID
+    ) -> SavingsAccount | None:
+        """Return the member's oldest savings account, or None."""
+        result = await self._session.scalar(
+            select(SavingsAccount)
+            .where(SavingsAccount.member_id == member_id)
+            .order_by(SavingsAccount.created_at)
+            .limit(1)
+        )
+        return result
+
+    async def system_debit(
+        self,
+        *,
+        savings_account_id: uuid.UUID,
+        amount: Decimal,
+        reason: str,
+        source_module: str,
+        source_id: uuid.UUID,
+        actor: uuid.UUID,
+        idempotency_key: str,
+        contra_account_id: uuid.UUID,
+        narration: str | None = None,
+        on_insufficient_funds: str = "fail",
+    ) -> "SystemDebitResult":
+        """System-initiated debit. NOT callable from API routes.
+
+        on_insufficient_funds:
+          'fail'    — raise ValueError if balance < amount (default)
+          'partial' — debit min(balance, amount); return shortfall
+          'allow_negative' — restricted to modules in _ALLOW_NEGATIVE_MODULES
+        """
+        if on_insufficient_funds == "allow_negative" and source_module not in _ALLOW_NEGATIVE_MODULES:
+            raise ValueError(
+                f"'allow_negative' is not permitted for source_module='{source_module}'"
+            )
+
+        account = await self.get_account(savings_account_id)
+        balance = await self.get_balance(savings_account_id)
+
+        if on_insufficient_funds == "fail" and balance < amount:
+            raise ValueError(
+                f"Insufficient balance for system_debit: "
+                f"requested {amount}, available {balance}"
+            )
+
+        if on_insufficient_funds == "partial" and balance <= Decimal("0"):
+            return SystemDebitResult(
+                transaction_id=None,
+                journal_entry_id=None,
+                debited_amount=Decimal("0"),
+                requested_amount=amount,
+                shortfall_amount=amount,
+                status="zero",
+            )
+
+        actual_amount = amount if on_insufficient_funds != "partial" else min(balance, amount)
+
+        from app.modules.ledger.service import LedgerService
+
+        ledger_svc = LedgerService(self._session)
+        entry = await ledger_svc.post_journal_entry(
+            reference=f"SYS-DEB-{savings_account_id}",
+            description=narration or f"System debit: {reason}",
+            posted_by=actor,
+            idempotency_key=f"sys-debit-{idempotency_key}",
+            lines=[
+                {
+                    "account_id": account.liability_account_id,
+                    "debit_amount": actual_amount,
+                    "credit_amount": Decimal("0"),
+                },
+                {
+                    "account_id": contra_account_id,
+                    "debit_amount": Decimal("0"),
+                    "credit_amount": actual_amount,
+                },
+            ],
+        )
+
+        txn = SavingsTransaction(
+            savings_account_id=savings_account_id,
+            transaction_type="SYSTEM_DEBIT",
+            amount=actual_amount,
+            narration=narration,
+            journal_entry_id=entry.id,
+            posted_by=actor,
+            idempotency_key=idempotency_key,
+            source_module=source_module,
+            source_id=source_id,
+            reason=reason,
+        )
+        self._session.add(txn)
+        await self._session.flush()
+
+        shortfall = amount - actual_amount
+        _log.info(
+            "savings.system_debit",
+            savings_account_id=str(savings_account_id),
+            amount=str(actual_amount),
+            reason=reason,
+            source_module=source_module,
+        )
+        return SystemDebitResult(
+            transaction_id=txn.id,
+            journal_entry_id=entry.id,
+            debited_amount=actual_amount,
+            requested_amount=amount,
+            shortfall_amount=shortfall,
+            status="full" if shortfall == Decimal("0") else "partial",
+        )
+
+    async def system_credit(
+        self,
+        *,
+        savings_account_id: uuid.UUID,
+        amount: Decimal,
+        reason: str,
+        source_module: str,
+        source_id: uuid.UUID,
+        actor: uuid.UUID,
+        idempotency_key: str,
+        contra_account_id: uuid.UUID,
+        narration: str | None = None,
+    ) -> SavingsTransaction:
+        """System-initiated credit. NOT callable from API routes."""
+        account = await self.get_account(savings_account_id)
+
+        from app.modules.ledger.service import LedgerService
+
+        ledger_svc = LedgerService(self._session)
+        entry = await ledger_svc.post_journal_entry(
+            reference=f"SYS-CRD-{savings_account_id}",
+            description=narration or f"System credit: {reason}",
+            posted_by=actor,
+            idempotency_key=f"sys-credit-{idempotency_key}",
+            lines=[
+                {
+                    "account_id": contra_account_id,
+                    "debit_amount": amount,
+                    "credit_amount": Decimal("0"),
+                },
+                {
+                    "account_id": account.liability_account_id,
+                    "debit_amount": Decimal("0"),
+                    "credit_amount": amount,
+                },
+            ],
+        )
+
+        txn = SavingsTransaction(
+            savings_account_id=savings_account_id,
+            transaction_type="SYSTEM_CREDIT",
+            amount=amount,
+            narration=narration,
+            journal_entry_id=entry.id,
+            posted_by=actor,
+            idempotency_key=idempotency_key,
+            source_module=source_module,
+            source_id=source_id,
+            reason=reason,
+        )
+        self._session.add(txn)
+        await self._session.flush()
+        _log.info(
+            "savings.system_credit",
+            savings_account_id=str(savings_account_id),
+            amount=str(amount),
+            reason=reason,
+        )
+        return txn

@@ -141,12 +141,20 @@ class SavingsTransaction(Base):
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
     idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    source_module: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("idempotency_key", name="uq_savtx_idempotency_key"),
         CheckConstraint(
-            "transaction_type IN ('deposit', 'withdrawal')",
+            "transaction_type IN ('deposit', 'withdrawal', 'SYSTEM_DEBIT', 'SYSTEM_CREDIT')",
             name="ck_savtx_transaction_type",
+        ),
+        CheckConstraint(
+            "reason IS NULL OR reason IN ('FEE_COLLECTION', 'LOAN_REPAYMENT', "
+            "'LOAN_DISBURSEMENT', 'REFUND', 'RECEIVABLE_RECOVERY')",
+            name="ck_savtx_reason",
         ),
         CheckConstraint("amount > 0", name="ck_savtx_amount_positive"),
         Index("ix_savtx_savings_account_id", "savings_account_id"),

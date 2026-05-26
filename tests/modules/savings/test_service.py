@@ -526,3 +526,196 @@ async def test_executor_withdraws_and_posts_gl(test_engine):
         await session4.close()
         await _cleanup_approvals(test_engine)
         await _cleanup(test_engine)
+
+
+# ── system_debit ──────────────────────────────────────────────────────────────
+
+async def test_system_debit_full_deducts_balance(test_engine):
+    """system_debit with sufficient balance: full amount debited, balance reduced."""
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    account_id = await _setup_account(test_engine, product_id)
+    source_id = uuid.uuid4()
+
+    # Deposit 5000
+    session = await _new_session(test_engine)
+    try:
+        await SavingsService(session).deposit(
+            savings_account_id=account_id,
+            amount=Decimal("5000.00"),
+            payment_account_id=cash_id,
+            posted_by=uuid.uuid4(),
+            idempotency_key="sys-dep-001",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    # system_debit 2000 (contra = cash account for test)
+    session2 = await _new_session(test_engine)
+    try:
+        svc = SavingsService(session2)
+        result = await svc.system_debit(
+            savings_account_id=account_id,
+            amount=Decimal("2000.00"),
+            reason="FEE_COLLECTION",
+            source_module="fees",
+            source_id=source_id,
+            actor=uuid.uuid4(),
+            idempotency_key="sysdeb-001",
+            contra_account_id=cash_id,
+        )
+        await session2.commit()
+
+        assert result.debited_amount == Decimal("2000.00")
+        assert result.shortfall_amount == Decimal("0.00")
+        assert result.status == "full"
+        assert result.transaction_id is not None
+        assert result.journal_entry_id is not None
+
+        balance = await SavingsService(session2).get_balance(account_id)
+        assert balance == Decimal("3000.00")
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+async def test_system_debit_fail_on_insufficient(test_engine):
+    """system_debit on_insufficient_funds='fail' raises when balance < amount."""
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = SavingsService(session)
+        with pytest.raises(ValueError, match="Insufficient"):
+            await svc.system_debit(
+                savings_account_id=account_id,
+                amount=Decimal("100.00"),
+                reason="FEE_COLLECTION",
+                source_module="fees",
+                source_id=uuid.uuid4(),
+                actor=uuid.uuid4(),
+                idempotency_key="sysdeb-002",
+                contra_account_id=cash_id,
+                on_insufficient_funds="fail",
+            )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_system_debit_partial(test_engine):
+    """system_debit on_insufficient_funds='partial' debits available balance."""
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    # Deposit only 1000
+    session = await _new_session(test_engine)
+    try:
+        await SavingsService(session).deposit(
+            savings_account_id=account_id,
+            amount=Decimal("1000.00"),
+            payment_account_id=cash_id,
+            posted_by=uuid.uuid4(),
+            idempotency_key="sys-dep-003",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    # Try to debit 3000 with partial
+    session2 = await _new_session(test_engine)
+    try:
+        svc = SavingsService(session2)
+        result = await svc.system_debit(
+            savings_account_id=account_id,
+            amount=Decimal("3000.00"),
+            reason="FEE_COLLECTION",
+            source_module="fees",
+            source_id=uuid.uuid4(),
+            actor=uuid.uuid4(),
+            idempotency_key="sysdeb-003",
+            contra_account_id=cash_id,
+            on_insufficient_funds="partial",
+        )
+        await session2.commit()
+
+        assert result.debited_amount == Decimal("1000.00")
+        assert result.shortfall_amount == Decimal("2000.00")
+        assert result.status == "partial"
+        balance = await SavingsService(session2).get_balance(account_id)
+        assert balance == Decimal("0.00")
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+async def test_system_debit_zero_balance_returns_zero_status(test_engine):
+    """system_debit with zero balance and on_insufficient_funds='partial' returns status='zero'."""
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    account_id = await _setup_account(test_engine, product_id)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = SavingsService(session)
+        result = await svc.system_debit(
+            savings_account_id=account_id,
+            amount=Decimal("500.00"),
+            reason="FEE_COLLECTION",
+            source_module="fees",
+            source_id=uuid.uuid4(),
+            actor=uuid.uuid4(),
+            idempotency_key="sysdeb-004",
+            contra_account_id=cash_id,
+            on_insufficient_funds="partial",
+        )
+        # No commit needed — nothing written
+        assert result.status == "zero"
+        assert result.debited_amount == Decimal("0.00")
+        assert result.transaction_id is None
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+async def test_system_debit_records_source_columns(test_engine):
+    """system_debit rows have source_module, source_id, reason populated."""
+    from sqlalchemy import select as sa_select
+    cash_id, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    account_id = await _setup_account(test_engine, product_id)
+    source_id = uuid.uuid4()
+
+    session = await _new_session(test_engine)
+    try:
+        await SavingsService(session).deposit(
+            savings_account_id=account_id, amount=Decimal("1000.00"),
+            payment_account_id=cash_id, posted_by=uuid.uuid4(),
+            idempotency_key="sys-dep-005",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        result = await SavingsService(session2).system_debit(
+            savings_account_id=account_id, amount=Decimal("200.00"),
+            reason="FEE_COLLECTION", source_module="fees", source_id=source_id,
+            actor=uuid.uuid4(), idempotency_key="sysdeb-005",
+            contra_account_id=cash_id,
+        )
+        await session2.commit()
+
+        row = await session2.get(SavingsTransaction, result.transaction_id)
+        assert row.source_module == "fees"
+        assert row.source_id == source_id
+        assert row.reason == "FEE_COLLECTION"
+        assert row.transaction_type == "SYSTEM_DEBIT"
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
