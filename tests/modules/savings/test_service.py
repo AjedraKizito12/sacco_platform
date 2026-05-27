@@ -684,7 +684,6 @@ async def test_system_debit_zero_balance_returns_zero_status(test_engine):
 
 async def test_system_debit_records_source_columns(test_engine):
     """system_debit rows have source_module, source_id, reason populated."""
-    from sqlalchemy import select as sa_select
     cash_id, liability_id = await _setup_gl_accounts(test_engine)
     product_id = await _setup_product(test_engine, liability_id)
     account_id = await _setup_account(test_engine, product_id)
@@ -723,23 +722,17 @@ async def test_system_debit_records_source_columns(test_engine):
 
 async def test_savings_transaction_accepts_external_credit_type(test_engine):
     """EXTERNAL_CREDIT is a valid transaction_type — CHECK constraint allows it."""
-    import uuid as _uuid
-    from sqlalchemy import insert
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
-    factory = async_sessionmaker(test_engine, expire_on_commit=False)
-
     # Set up: GL account + savings product + savings account + a journal entry to reference.
     session = await _new_session(test_engine)
     try:
-        actor = _uuid.uuid4()
+        actor = uuid.uuid4()
         ledger_svc = LedgerService(session)
         cash = await ledger_svc.create_account(
-            code=f"1-EXT-{_uuid.uuid4().hex[:4]}", name="Cash EXT",
+            code=f"1-EXT-{uuid.uuid4().hex[:4]}", name="Cash EXT",
             account_type="asset", created_by=actor,
         )
         liab = await ledger_svc.create_account(
-            code=f"2-EXT-{_uuid.uuid4().hex[:4]}", name="Savings EXT",
+            code=f"2-EXT-{uuid.uuid4().hex[:4]}", name="Savings EXT",
             account_type="liability", created_by=actor,
         )
         # Post a dummy journal entry (represents the external module's GL entry).
@@ -747,10 +740,12 @@ async def test_savings_transaction_accepts_external_credit_type(test_engine):
             reference="EXT-CR-TEST",
             description="Dummy external entry",
             posted_by=actor,
-            idempotency_key=f"ext-cr-test-{_uuid.uuid4()}",
+            idempotency_key=f"ext-cr-test-{uuid.uuid4()}",
             lines=[
-                {"account_id": cash.id, "debit_amount": Decimal("500"), "credit_amount": Decimal("0")},
-                {"account_id": liab.id, "debit_amount": Decimal("0"), "credit_amount": Decimal("500")},
+                {"account_id": cash.id, "debit_amount": Decimal("500"),
+                 "credit_amount": Decimal("0")},
+                {"account_id": liab.id, "debit_amount": Decimal("0"),
+                 "credit_amount": Decimal("500")},
             ],
         )
 
@@ -781,9 +776,9 @@ async def test_savings_transaction_accepts_external_credit_type(test_engine):
             amount=Decimal("500"),
             journal_entry_id=entry.id,
             posted_by=actor,
-            idempotency_key=f"ext-cr-direct-{_uuid.uuid4()}",
+            idempotency_key=f"ext-cr-direct-{uuid.uuid4()}",
             source_module="credit",
-            source_id=_uuid.uuid4(),
+            source_id=uuid.uuid4(),
             reason="LOAN_DISBURSEMENT",
         )
         session.add(txn)
@@ -794,4 +789,76 @@ async def test_savings_transaction_accepts_external_credit_type(test_engine):
         assert txn.transaction_type == "EXTERNAL_CREDIT"
     finally:
         await session.close()
-        # cleanup handled by next test or session teardown
+        await _cleanup(test_engine)
+
+
+async def test_savings_transaction_accepts_external_debit_type(test_engine):
+    """EXTERNAL_DEBIT is a valid transaction_type — CHECK constraint allows it."""
+    # Set up: GL account + savings product + savings account + a journal entry to reference.
+    session = await _new_session(test_engine)
+    try:
+        actor = uuid.uuid4()
+        ledger_svc = LedgerService(session)
+        cash = await ledger_svc.create_account(
+            code=f"1-EXTD-{uuid.uuid4().hex[:4]}", name="Cash EXTD",
+            account_type="asset", created_by=actor,
+        )
+        liab = await ledger_svc.create_account(
+            code=f"2-EXTD-{uuid.uuid4().hex[:4]}", name="Savings EXTD",
+            account_type="liability", created_by=actor,
+        )
+        # Post a dummy journal entry (represents the external module's GL entry).
+        entry = await ledger_svc.post_journal_entry(
+            reference="EXT-DR-TEST",
+            description="Dummy external debit entry",
+            posted_by=actor,
+            idempotency_key=f"ext-dr-test-{uuid.uuid4()}",
+            lines=[
+                {"account_id": liab.id, "debit_amount": Decimal("500"),
+                 "credit_amount": Decimal("0")},
+                {"account_id": cash.id, "debit_amount": Decimal("0"),
+                 "credit_amount": Decimal("500")},
+            ],
+        )
+
+        savings_svc = SavingsService(session)
+        product = SavingsProduct(
+            name="EXTD Test Product",
+            interest_rate=Decimal("5"),
+            minimum_balance=Decimal("0"),
+            liability_account_id=liab.id,
+        )
+        session.add(product)
+        await session.flush()
+
+        member_svc = MemberService(session)
+        from datetime import date as _date
+        member = await member_svc.register_member(
+            full_name="EXTD Test Member",
+            date_of_birth=_date(1990, 1, 1),
+            gender="female",
+            created_by=actor,
+        )
+        account = await savings_svc.open_account(member_id=member.id, savings_product_id=product.id)
+
+        # Insert EXTERNAL_DEBIT row directly (bypassing service — testing model/schema only).
+        txn = SavingsTransaction(
+            savings_account_id=account.id,
+            transaction_type="EXTERNAL_DEBIT",
+            amount=Decimal("500"),
+            journal_entry_id=entry.id,
+            posted_by=actor,
+            idempotency_key=f"ext-dr-direct-{uuid.uuid4()}",
+            source_module="credit",
+            source_id=uuid.uuid4(),
+            reason="LOAN_REPAYMENT",
+        )
+        session.add(txn)
+        await session.flush()
+        await session.commit()
+
+        assert txn.id is not None
+        assert txn.transaction_type == "EXTERNAL_DEBIT"
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
