@@ -46,6 +46,7 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     import app.modules.shares.models  # noqa: F401 — registers shares tables in Base.metadata
     import app.modules.savings.models  # noqa: F401 — registers savings tables in Base.metadata
     import app.modules.fees.models  # noqa: F401 — registers fee tables in Base.metadata
+    import app.modules.credit.models  # noqa: F401 — registers credit tables in Base.metadata
 
     url = os.environ["DATABASE_URL"]
     engine = create_async_engine(url, echo=False, poolclass=NullPool)
@@ -62,6 +63,9 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
         # Create tenant sequences that are not part of SQLAlchemy metadata
         await conn.execute(
             text(f"CREATE SEQUENCE IF NOT EXISTS {TEST_TENANT_SCHEMA}.member_number_seq START 1")
+        )
+        await conn.execute(
+            text(f"CREATE SEQUENCE IF NOT EXISTS {TEST_TENANT_SCHEMA}.loan_number_seq START 1")
         )
 
     yield engine
