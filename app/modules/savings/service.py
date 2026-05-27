@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -8,8 +9,6 @@ import structlog
 from sqlalchemy import func, select
 
 if TYPE_CHECKING:
-    import uuid
-
     from sqlalchemy.ext.asyncio import AsyncSession
 
 _ALLOW_NEGATIVE_MODULES: frozenset[str] = frozenset()  # extended by credit module
@@ -341,7 +340,7 @@ class SavingsService:
         contra_account_id: uuid.UUID,
         narration: str | None = None,
         on_insufficient_funds: str = "fail",
-    ) -> "SystemDebitResult":
+    ) -> SystemDebitResult:
         """System-initiated debit. NOT callable from API routes.
 
         on_insufficient_funds:
@@ -524,5 +523,111 @@ class SavingsService:
             savings_account_id=str(savings_account_id),
             amount=str(amount),
             reason=reason,
+        )
+        return txn
+
+    async def record_external_credit(
+        self,
+        *,
+        savings_account_id: uuid.UUID,
+        amount: Decimal,
+        journal_entry_id: uuid.UUID,
+        source_module: str,
+        source_id: uuid.UUID,
+        narration: str | None = None,
+        idempotency_key: str,
+    ) -> SavingsTransaction:
+        """Record a credit to a savings account made by an external module.
+
+        The GL entry has ALREADY been posted by the calling module (e.g. credit).
+        This method only writes the savings_transactions statement row.
+        NOT callable from API routes.
+        """
+        existing = await self._session.scalar(
+            select(SavingsTransaction).where(
+                SavingsTransaction.idempotency_key == idempotency_key,
+                SavingsTransaction.savings_account_id == savings_account_id,
+            )
+        )
+        if existing is not None:
+            _log.info(
+                "savings.record_external_credit.idempotent_hit",
+                idempotency_key=idempotency_key,
+            )
+            return existing
+
+        await self.get_account(savings_account_id)  # existence check
+
+        txn = SavingsTransaction(
+            savings_account_id=savings_account_id,
+            transaction_type="EXTERNAL_CREDIT",
+            amount=amount,
+            narration=narration,
+            journal_entry_id=journal_entry_id,
+            posted_by=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+            idempotency_key=idempotency_key,
+            source_module=source_module,
+            source_id=source_id,
+        )
+        self._session.add(txn)
+        await self._session.flush()
+        _log.info(
+            "savings.external_credit_recorded",
+            savings_account_id=str(savings_account_id),
+            amount=str(amount),
+            source_module=source_module,
+        )
+        return txn
+
+    async def record_external_debit(
+        self,
+        *,
+        savings_account_id: uuid.UUID,
+        amount: Decimal,
+        journal_entry_id: uuid.UUID,
+        source_module: str,
+        source_id: uuid.UUID,
+        narration: str | None = None,
+        idempotency_key: str,
+    ) -> SavingsTransaction:
+        """Record a debit from a savings account made by an external module.
+
+        The GL entry has ALREADY been posted by the calling module (e.g. credit).
+        This method only writes the savings_transactions statement row.
+        NOT callable from API routes.
+        """
+        existing = await self._session.scalar(
+            select(SavingsTransaction).where(
+                SavingsTransaction.idempotency_key == idempotency_key,
+                SavingsTransaction.savings_account_id == savings_account_id,
+            )
+        )
+        if existing is not None:
+            _log.info(
+                "savings.record_external_debit.idempotent_hit",
+                idempotency_key=idempotency_key,
+            )
+            return existing
+
+        await self.get_account(savings_account_id)  # existence check
+
+        txn = SavingsTransaction(
+            savings_account_id=savings_account_id,
+            transaction_type="EXTERNAL_DEBIT",
+            amount=amount,
+            narration=narration,
+            journal_entry_id=journal_entry_id,
+            posted_by=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+            idempotency_key=idempotency_key,
+            source_module=source_module,
+            source_id=source_id,
+        )
+        self._session.add(txn)
+        await self._session.flush()
+        _log.info(
+            "savings.external_debit_recorded",
+            savings_account_id=str(savings_account_id),
+            amount=str(amount),
+            source_module=source_module,
         )
         return txn
