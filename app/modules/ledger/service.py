@@ -196,6 +196,12 @@ class LedgerService:
                     "debit_amount": str(ln["debit_amount"]),
                     "credit_amount": str(ln["credit_amount"]),
                     "description": ln.get("description"),
+                    "sub_ledger_type": ln.get("sub_ledger_type"),
+                    "sub_ledger_id": (
+                        str(ln["sub_ledger_id"])
+                        if ln.get("sub_ledger_id") is not None
+                        else None
+                    ),
                 }
                 for ln in lines
             ],
