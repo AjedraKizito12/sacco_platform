@@ -291,6 +291,13 @@ class FeeCollectionService:
             ],
         )
 
+        # Recompute total collected to update assessment status.
+        # Query BEFORE adding the new collection to avoid double-counting with autoflush.
+        all_collections = await self._session.execute(
+            select(FeeCollection).where(FeeCollection.fee_assessment_id == assessment_id)
+        )
+        total_collected = sum(c.amount for c in all_collections.scalars().all()) + amount
+
         collection = FeeCollection(
             fee_assessment_id=assessment_id,
             amount=amount,
@@ -303,11 +310,6 @@ class FeeCollectionService:
         )
         self._session.add(collection)
 
-        # Recompute total collected to update assessment status.
-        all_collections = await self._session.execute(
-            select(FeeCollection).where(FeeCollection.fee_assessment_id == assessment_id)
-        )
-        total_collected = sum(c.amount for c in all_collections.scalars().all()) + amount
         if total_collected >= assessment.amount:
             assessment.status = "paid"
             assessment.paid_at = datetime.now(UTC)
