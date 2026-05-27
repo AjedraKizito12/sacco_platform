@@ -397,3 +397,58 @@ async def test_executor_posts_journal_entry_on_approve(test_engine):
         await session3.close()
         await _cleanup_approvals(test_engine)
         await _cleanup(test_engine)
+
+
+# ── Sub-ledger fields ─────────────────────────────────────────────────────────
+
+
+async def test_post_journal_entry_stores_sub_ledger_fields(test_engine):
+    """sub_ledger_type and sub_ledger_id on a line dict are stored on JournalLine."""
+    import uuid as _uuid
+    from sqlalchemy import select as sa_select
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LedgerService(session)
+        actor = _uuid.uuid4()
+        asset = await svc.create_account(code="1-SL", name="Asset SL", account_type="asset", created_by=actor)
+        liability = await svc.create_account(code="2-SL", name="Liab SL", account_type="liability", created_by=actor)
+
+        fake_loan_id = _uuid.uuid4()
+        entry = await svc.post_journal_entry(
+            reference="SL-TEST",
+            description="Sub-ledger test",
+            posted_by=actor,
+            idempotency_key=f"sl-test-{fake_loan_id}",
+            lines=[
+                {
+                    "account_id": asset.id,
+                    "debit_amount": Decimal("100"),
+                    "credit_amount": Decimal("0"),
+                    "sub_ledger_type": "loan",
+                    "sub_ledger_id": fake_loan_id,
+                },
+                {
+                    "account_id": liability.id,
+                    "debit_amount": Decimal("0"),
+                    "credit_amount": Decimal("100"),
+                    "sub_ledger_type": "loan",
+                    "sub_ledger_id": fake_loan_id,
+                },
+            ],
+        )
+        await session.commit()
+
+        # Re-fetch lines and verify sub_ledger fields persisted.
+        lines = list(
+            (await session.execute(
+                sa_select(JournalLine).where(JournalLine.journal_entry_id == entry.id)
+            )).scalars().all()
+        )
+        assert len(lines) == 2
+        for line in lines:
+            assert line.sub_ledger_type == "loan"
+            assert line.sub_ledger_id == fake_loan_id
+    finally:
+        await session.close()
+        await _cleanup(test_engine)

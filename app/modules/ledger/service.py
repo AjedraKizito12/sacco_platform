@@ -120,6 +120,7 @@ class LedgerService:
         await self._session.flush()  # populate entry.id
 
         for ln in lines:
+            sub_ledger_id_val = ln.get("sub_ledger_id")
             self._session.add(
                 JournalLine(
                     journal_entry_id=entry.id,
@@ -127,6 +128,8 @@ class LedgerService:
                     debit_amount=Decimal(str(ln["debit_amount"])),
                     credit_amount=Decimal(str(ln["credit_amount"])),
                     description=ln.get("description"),
+                    sub_ledger_type=ln.get("sub_ledger_type"),
+                    sub_ledger_id=uuid.UUID(str(sub_ledger_id_val)) if sub_ledger_id_val is not None else None,
                 )
             )
 

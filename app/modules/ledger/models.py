@@ -15,6 +15,7 @@ from sqlalchemy import (
     TIMESTAMP,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -133,6 +134,10 @@ class JournalLine(Base):
         Numeric(19, 4), nullable=False, server_default="0"
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sub_ledger_type: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sub_ledger_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
 
     entry: Mapped[JournalEntry] = relationship("JournalEntry", back_populates="lines", lazy="raise")
     account: Mapped[ChartOfAccount] = relationship(
@@ -148,4 +153,10 @@ class JournalLine(Base):
         ),
         Index("ix_jl_journal_entry_id", "journal_entry_id"),
         Index("ix_jl_account_id", "account_id"),
+        Index(
+            "ix_jl_sub_ledger",
+            "sub_ledger_type",
+            "sub_ledger_id",
+            postgresql_where=text("sub_ledger_id IS NOT NULL"),
+        ),
     )
