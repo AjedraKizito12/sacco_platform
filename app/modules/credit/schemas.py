@@ -96,6 +96,8 @@ class LoanApplicationOut(BaseModel):
     requested_term_periods: int
     approved_amount: Decimal | None
     approved_term_periods: int | None
+    reviewed_by: uuid.UUID | None
+    reviewed_at: datetime | None
     purpose: str | None
     disbursement_destination: str
     disbursement_account_id: uuid.UUID | None
@@ -107,3 +109,11 @@ class LoanApplicationOut(BaseModel):
     idempotency_key: str
     created_at: datetime
     updated_at: datetime
+
+
+class LoanApplicationApproveIn(BaseModel):
+    comment: str | None = None
+
+
+class LoanApplicationRejectIn(BaseModel):
+    reason: str | None = None
