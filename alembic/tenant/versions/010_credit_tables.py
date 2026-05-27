@@ -67,7 +67,7 @@ def upgrade() -> None:
             name="ck_lp_interest_method",
         ),
         sa.CheckConstraint(
-            "repayment_frequency IN ('weekly', 'biweekly', 'monthly', 'quarterly')",
+            "repayment_frequency IN ('weekly', 'biweekly', 'monthly', 'quarterly', 'lump_sum')",
             name="ck_lp_repayment_frequency",
         ),
         sa.CheckConstraint("annual_interest_rate >= 0", name="ck_lp_annual_rate"),
@@ -235,7 +235,7 @@ def upgrade() -> None:
     op.create_index("ix_lr_loan_id", "loan_repayments", ["loan_id"])
 
     # ── loan_number_seq ───────────────────────────────────────────────────────
-    op.execute("CREATE SEQUENCE loan_number_seq START 1")
+    op.execute("CREATE SEQUENCE IF NOT EXISTS loan_number_seq START 1")
 
 
 def downgrade() -> None:
