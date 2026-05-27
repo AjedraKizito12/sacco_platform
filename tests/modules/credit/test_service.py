@@ -22,6 +22,10 @@ from app.modules.credit.models import (
 )
 from app.modules.credit.services.product import LoanProductService
 
+import app.modules.credit.executors  # noqa: F401 — registers credit.approve_application
+from app.modules.credit.services.application import LoanApplicationService
+from app.modules.maker_checker.service import ApprovalService
+
 TEST_TENANT_SCHEMA = "tenant_test"
 
 
@@ -276,6 +280,193 @@ async def test_update_write_off_threshold(test_engine):
         )
         await session2.commit()
         assert updated.write_off_threshold == Decimal("100000")
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+async def _make_product(engine: AsyncEngine, **overrides) -> LoanProduct:
+    """Create a committed LoanProduct for use in application tests."""
+    session = await _new_session(engine)
+    try:
+        svc = LoanProductService(session)
+        product = await svc.create(**_product_kwargs(**overrides))
+        await session.commit()
+        return product
+    finally:
+        await session.close()
+
+
+# ── Application tests ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_submit_application_success(test_engine):
+    product = await _make_product(test_engine, name="App Test Product", required_approvals=1)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanApplicationService(session)
+        actor = uuid.uuid4()
+        application = await svc.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("200000"),
+            requested_term_periods=12,
+            purpose="Business expansion",
+            disbursement_destination="member_savings",
+            disbursement_account_id=None,
+            submitted_by=actor,
+            idempotency_key=f"submit-test-{uuid.uuid4()}",
+        )
+        await session.commit()
+
+        assert application.id is not None
+        assert application.status == "submitted"
+        assert application.approval_request_id is not None
+        assert application.loan_product_id == product.id
+        assert application.requested_amount == Decimal("200000")
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_submit_inactive_product_raises(test_engine):
+    product = await _make_product(test_engine, name="Inactive Product")
+    # Deactivate the product
+    session0 = await _new_session(test_engine)
+    try:
+        svc0 = LoanProductService(session0)
+        await svc0.deactivate(product.id, deactivated_by=uuid.uuid4())
+        await session0.commit()
+    finally:
+        await session0.close()
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanApplicationService(session)
+        with pytest.raises(ValueError, match="not active"):
+            await svc.submit(
+                loan_product_id=product.id,
+                member_id=uuid.uuid4(),
+                requested_amount=Decimal("100000"),
+                requested_term_periods=6,
+                disbursement_destination="member_savings",
+                submitted_by=uuid.uuid4(),
+                idempotency_key=f"inactive-{uuid.uuid4()}",
+            )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_submit_amount_below_min_raises(test_engine):
+    product = await _make_product(test_engine, min_amount=Decimal("50000"), max_amount=Decimal("500000"))
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanApplicationService(session)
+        with pytest.raises(ValueError, match="min_amount|minimum"):
+            await svc.submit(
+                loan_product_id=product.id,
+                member_id=uuid.uuid4(),
+                requested_amount=Decimal("10000"),  # below min_amount=50000
+                requested_term_periods=6,
+                disbursement_destination="member_savings",
+                submitted_by=uuid.uuid4(),
+                idempotency_key=f"below-min-{uuid.uuid4()}",
+            )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_submit_amount_above_max_raises(test_engine):
+    product = await _make_product(test_engine, min_amount=Decimal("50000"), max_amount=Decimal("500000"))
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanApplicationService(session)
+        with pytest.raises(ValueError, match="max_amount|maximum"):
+            await svc.submit(
+                loan_product_id=product.id,
+                member_id=uuid.uuid4(),
+                requested_amount=Decimal("1000000"),  # above max_amount=500000
+                requested_term_periods=6,
+                disbursement_destination="member_savings",
+                submitted_by=uuid.uuid4(),
+                idempotency_key=f"above-max-{uuid.uuid4()}",
+            )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_submit_term_above_max_raises(test_engine):
+    product = await _make_product(test_engine, max_term_periods=12)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanApplicationService(session)
+        with pytest.raises(ValueError, match="max_term_periods|term"):
+            await svc.submit(
+                loan_product_id=product.id,
+                member_id=uuid.uuid4(),
+                requested_amount=Decimal("100000"),
+                requested_term_periods=24,  # above max_term_periods=12
+                disbursement_destination="member_savings",
+                submitted_by=uuid.uuid4(),
+                idempotency_key=f"over-term-{uuid.uuid4()}",
+            )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_submit_idempotency(test_engine):
+    """Same idempotency_key returns the same application on second call."""
+    product = await _make_product(test_engine)
+
+    idem_key = f"idem-{uuid.uuid4()}"
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanApplicationService(session)
+        actor = uuid.uuid4()
+        first = await svc.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("100000"),
+            requested_term_periods=6,
+            disbursement_destination="member_savings",
+            submitted_by=actor,
+            idempotency_key=idem_key,
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = LoanApplicationService(session2)
+        second = await svc2.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("200000"),  # different amount — ignored
+            requested_term_periods=12,
+            disbursement_destination="member_savings",
+            submitted_by=uuid.uuid4(),
+            idempotency_key=idem_key,  # same key
+        )
+        assert second.id == first.id
+        assert second.requested_amount == Decimal("100000")  # original preserved
     finally:
         await session2.close()
         await _cleanup(test_engine)
