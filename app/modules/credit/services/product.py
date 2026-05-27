@@ -1,7 +1,6 @@
 # app/modules/credit/services/product.py
 from __future__ import annotations
 
-import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -9,6 +8,8 @@ import structlog
 from sqlalchemy import select
 
 if TYPE_CHECKING:
+    import uuid
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.credit.models import LoanProduct
@@ -18,6 +19,7 @@ _log = structlog.get_logger(__name__)
 _VALID_INTEREST_METHODS = frozenset({"flat", "reducing_balance"})
 _VALID_FREQUENCIES = frozenset({"weekly", "biweekly", "monthly", "quarterly", "lump_sum"})
 _VALID_DESTINATIONS = frozenset({"member_savings", "cash", "internal_gl"})
+_VALID_REPAYMENT_ALLOCATIONS = frozenset({"INTEREST_PRINCIPAL"})
 
 
 class LoanProductService:
@@ -67,6 +69,10 @@ class LoanProductService:
             raise ValueError("required_approvals must be >= 1")
         if write_off_threshold < Decimal("0"):
             raise ValueError("write_off_threshold must be >= 0")
+        if repayment_allocation not in _VALID_REPAYMENT_ALLOCATIONS:
+            raise ValueError(
+                f"repayment_allocation must be one of: {sorted(_VALID_REPAYMENT_ALLOCATIONS)}"
+            )
         if not disbursement_destinations:
             raise ValueError("disbursement_destinations must not be empty")
         invalid_destinations = set(disbursement_destinations) - _VALID_DESTINATIONS
