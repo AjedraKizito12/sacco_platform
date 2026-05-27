@@ -75,7 +75,11 @@ class LoanProduct(AuditableMixin, Base):
 
 
 class LoanApplication(AuditableMixin, Base):
-    """Loan application. Moves through lifecycle via ApprovalService."""
+    """Loan application. Moves through lifecycle via ApprovalService.
+
+  status progression: submitted → under_review → approved | rejected | withdrawn
+  approved_amount / approved_term_periods may differ from requested values.
+  """
 
     __tablename__ = "loan_applications"
 
@@ -124,6 +128,10 @@ class LoanApplication(AuditableMixin, Base):
 
 class Loan(AuditableMixin, Base):
     """Active loan. Created at disbursement. Product terms snapshotted at creation.
+
+    Balance snapshot columns (outstanding_principal, accrued_interest, accrued_penalties,
+    total_paid_*, total_written_off) are the authoritative source for operational balance
+    queries. GL is authoritative for accounting reports.
 
     SINGLE-WRITER: all snapshot mutations happen inside app/modules/credit/services/
     in the same DB transaction as the GL post. See CLAUDE.md credit module contracts.
@@ -197,7 +205,11 @@ class Loan(AuditableMixin, Base):
 
 
 class LoanInstallment(Base):
-    """One row per scheduled repayment period. Append-only at disbursement."""
+    """One row per scheduled repayment period. Append-only at disbursement;
+    principal_paid / interest_paid / status / paid_at are updated by repayment service.
+
+    No AuditableMixin — financial append-only table (CLAUDE.md rule 4).
+    """
 
     __tablename__ = "loan_installments"
 
