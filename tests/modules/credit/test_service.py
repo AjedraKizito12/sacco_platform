@@ -470,3 +470,294 @@ async def test_submit_idempotency(test_engine):
     finally:
         await session2.close()
         await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_approve_quorum_1(test_engine):
+    """With required_approvals=1: single non-self approve → application.status=approved."""
+    product = await _make_product(test_engine, required_approvals=1)
+
+    submitter = uuid.uuid4()
+    approver = uuid.uuid4()  # different actor
+
+    session = await _new_session(test_engine)
+    try:
+        app_svc = LoanApplicationService(session)
+        approval_svc = ApprovalService(session)
+
+        application = await app_svc.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("100000"),
+            requested_term_periods=6,
+            disbursement_destination="member_savings",
+            submitted_by=submitter,
+            idempotency_key=f"q1-{uuid.uuid4()}",
+        )
+        # Approve as a different actor.
+        await approval_svc.approve(
+            request_id=application.approval_request_id,
+            actor_user_id=approver,
+        )
+        await session.commit()
+
+        # After executor ran, application.status should be 'approved'.
+        assert application.status == "approved"
+        assert application.approved_amount == Decimal("100000")
+        assert application.approved_term_periods == 6
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_approve_quorum_2_requires_two_approvers(test_engine):
+    """With required_approvals=2: first approve keeps pending; second approve triggers executor."""
+    product = await _make_product(test_engine, required_approvals=2)
+
+    submitter = uuid.uuid4()
+    approver1 = uuid.uuid4()
+    approver2 = uuid.uuid4()
+
+    session = await _new_session(test_engine)
+    try:
+        app_svc = LoanApplicationService(session)
+        approval_svc = ApprovalService(session)
+
+        application = await app_svc.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("100000"),
+            requested_term_periods=6,
+            disbursement_destination="member_savings",
+            submitted_by=submitter,
+            idempotency_key=f"q2-{uuid.uuid4()}",
+        )
+
+        # First approval — quorum not yet met.
+        await approval_svc.approve(
+            request_id=application.approval_request_id,
+            actor_user_id=approver1,
+        )
+        # Application should still be 'submitted' (executor not called yet).
+        assert application.status == "submitted"
+
+        # Second approval — quorum met, executor fires.
+        await approval_svc.approve(
+            request_id=application.approval_request_id,
+            actor_user_id=approver2,
+        )
+        await session.commit()
+
+        assert application.status == "approved"
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_self_approval_raises(test_engine):
+    product = await _make_product(test_engine, required_approvals=1)
+    submitter = uuid.uuid4()
+
+    session = await _new_session(test_engine)
+    try:
+        app_svc = LoanApplicationService(session)
+        approval_svc = ApprovalService(session)
+
+        application = await app_svc.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("100000"),
+            requested_term_periods=6,
+            disbursement_destination="member_savings",
+            submitted_by=submitter,
+            idempotency_key=f"self-approve-{uuid.uuid4()}",
+        )
+
+        with pytest.raises(ValueError, match="[Ss]elf"):
+            await approval_svc.approve(
+                request_id=application.approval_request_id,
+                actor_user_id=submitter,  # same as submitted_by
+            )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_reject_application(test_engine):
+    product = await _make_product(test_engine, required_approvals=1)
+    submitter = uuid.uuid4()
+    rejecter = uuid.uuid4()
+
+    session = await _new_session(test_engine)
+    try:
+        app_svc = LoanApplicationService(session)
+
+        application = await app_svc.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("100000"),
+            requested_term_periods=6,
+            disbursement_destination="member_savings",
+            submitted_by=submitter,
+            idempotency_key=f"reject-{uuid.uuid4()}",
+        )
+
+        rejected = await app_svc.reject(
+            application_id=application.id,
+            rejected_by=rejecter,
+            reason="Insufficient collateral",
+        )
+        await session.commit()
+
+        assert rejected.status == "rejected"
+        assert rejected.rejection_reason == "Insufficient collateral"
+        assert rejected.decided_by == rejecter
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_withdraw_application_success(test_engine):
+    product = await _make_product(test_engine, required_approvals=1)
+    submitter = uuid.uuid4()
+
+    session = await _new_session(test_engine)
+    try:
+        app_svc = LoanApplicationService(session)
+
+        application = await app_svc.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("100000"),
+            requested_term_periods=6,
+            disbursement_destination="member_savings",
+            submitted_by=submitter,
+            idempotency_key=f"withdraw-{uuid.uuid4()}",
+        )
+
+        withdrawn = await app_svc.withdraw(
+            application_id=application.id,
+            withdrawn_by=submitter,  # same actor as submitter
+        )
+        await session.commit()
+
+        assert withdrawn.status == "withdrawn"
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_withdraw_non_originator_raises(test_engine):
+    """Only the original submitter can withdraw."""
+    product = await _make_product(test_engine, required_approvals=1)
+    submitter = uuid.uuid4()
+    other_actor = uuid.uuid4()
+
+    session = await _new_session(test_engine)
+    try:
+        app_svc = LoanApplicationService(session)
+
+        application = await app_svc.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("100000"),
+            requested_term_periods=6,
+            disbursement_destination="member_savings",
+            submitted_by=submitter,
+            idempotency_key=f"nonoriginator-{uuid.uuid4()}",
+        )
+
+        with pytest.raises(ValueError, match="[Mm]aker|[Oo]riginator|[Cc]ancel"):
+            await app_svc.withdraw(
+                application_id=application.id,
+                withdrawn_by=other_actor,
+            )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_withdraw_after_approval_action_raises(test_engine):
+    """Cannot withdraw once a checker has acted on the approval request."""
+    product = await _make_product(test_engine, required_approvals=2)
+    submitter = uuid.uuid4()
+    approver = uuid.uuid4()
+
+    session = await _new_session(test_engine)
+    try:
+        app_svc = LoanApplicationService(session)
+        approval_svc = ApprovalService(session)
+
+        application = await app_svc.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("100000"),
+            requested_term_periods=6,
+            disbursement_destination="member_savings",
+            submitted_by=submitter,
+            idempotency_key=f"after-action-{uuid.uuid4()}",
+        )
+
+        # First approve (quorum=2, so not yet approved).
+        await approval_svc.approve(
+            request_id=application.approval_request_id,
+            actor_user_id=approver,
+        )
+
+        # Submitter tries to withdraw — should fail because action_count > 0.
+        with pytest.raises(ValueError, match="[Cc]hecker|[Aa]cted|[Cc]ancel"):
+            await app_svc.withdraw(
+                application_id=application.id,
+                withdrawn_by=submitter,
+            )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_list_applications_filter_by_member(test_engine):
+    product = await _make_product(test_engine)
+    member_a = uuid.uuid4()
+    member_b = uuid.uuid4()
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanApplicationService(session)
+        app_a = await svc.submit(
+            loan_product_id=product.id,
+            member_id=member_a,
+            requested_amount=Decimal("100000"),
+            requested_term_periods=6,
+            disbursement_destination="member_savings",
+            submitted_by=member_a,
+            idempotency_key=f"list-a-{uuid.uuid4()}",
+        )
+        app_b = await svc.submit(
+            loan_product_id=product.id,
+            member_id=member_b,
+            requested_amount=Decimal("150000"),
+            requested_term_periods=12,
+            disbursement_destination="member_savings",
+            submitted_by=member_b,
+            idempotency_key=f"list-b-{uuid.uuid4()}",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = LoanApplicationService(session2)
+        member_a_apps = await svc2.list(member_id=member_a)
+        assert len(member_a_apps) == 1
+        assert member_a_apps[0].id == app_a.id
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
