@@ -143,3 +143,139 @@ async def test_create_loan_product_required_approvals_lt_1_raises(test_engine):
     finally:
         await session.close()
         await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_get_loan_product_success(test_engine):
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanProductService(session)
+        created = await svc.create(**_product_kwargs(name="Get Test Product"))
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = LoanProductService(session2)
+        fetched = await svc2.get(created.id)
+        assert fetched.id == created.id
+        assert fetched.name == "Get Test Product"
+        assert fetched.interest_method == "flat"
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_get_unknown_product_raises(test_engine):
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanProductService(session)
+        with pytest.raises(ValueError, match="not found"):
+            await svc.get(uuid.uuid4())
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_list_products_active_only_by_default(test_engine):
+    actor = uuid.uuid4()
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanProductService(session)
+        p_active = await svc.create(**_product_kwargs(name="Active Product", created_by=actor))
+        p_inactive = await svc.create(**_product_kwargs(name="Inactive Product", created_by=actor))
+        await svc.deactivate(p_inactive.id, deactivated_by=actor)
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = LoanProductService(session2)
+        active_list = await svc2.list(include_inactive=False)
+        all_list = await svc2.list(include_inactive=True)
+        active_ids = {p.id for p in active_list}
+        all_ids = {p.id for p in all_list}
+        assert p_active.id in active_ids
+        assert p_inactive.id not in active_ids
+        assert p_active.id in all_ids
+        assert p_inactive.id in all_ids
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_deactivate_product(test_engine):
+    actor = uuid.uuid4()
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanProductService(session)
+        product = await svc.create(**_product_kwargs(name="To Deactivate", created_by=actor))
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = LoanProductService(session2)
+        deactivated = await svc2.deactivate(product.id, deactivated_by=actor)
+        await session2.commit()
+        assert deactivated.is_active is False
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_update_product_name(test_engine):
+    actor = uuid.uuid4()
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanProductService(session)
+        product = await svc.create(**_product_kwargs(name="Original Name", created_by=actor))
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = LoanProductService(session2)
+        updated = await svc2.update(product.id, name="Updated Name", updated_by=actor)
+        await session2.commit()
+        assert updated.name == "Updated Name"
+        # Immutable financial fields unchanged
+        assert updated.annual_interest_rate == Decimal("18.0000")
+        assert updated.min_amount == Decimal("50000")
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_update_write_off_threshold(test_engine):
+    actor = uuid.uuid4()
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanProductService(session)
+        product = await svc.create(**_product_kwargs(write_off_threshold=Decimal("0")))
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = LoanProductService(session2)
+        updated = await svc2.update(
+            product.id,
+            write_off_threshold=Decimal("100000"),
+            updated_by=actor,
+        )
+        await session2.commit()
+        assert updated.write_off_threshold == Decimal("100000")
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
