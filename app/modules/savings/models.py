@@ -148,7 +148,8 @@ class SavingsTransaction(Base):
     __table_args__ = (
         UniqueConstraint("idempotency_key", name="uq_savtx_idempotency_key"),
         CheckConstraint(
-            "transaction_type IN ('deposit', 'withdrawal', 'SYSTEM_DEBIT', 'SYSTEM_CREDIT')",
+            "transaction_type IN ('deposit', 'withdrawal', 'SYSTEM_DEBIT', 'SYSTEM_CREDIT',"
+            " 'EXTERNAL_CREDIT', 'EXTERNAL_DEBIT')",
             name="ck_savtx_transaction_type",
         ),
         CheckConstraint(
