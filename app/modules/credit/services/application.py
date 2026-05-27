@@ -1,15 +1,16 @@
 # app/modules/credit/services/application.py
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy import select
 
 if TYPE_CHECKING:
+    import uuid
+    from decimal import Decimal
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.credit.models import LoanApplication
@@ -62,11 +63,13 @@ class LoanApplicationService:
         # Validate amounts and terms.
         if requested_amount < product.min_amount:
             raise ValueError(
-                f"requested_amount {requested_amount} is below product min_amount {product.min_amount}"
+                f"requested_amount {requested_amount} is below product "
+                f"min_amount {product.min_amount}"
             )
         if requested_amount > product.max_amount:
             raise ValueError(
-                f"requested_amount {requested_amount} exceeds product max_amount {product.max_amount}"
+                f"requested_amount {requested_amount} exceeds product "
+                f"max_amount {product.max_amount}"
             )
         if requested_term_periods > product.max_term_periods:
             raise ValueError(
@@ -120,7 +123,7 @@ class LoanApplicationService:
         )
         return application
 
-    async def get(self, application_id: uuid.UUID) -> LoanApplication:
+    async def get(self, *, application_id: uuid.UUID) -> LoanApplication:
         a = await self._session.get(LoanApplication, application_id)
         if a is None:
             raise ValueError(f"LoanApplication '{application_id}' not found")
@@ -152,7 +155,7 @@ class LoanApplicationService:
         - Only the original submitter can withdraw (self-check)
         - Cannot withdraw after any approver has acted
         """
-        application = await self.get(application_id)
+        application = await self.get(application_id=application_id)
 
         if application.status in ("approved", "rejected", "withdrawn", "cancelled"):
             raise ValueError(
@@ -188,7 +191,7 @@ class LoanApplicationService:
 
         ApprovalService.reject() enforces self-rejection is forbidden.
         """
-        application = await self.get(application_id)
+        application = await self.get(application_id=application_id)
 
         if application.status not in ("submitted", "under_review"):
             raise ValueError(
