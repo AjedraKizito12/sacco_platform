@@ -89,3 +89,13 @@ Schema-per-tenant on PostgreSQL. Each tenant SACCO gets its own schema.
 - All auth operations write to `audit_log` via `write_platform_auth_event` / `write_tenant_auth_event`. Do not remove these calls. For failed login attempts, actor_id may be `None` (unknown user) — the nil UUID is used as record_id in that case.
 - JWT token audiences: platform tokens use `aud="platform"`, tenant tokens use `aud="tenant:<slug>"`. A token issued for one tenant is rejected by another tenant's endpoints.
 - `CurrentPlatformUser` is exported from `app.platform_.auth`. `CurrentTenantUser` is exported from `app.modules.iam.dependencies`. Do not import the underlying dependency functions directly into route handlers.
+
+## Fees module contracts (do not violate)
+- Fees module never writes to journal tables directly. Always via LedgerService.
+- Fees module never mutates savings balances directly. Always via SavingsService.system_debit/system_credit.
+- FeeAssessmentService.assess() is the only path to creating assessments. Never insert FeeAssessment rows directly.
+- Assessment amount is snapshotted at creation. Changing fee_type.amount never retroactively changes assessed rows.
+- system_debit and system_credit are not callable from HTTP routes (app/modules/*/api.py). CI should enforce this.
+- Every savings_transactions row with source_module IS NOT NULL must also have source_id populated.
+- Partial collection is a first-class outcome, not an error. Callers must handle shortfall_amount > 0 explicitly.
+- System-initiated debit/credit: maker-checker is on the originating operation (e.g., assessment), not the financial movement.
