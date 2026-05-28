@@ -199,3 +199,110 @@ class LoanWriteOffService:
             journal_entry_id=str(entry.id),
         )
         return entry
+
+    async def recover(
+        self,
+        *,
+        loan_id: uuid.UUID,
+        amount: Decimal,
+        reason: str,
+        actor_id: uuid.UUID,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Post a write-off recovery entry.
+
+        Restores outstanding_principal by amount, reduces total_written_off,
+        transitions loan to in_arrears, reactivates guarantor liens.
+
+        No maker-checker — the cash receipt is the authorizing event.
+        """
+        idem_key = f"loan-wor-{idempotency_key}"
+
+        # Idempotency guard.
+        existing_entry = await self._session.scalar(
+            select(JournalEntry).where(JournalEntry.idempotency_key == idem_key)
+        )
+        if existing_entry is not None:
+            _log.info("credit.recover.idempotent_hit", idempotency_key=idempotency_key)
+            return {"journal_entry_id": existing_entry.id}
+
+        # Lock loan row.
+        loan = await self._session.scalar(
+            select(Loan).where(Loan.id == loan_id).with_for_update()
+        )
+        if loan is None:
+            raise ValueError(f"Loan '{loan_id}' not found")
+
+        if loan.status != "written_off":
+            raise ValueError(
+                f"Loan '{loan_id}' is not written_off (status={loan.status!r}). "
+                "Only written_off loans can be recovered."
+            )
+
+        if amount <= Decimal("0") or amount > loan.total_written_off:
+            raise ValueError(
+                f"Recovery amount {amount} exceeds total_written_off "
+                f"{loan.total_written_off} for loan '{loan_id}'"
+            )
+
+        if loan.gl_loan_loss_expense_id is None:
+            raise ValueError(
+                f"Loan '{loan_id}' has no gl_loan_loss_expense_id — cannot post recovery"
+            )
+
+        # GL: Dr principal_receivable / Cr loan_loss_expense.
+        ledger_svc = LedgerService(self._session)
+        entry = await ledger_svc.post_journal_entry(
+            reference=f"LOAN-REC-{loan.id}",
+            description=f"Write-off recovery: {reason}",
+            posted_by=actor_id,
+            idempotency_key=idem_key,
+            lines=[
+                {
+                    "account_id": loan.gl_principal_receivable_id,
+                    "debit_amount": amount,
+                    "credit_amount": Decimal("0"),
+                    "sub_ledger_type": "loan",
+                    "sub_ledger_id": loan.id,
+                },
+                {
+                    "account_id": loan.gl_loan_loss_expense_id,
+                    "debit_amount": Decimal("0"),
+                    "credit_amount": amount,
+                    "sub_ledger_type": "loan",
+                    "sub_ledger_id": loan.id,
+                },
+            ],
+        )
+
+        # Update snapshot.
+        loan.outstanding_principal = loan.outstanding_principal + amount
+        loan.total_written_off = loan.total_written_off - amount
+        loan.status = "in_arrears"
+
+        await self._session.flush()
+
+        # Reactivate guarantor liens (no-op if no guarantors).
+        from app.modules.credit.services.guarantor import GuarantorService  # noqa: PLC0415
+        guarantor_svc = GuarantorService(self._session)
+        await guarantor_svc.reactivate_liens(loan_id=loan.id, restored_amount=amount)
+
+        await EventPublisher.publish(
+            self._session,
+            aggregate_type="loan",
+            aggregate_id=loan.id,
+            event_type="LoanRecoveryPosted",
+            payload={
+                "loan_id": str(loan.id),
+                "amount": str(amount),
+                "journal_entry_id": str(entry.id),
+            },
+        )
+
+        _log.info(
+            "credit.loan.recovery_posted",
+            loan_id=str(loan.id),
+            amount=str(amount),
+            journal_entry_id=str(entry.id),
+        )
+        return {"journal_entry_id": entry.id}
