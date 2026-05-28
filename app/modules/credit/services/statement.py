@@ -139,10 +139,10 @@ class LoanStatementService:
         to_date: date | None = None,
     ) -> bytes:
         """Render loan statement as PDF bytes via WeasyPrint."""
-        from pathlib import Path  # noqa: PLC0415
+        from pathlib import Path
 
-        import jinja2  # noqa: PLC0415
-        import weasyprint  # noqa: PLC0415
+        import jinja2
+        import weasyprint
 
         lines = await self.get_statement(
             loan_id=loan_id, from_date=from_date, to_date=to_date
