@@ -39,6 +39,9 @@ def anyio_backend() -> str:
 async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     """One engine per test session. Schemas created once; dropped on teardown."""
     from app.core.db import Base  # noqa: F401 — triggers metadata registration
+    import app.core.outbox.models  # noqa: F401 — registers TenantOutboxEvent/PlatformOutboxEvent in Base.metadata
+    import app.modules.maker_checker.models.tenant  # noqa: F401 — registers approval_requests in Base.metadata
+    import app.modules.maker_checker.models.platform  # noqa: F401 — registers platform approval_requests in Base.metadata
     import app.modules.iam.keys.models  # noqa: F401 — registers JwtSigningKey in Base.metadata
     import app.modules.iam.sessions.models  # noqa: F401 — registers PlatformSession, TenantSession in Base.metadata
     import app.modules.iam.tenant_users.models  # noqa: F401 — registers TenantUser in Base.metadata
