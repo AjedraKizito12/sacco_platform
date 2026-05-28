@@ -202,6 +202,21 @@ class LoanRepaymentService:
 
         await self._session.flush()
 
+        # ── Step 9b: Record savings statement row ─────────────────────────────
+        if savings_account_id is not None:
+            from app.modules.savings.service import SavingsService
+
+            savings_svc = SavingsService(self._session)
+            await savings_svc.record_external_debit(
+                savings_account_id=savings_account_id,
+                amount=amount,
+                journal_entry_id=journal_entry.id,
+                source_module="credit",
+                source_id=loan.id,
+                narration=narration or f"Loan repayment: {loan.loan_reference}",
+                idempotency_key=f"loan-rpy-savings-{idempotency_key}",
+            )
+
         # ── Step 10: Publish outbox events ────────────────────────────────────
         await EventPublisher.publish(
             self._session,
