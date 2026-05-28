@@ -11,7 +11,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import delete, text
+from sqlalchemy import delete, func, text
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -26,6 +26,7 @@ from app.modules.credit.models import (
 from app.modules.credit.services.application import LoanApplicationService
 from app.modules.credit.services.disbursement import LoanDisbursementService
 from app.modules.credit.services.product import LoanProductService
+from app.modules.credit.services.repayment import LoanRepaymentService
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
 from app.modules.ledger.service import LedgerService
 from app.modules.maker_checker.service import ApprovalService
@@ -822,6 +823,7 @@ async def _setup_disbursement_accounts(engine: AsyncEngine) -> dict:
             "interest_income_code": "4100",
             "cash_account_id": cash_account.id,
             "cash_account_code": "1020",
+            "disbursement_account": cash_account.id,
             "savings_liability_id": savings_liability.id,
             "savings_liability_code": "2010",
             "loan_loss_id": loan_loss.id,
@@ -1232,4 +1234,341 @@ async def test_accrue_skips_flat_loans(test_engine):
         assert updated_loan.accrued_interest == Decimal("0")
     finally:
         await session2.close()
+        await _cleanup(test_engine)
+
+
+# ── Repayment tests ───────────────────────────────────────────────────────────
+
+
+async def _make_disbursed_loan_with_interest(
+    engine: AsyncEngine,
+    accounts: dict,
+) -> tuple[Loan, Decimal]:
+    """Disburse a reducing_balance loan, run one accrual cycle, return (loan, accrued_interest)."""
+    loan = await _make_disbursed_loan(engine, accounts, "reducing_balance")
+
+    today = date.today()
+    session = await _new_session(engine)
+    try:
+        installment = (
+            await session.execute(
+                sa_select(LoanInstallment)
+                .where(LoanInstallment.loan_id == loan.id)
+                .order_by(LoanInstallment.period_number)
+                .limit(1)
+            )
+        ).scalars().first()
+        installment.due_date = today
+        await session.commit()
+    finally:
+        await session.close()
+
+    from app.modules.credit.beat import _accrue_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    await _accrue_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    session2 = await _new_session(engine)
+    try:
+        refreshed = await session2.get(Loan, loan.id)
+        return refreshed, refreshed.accrued_interest
+    finally:
+        await session2.close()
+
+
+@pytest.mark.asyncio
+async def test_repayment_interest_first_allocation(test_engine):
+    """Interest cleared before principal; snapshot and installment updated."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan, accrued_interest = await _make_disbursed_loan_with_interest(test_engine, accounts)
+    assert accrued_interest > Decimal("0"), "Precondition: loan must have accrued interest"
+
+    principal_before = loan.outstanding_principal
+    repayment_amount = accrued_interest + Decimal("100.00")
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanRepaymentService(session)
+        repayment = await svc.apply_repayment(
+            loan_id=loan.id,
+            amount=repayment_amount,
+            payment_account_id=accounts["disbursement_account"],
+            posted_by=accounts["actor"],
+            idempotency_key=f"rpy-{uuid.uuid4()}",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    assert repayment.interest_applied == accrued_interest
+    assert repayment.principal_applied == Decimal("100.00")
+    assert repayment.overpayment == Decimal("0")
+
+    session2 = await _new_session(test_engine)
+    try:
+        updated = await session2.get(Loan, loan.id)
+        assert updated.accrued_interest == Decimal("0")
+        assert updated.outstanding_principal == principal_before - Decimal("100.00")
+        assert updated.total_paid_interest == accrued_interest
+        assert updated.total_paid_principal == Decimal("100.00")
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_repayment_exact_payoff_closes_loan(test_engine):
+    """Repayment = outstanding_principal + accrued_interest → loan.status = 'closed'."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan, accrued_interest = await _make_disbursed_loan_with_interest(test_engine, accounts)
+
+    payoff_amount = loan.outstanding_principal + accrued_interest
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanRepaymentService(session)
+        repayment = await svc.apply_repayment(
+            loan_id=loan.id,
+            amount=payoff_amount,
+            payment_account_id=accounts["disbursement_account"],
+            posted_by=accounts["actor"],
+            idempotency_key=f"rpy-{uuid.uuid4()}",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        updated = await session2.get(Loan, loan.id)
+        assert updated.status == "closed"
+        assert updated.closed_at is not None
+        assert updated.outstanding_principal == Decimal("0")
+        assert updated.accrued_interest == Decimal("0")
+        assert repayment.overpayment == Decimal("0")
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_repayment_overpayment(test_engine):
+    """Repayment > total owed → overpayment > 0, loan closed."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan, accrued_interest = await _make_disbursed_loan_with_interest(test_engine, accounts)
+
+    total_owed = loan.outstanding_principal + accrued_interest
+    overpay_amount = total_owed + Decimal("50.00")
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanRepaymentService(session)
+        repayment = await svc.apply_repayment(
+            loan_id=loan.id,
+            amount=overpay_amount,
+            payment_account_id=accounts["disbursement_account"],
+            posted_by=accounts["actor"],
+            idempotency_key=f"rpy-{uuid.uuid4()}",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    assert repayment.overpayment == Decimal("50.00")
+
+    session2 = await _new_session(test_engine)
+    try:
+        updated = await session2.get(Loan, loan.id)
+        assert updated.status == "closed"
+        assert updated.outstanding_principal == Decimal("0")
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_repayment_gl_balanced(test_engine):
+    """GL entry for repayment is balanced (sum debits == sum credits)."""
+    from app.modules.ledger.models import JournalEntry, JournalLine
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan, accrued_interest = await _make_disbursed_loan_with_interest(test_engine, accounts)
+
+    repayment_amount = accrued_interest + Decimal("50.00")
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanRepaymentService(session)
+        repayment = await svc.apply_repayment(
+            loan_id=loan.id,
+            amount=repayment_amount,
+            payment_account_id=accounts["disbursement_account"],
+            posted_by=accounts["actor"],
+            idempotency_key=f"rpy-{uuid.uuid4()}",
+        )
+        await session.commit()
+        repayment_id = repayment.id
+        journal_entry_id = repayment.journal_entry_id
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        lines = list(
+            (await session2.execute(
+                sa_select(JournalLine).where(JournalLine.journal_entry_id == journal_entry_id)
+            )).scalars().all()
+        )
+        total_debit = sum(l.debit_amount for l in lines)
+        total_credit = sum(l.credit_amount for l in lines)
+        assert total_debit == total_credit
+
+        for line in lines:
+            assert line.sub_ledger_type == "loan"
+            assert line.sub_ledger_id == loan.id
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_repayment_idempotency(test_engine):
+    """Repayment with same idempotency_key twice → second call returns existing, one GL entry."""
+    from app.modules.ledger.models import JournalEntry
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan, accrued_interest = await _make_disbursed_loan_with_interest(test_engine, accounts)
+
+    idem_key = f"rpy-idem-{uuid.uuid4()}"
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanRepaymentService(session)
+        r1 = await svc.apply_repayment(
+            loan_id=loan.id,
+            amount=Decimal("100.00"),
+            payment_account_id=accounts["disbursement_account"],
+            posted_by=accounts["actor"],
+            idempotency_key=idem_key,
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = LoanRepaymentService(session2)
+        r2 = await svc2.apply_repayment(
+            loan_id=loan.id,
+            amount=Decimal("100.00"),
+            payment_account_id=accounts["disbursement_account"],
+            posted_by=accounts["actor"],
+            idempotency_key=idem_key,
+        )
+        await session2.commit()
+    finally:
+        await session2.close()
+
+    assert r1.id == r2.id
+
+    session3 = await _new_session(test_engine)
+    try:
+        count = await session3.scalar(
+            sa_select(func.count()).select_from(JournalEntry).where(
+                JournalEntry.idempotency_key == f"loan-rpy-{idem_key}"
+            )
+        )
+        assert count == 1
+    finally:
+        await session3.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_repayment_on_closed_loan_raises(test_engine):
+    """Repayment on a closed loan raises ValueError."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan, accrued_interest = await _make_disbursed_loan_with_interest(test_engine, accounts)
+
+    payoff_amount = loan.outstanding_principal + accrued_interest
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanRepaymentService(session)
+        await svc.apply_repayment(
+            loan_id=loan.id,
+            amount=payoff_amount,
+            payment_account_id=accounts["disbursement_account"],
+            posted_by=accounts["actor"],
+            idempotency_key=f"rpy-{uuid.uuid4()}",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = LoanRepaymentService(session2)
+        with pytest.raises(ValueError, match="closed"):
+            await svc2.apply_repayment(
+                loan_id=loan.id,
+                amount=Decimal("10.00"),
+                payment_account_id=accounts["disbursement_account"],
+                posted_by=accounts["actor"],
+                idempotency_key=f"rpy-{uuid.uuid4()}",
+            )
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_repayment_updates_installments(test_engine):
+    """Repayment payment marks oldest pending installments as paid/partial."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan, accrued_interest = await _make_disbursed_loan_with_interest(test_engine, accounts)
+
+    session = await _new_session(test_engine)
+    try:
+        installment = (
+            await session.execute(
+                sa_select(LoanInstallment)
+                .where(LoanInstallment.loan_id == loan.id)
+                .order_by(LoanInstallment.period_number)
+                .limit(1)
+            )
+        ).scalars().first()
+        installment_total = installment.total_due
+    finally:
+        await session.close()
+
+    payment_amount = accrued_interest + installment_total
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc = LoanRepaymentService(session2)
+        await svc.apply_repayment(
+            loan_id=loan.id,
+            amount=payment_amount,
+            payment_account_id=accounts["disbursement_account"],
+            posted_by=accounts["actor"],
+            idempotency_key=f"rpy-{uuid.uuid4()}",
+        )
+        await session2.commit()
+    finally:
+        await session2.close()
+
+    session3 = await _new_session(test_engine)
+    try:
+        first_installment = (
+            await session3.execute(
+                sa_select(LoanInstallment)
+                .where(LoanInstallment.loan_id == loan.id)
+                .order_by(LoanInstallment.period_number)
+                .limit(1)
+            )
+        ).scalars().first()
+        assert first_installment.status == "paid"
+        assert first_installment.paid_at is not None
+    finally:
+        await session3.close()
         await _cleanup(test_engine)
