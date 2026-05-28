@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -247,6 +248,7 @@ class LoanInstallment(Base):
         Index("ix_li_loan_id", "loan_id"),
         Index("ix_li_due_date_status", "due_date", "status"),
         Index("ix_li_restructuring_id", "restructuring_id"),
+        Index("ix_li_loan_active", "loan_id", postgresql_where=text("NOT is_superseded")),
     )
 
 
@@ -340,7 +342,7 @@ class LoanGuarantorLien(Base):
         CheckConstraint("original_lien > 0", name="ck_lgl_original_lien"),
         CheckConstraint("current_lien >= 0", name="ck_lgl_current_lien"),
         Index("ix_lgl_loan_guarantor_id", "loan_guarantor_id"),
-        Index("ix_lgl_savings_account_active", "savings_account_id", "is_active"),
+        Index("ix_lgl_savings_account_active", "savings_account_id", "is_active", postgresql_where=text("is_active = true")),
     )
 
 

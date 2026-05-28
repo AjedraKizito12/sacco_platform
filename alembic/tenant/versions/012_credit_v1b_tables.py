@@ -59,7 +59,7 @@ def upgrade() -> None:
     op.create_table(
         "loan_restructurings",
         sa.Column("id", sa.UUID(), server_default=sa.text("gen_random_uuid()"), primary_key=True),
-        sa.Column("loan_id", sa.UUID(), sa.ForeignKey("loans.id", name="fk_lr_loan"), nullable=False),
+        sa.Column("loan_id", sa.UUID(), sa.ForeignKey("loans.id", name="fk_lrs_loan"), nullable=False),
         sa.Column("restructuring_type", sa.Text(), nullable=False),
         sa.Column("periods_added", sa.Integer(), nullable=False),
         sa.Column("new_term_periods", sa.Integer(), nullable=False),
