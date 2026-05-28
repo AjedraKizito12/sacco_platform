@@ -15,9 +15,10 @@ from sqlalchemy.pool import NullPool
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://sacco:sacco@localhost:5433/sacco_test")
 os.environ.setdefault("APP_SECRET_KEY", "test-secret-key-not-used-in-production")
 os.environ.setdefault("PLATFORM_BOOTSTRAP_EMAIL", "admin@test.example")
-os.environ.setdefault("PLATFORM_AUTH_MODE", "stub")
+# Force stub mode regardless of shell env or .env file — tests are written for stub auth.
+os.environ["PLATFORM_AUTH_MODE"] = "stub"
+os.environ["TENANT_AUTH_MODE"] = "stub"
 os.environ.setdefault("JWT_KEK", base64.b64encode(b"\x01" * 32).decode())
-os.environ.setdefault("TENANT_AUTH_MODE", "stub")
 
 TEST_TENANT_SCHEMA = "tenant_test"
 TEST_TENANT_SLUG = "test-tenant"
@@ -66,6 +67,9 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
         )
         await conn.execute(
             text(f"CREATE SEQUENCE IF NOT EXISTS {TEST_TENANT_SCHEMA}.loan_number_seq START 1")
+        )
+        await conn.execute(
+            text(f"CREATE SEQUENCE IF NOT EXISTS {TEST_TENANT_SCHEMA}.payroll_batch_number_seq START 1")
         )
         # processed_events is Alembic-only DDL (not in Base.metadata) — create manually.
         await conn.execute(

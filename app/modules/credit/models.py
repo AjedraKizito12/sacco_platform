@@ -51,6 +51,7 @@ class LoanProduct(AuditableMixin, Base):
     gl_loan_loss_expense_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     penalty_fee_type_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     write_off_threshold: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False, default=Decimal("0"))
+    required_guarantors: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -70,6 +71,7 @@ class LoanProduct(AuditableMixin, Base):
         CheckConstraint("required_approvals >= 1", name="ck_lp_required_approvals"),
         CheckConstraint("write_off_threshold >= 0", name="ck_lp_write_off_threshold"),
         CheckConstraint("repayment_allocation IN ('INTEREST_PRINCIPAL')", name="ck_lp_repayment_allocation"),
+        CheckConstraint("required_guarantors >= 0", name="ck_lp_required_guarantors"),
         Index("ix_lp_is_active", "is_active"),
     )
 
@@ -230,15 +232,21 @@ class LoanInstallment(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+    restructuring_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("loan_restructurings.id", name="fk_li_restructuring"),
+        nullable=True,
+    )
+    is_superseded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
-        UniqueConstraint("loan_id", "period_number", name="uq_li_loan_period"),
         CheckConstraint("status IN ('pending', 'partial', 'paid', 'overdue')", name="ck_li_status"),
         CheckConstraint("principal_due >= 0", name="ck_li_principal_due"),
         CheckConstraint("interest_due >= 0", name="ck_li_interest_due"),
         CheckConstraint("period_number >= 1", name="ck_li_period_number"),
         Index("ix_li_loan_id", "loan_id"),
         Index("ix_li_due_date_status", "due_date", "status"),
+        Index("ix_li_restructuring_id", "restructuring_id"),
     )
 
 
@@ -273,4 +281,154 @@ class LoanRepayment(Base):
         CheckConstraint("penalties_applied >= 0", name="ck_lr_penalties_applied"),
         CheckConstraint("overpayment >= 0", name="ck_lr_overpayment"),
         Index("ix_lr_loan_id", "loan_id"),
+    )
+
+
+class LoanGuarantor(AuditableMixin, Base):
+    """One guarantor nomination per application. Carries through to the active loan."""
+
+    __tablename__ = "loan_guarantors"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    loan_application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("loan_applications.id", name="fk_lg_application"), nullable=False
+    )
+    loan_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("loans.id", name="fk_lg_loan"), nullable=True
+    )
+    guarantor_member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    guaranteed_amount: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="nominated")
+    consented_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    released_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_lg_idempotency_key"),
+        UniqueConstraint("loan_application_id", "guarantor_member_id", name="uq_lg_application_member"),
+        CheckConstraint("status IN ('nominated', 'accepted', 'declined', 'released')", name="ck_lg_status"),
+        CheckConstraint("guaranteed_amount > 0", name="ck_lg_guaranteed_amount"),
+        Index("ix_lg_loan_application_id", "loan_application_id"),
+        Index("ix_lg_guarantor_member_id", "guarantor_member_id"),
+        Index("ix_lg_loan_id", "loan_id"),
+    )
+
+
+class LoanGuarantorLien(Base):
+    """Live lien against a guarantor's savings account."""
+
+    __tablename__ = "loan_guarantor_liens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    loan_guarantor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("loan_guarantors.id", name="fk_lgl_guarantor"), nullable=False
+    )
+    savings_account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    original_lien: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    current_lien: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint("original_lien > 0", name="ck_lgl_original_lien"),
+        CheckConstraint("current_lien >= 0", name="ck_lgl_current_lien"),
+        Index("ix_lgl_loan_guarantor_id", "loan_guarantor_id"),
+        Index("ix_lgl_savings_account_active", "savings_account_id", "is_active"),
+    )
+
+
+class LoanRestructuring(Base):
+    """One record per executed restructuring event. Append-only."""
+
+    __tablename__ = "loan_restructurings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    loan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("loans.id", name="fk_lrs_loan"), nullable=False
+    )
+    restructuring_type: Mapped[str] = mapped_column(Text, nullable=False)
+    periods_added: Mapped[int] = mapped_column(Integer, nullable=False)
+    new_term_periods: Mapped[int] = mapped_column(Integer, nullable=False)
+    new_maturity_date: Mapped[date] = mapped_column(Date, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    approval_request_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    executed_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    executed_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_lrs_idempotency_key"),
+        CheckConstraint(
+            "restructuring_type IN ('term_extension', 'payment_holiday')", name="ck_lrs_type"
+        ),
+        CheckConstraint("periods_added >= 1", name="ck_lrs_periods_added"),
+        Index("ix_lrs_loan_id", "loan_id"),
+    )
+
+
+class PayrollBatch(AuditableMixin, Base):
+    """One row per payroll batch submission."""
+
+    __tablename__ = "payroll_batches"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    reference: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="pending_review")
+    submitted_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    approval_request_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    total_rows: Mapped[int] = mapped_column(Integer, nullable=False)
+    matched_rows: Mapped[int] = mapped_column(Integer, nullable=False)
+    unmatched_rows: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    source_format: Mapped[str] = mapped_column(Text, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("reference", name="uq_pb_reference"),
+        UniqueConstraint("idempotency_key", name="uq_pb_idempotency_key"),
+        CheckConstraint(
+            "status IN ('pending_review', 'approved', 'rejected', 'applied')", name="ck_pb_status"
+        ),
+        CheckConstraint("source_format IN ('csv', 'json')", name="ck_pb_source_format"),
+    )
+
+
+class PayrollBatchLine(Base):
+    """One row per member in a payroll batch."""
+
+    __tablename__ = "payroll_batch_lines"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    payroll_batch_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payroll_batches.id", name="fk_pbl_batch"), nullable=False
+    )
+    member_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    raw_member_ref: Mapped[str] = mapped_column(Text, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(19, 4), nullable=False)
+    loan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="unmatched")
+    error_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    repayment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('matched', 'unmatched', 'applied', 'error')", name="ck_pbl_status"
+        ),
+        CheckConstraint("amount > 0", name="ck_pbl_amount"),
+        Index("ix_pbl_payroll_batch_id", "payroll_batch_id"),
+        Index("ix_pbl_loan_id", "loan_id"),
     )
