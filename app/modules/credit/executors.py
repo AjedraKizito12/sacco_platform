@@ -136,9 +136,14 @@ async def execute_apply_payroll_batch(
 
     # Mark batch as approved before applying
     batch = await session.get(PayrollBatch, batch_id)
-    if batch is not None and batch.status == "pending_review":
+    if batch is None:
+        raise ValueError(f"PayrollBatch '{batch_id}' not found")
+    if batch.status == "pending_review":
         batch.status = "approved"
         await session.flush()
+    elif batch.status == "applied":
+        return {"status": "applied", "batch_id": str(batch_id)}  # idempotent
+    # If already "approved", fall through to apply_batch
 
     svc = PayrollBatchService(session)
     await svc.apply_batch(

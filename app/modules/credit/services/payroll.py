@@ -221,6 +221,11 @@ class PayrollBatchService:
         from app.modules.credit.services.repayment import LoanRepaymentService  # noqa: PLC0415
 
         for line in lines:
+            if line.loan_id is None:
+                line.status = "error"
+                line.error_reason = "loan_id is None on matched line (data integrity error)"
+                await self._session.commit()
+                continue
             idem_key = f"payroll-{batch_id}-{line.id}"
             try:
                 repayment_svc = LoanRepaymentService(self._session)
@@ -250,6 +255,8 @@ class PayrollBatchService:
 
         # Re-fetch batch after per-line commits
         batch = await self._session.get(PayrollBatch, batch_id)
+        if batch is None:
+            raise ValueError(f"PayrollBatch '{batch_id}' disappeared during apply")
         batch.status = "applied"
         await self._session.flush()
         await self._session.commit()
