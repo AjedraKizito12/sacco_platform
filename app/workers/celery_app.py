@@ -15,6 +15,7 @@ celery_app = Celery(
         "app.modules.fees.consumer",
         "app.modules.fees.beat",
         "app.modules.credit.beat",
+        "app.modules.credit.consumer",
     ],
 )
 
@@ -57,6 +58,10 @@ celery_app.conf.update(
         },
         "consume-fee-events": {
             "task": "app.modules.fees.consumer.consume_fee_events",
+            "schedule": 60.0,  # every minute
+        },
+        "consume-credit-events": {
+            "task": "app.modules.credit.consumer.consume_credit_events",
             "schedule": 60.0,  # every minute
         },
         "assess-scheduled-fees": {
