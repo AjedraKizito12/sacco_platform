@@ -67,6 +67,27 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
         await conn.execute(
             text(f"CREATE SEQUENCE IF NOT EXISTS {TEST_TENANT_SCHEMA}.loan_number_seq START 1")
         )
+        # processed_events is Alembic-only DDL (not in Base.metadata) — create manually.
+        await conn.execute(
+            text(
+                f"CREATE TABLE IF NOT EXISTS {TEST_TENANT_SCHEMA}.processed_events ("
+                "  event_id UUID NOT NULL,"
+                "  consumer_name TEXT NOT NULL,"
+                "  processed_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
+                "  PRIMARY KEY (event_id, consumer_name)"
+                ")"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS platform.processed_events ("
+                "  event_id UUID NOT NULL,"
+                "  consumer_name TEXT NOT NULL,"
+                "  processed_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
+                "  PRIMARY KEY (event_id, consumer_name)"
+                ")"
+            )
+        )
 
     yield engine
 

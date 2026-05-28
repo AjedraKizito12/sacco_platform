@@ -1643,22 +1643,20 @@ async def _insert_outbox_event(
 ) -> uuid.UUID:
     """Insert a TenantOutboxEvent directly for testing."""
     import json
+    from app.core.outbox.models import TenantOutboxEvent
+    from datetime import datetime, UTC
     event_id = uuid.uuid4()
     session = await _new_session(engine)
     try:
-        await session.execute(
-            text(
-                "INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, occurred_at, published_at) "
-                "VALUES (:id, :atype, :aid, :etype, :payload::jsonb, now(), NULL)"
-            ),
-            {
-                "id": event_id,
-                "atype": "loan",
-                "aid": uuid.uuid4(),
-                "etype": event_type,
-                "payload": json.dumps(payload),
-            },
+        evt = TenantOutboxEvent(
+            id=event_id,
+            aggregate_type="loan",
+            aggregate_id=uuid.uuid4(),
+            event_type=event_type,
+            payload=payload,
+            occurred_at=datetime.now(UTC),
         )
+        session.add(evt)
         await session.commit()
     finally:
         await session.close()
@@ -1685,11 +1683,7 @@ async def test_consumer_fee_assessment_increments_accrued_penalties(test_engine)
     )
 
     from app.modules.credit.consumer import _process_tenant_events
-    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
-    from app.core.config import get_settings
-    _engine = _create_engine(get_settings().database_url)
-    await _process_tenant_events(TEST_TENANT_SCHEMA, _engine)
-    await _engine.dispose()
+    await _process_tenant_events(TEST_TENANT_SCHEMA, test_engine)
 
     session = await _new_session(test_engine)
     try:
@@ -1719,13 +1713,8 @@ async def test_consumer_fee_assessment_idempotent(test_engine):
     )
 
     from app.modules.credit.consumer import _process_tenant_events
-    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
-    from app.core.config import get_settings
-
-    _engine = _create_engine(get_settings().database_url)
-    await _process_tenant_events(TEST_TENANT_SCHEMA, _engine)
-    await _process_tenant_events(TEST_TENANT_SCHEMA, _engine)  # replay
-    await _engine.dispose()
+    await _process_tenant_events(TEST_TENANT_SCHEMA, test_engine)
+    await _process_tenant_events(TEST_TENANT_SCHEMA, test_engine)  # replay
 
     session = await _new_session(test_engine)
     try:
@@ -1764,11 +1753,7 @@ async def test_consumer_fee_collection_decrements_accrued_penalties(test_engine)
     )
 
     from app.modules.credit.consumer import _process_tenant_events
-    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
-    from app.core.config import get_settings
-    _engine = _create_engine(get_settings().database_url)
-    await _process_tenant_events(TEST_TENANT_SCHEMA, _engine)
-    await _engine.dispose()
+    await _process_tenant_events(TEST_TENANT_SCHEMA, test_engine)
 
     session2 = await _new_session(test_engine)
     try:
