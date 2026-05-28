@@ -234,3 +234,26 @@ class GuarantorOut(BaseModel):
 class GuarantorConsentIn(BaseModel):
     """The acting member_id is passed by the caller (resolved from X-Actor-ID header)."""
     guarantor_member_id: uuid.UUID
+
+
+# ── Restructuring schemas ─────────────────────────────────────────────────────
+
+
+class RestructureIn(BaseModel):
+    restructuring_type: str  # 'term_extension' | 'payment_holiday'
+    periods_added: int
+    reason: str
+    idempotency_key: str
+
+
+class RestructuringOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    loan_id: uuid.UUID
+    restructuring_type: str
+    periods_added: int
+    new_term_periods: int
+    new_maturity_date: date
+    reason: str
+    executed_at: datetime

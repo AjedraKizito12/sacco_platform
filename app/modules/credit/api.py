@@ -32,6 +32,8 @@ from app.modules.credit.schemas import (
     LoanProductPatchIn,
     LoanRepaymentCreateIn,
     LoanRepaymentOut,
+    RestructureIn,
+    RestructuringOut,
     WriteOffIn,
     WriteOffOut,
 )
@@ -39,6 +41,7 @@ from app.modules.credit.services.application import LoanApplicationService
 from app.modules.credit.services.disbursement import LoanDisbursementService
 from app.modules.credit.services.product import LoanProductService
 from app.modules.credit.services.repayment import LoanRepaymentService
+from app.modules.credit.services.restructuring import LoanRestructuringService
 from app.modules.credit.services.write_off import LoanWriteOffService
 from app.modules.maker_checker.service import ApprovalService
 
@@ -460,3 +463,45 @@ async def decline_guarantor(
         status_code = 404 if "not found" in str(exc) else 400
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return GuarantorOut.model_validate(g)
+
+
+# ── Restructuring endpoints ───────────────────────────────────────────────────
+
+
+@router.post("/loans/{loan_id}/restructure", status_code=202)
+async def restructure_loan(
+    loan_id: uuid.UUID,
+    body: RestructureIn,
+    session: Session,
+) -> dict:
+    """Submit a loan restructuring for maker-checker approval (quorum=2)."""
+    try:
+        svc = LoanRestructuringService(session)
+        result = await svc.restructure(
+            loan_id=loan_id,
+            restructuring_type=body.restructuring_type,
+            periods_added=body.periods_added,
+            reason=body.reason,
+            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            idempotency_key=body.idempotency_key,
+        )
+        await session.commit()
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return {"approval_request_id": str(result["approval_request_id"])}
+
+
+@router.get("/loans/{loan_id}/restructurings")
+async def list_restructurings(
+    loan_id: uuid.UUID,
+    session: Session,
+) -> list[RestructuringOut]:
+    """List all executed restructurings for a loan."""
+    from app.modules.credit.models import LoanRestructuring  # noqa: PLC0415
+    result = await session.execute(
+        _select(LoanRestructuring)
+        .where(LoanRestructuring.loan_id == loan_id)
+        .order_by(LoanRestructuring.executed_at)
+    )
+    return [RestructuringOut.model_validate(r) for r in result.scalars().all()]
