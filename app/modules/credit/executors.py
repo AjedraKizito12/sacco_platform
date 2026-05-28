@@ -89,3 +89,27 @@ async def execute_write_off(session: AsyncSession, payload: dict) -> dict:
         loan_loss_account_code=loan_loss_account_code,
     )
     return {"status": "written_off", "loan_id": str(loan_id)}
+
+
+@approval_executor("credit.restructure_schedule")
+async def execute_restructure_schedule(session: AsyncSession, payload: dict) -> dict:
+    """Executor: called by ApprovalService when quorum=2 is met for restructuring."""
+    loan_id = uuid.UUID(payload["loan_id"])
+    restructuring_type = str(payload["restructuring_type"])
+    periods_added = int(payload["periods_added"])
+    reason = str(payload["reason"])
+    idempotency_key = str(payload["idempotency_key"])
+
+    from app.modules.credit.services.restructuring import LoanRestructuringService  # noqa: PLC0415
+
+    svc = LoanRestructuringService(session)
+    restructuring = await svc._execute_restructuring(
+        loan_id=loan_id,
+        restructuring_type=restructuring_type,
+        periods_added=periods_added,
+        reason=reason,
+        actor_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+        idempotency_key=idempotency_key,
+        approval_request_id=None,
+    )
+    return {"status": "restructured", "restructuring_id": str(restructuring.id)}
