@@ -14,6 +14,7 @@ celery_app = Celery(
         "app.modules.iam.beat",
         "app.modules.fees.consumer",
         "app.modules.fees.beat",
+        "app.modules.credit.beat",
     ],
 )
 
@@ -64,6 +65,10 @@ celery_app.conf.update(
         },
         "retry-partial-fee-collections": {
             "task": "app.modules.fees.beat.retry_partial_fee_collections",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "accrue-reducing-balance-interest": {
+            "task": "app.modules.credit.beat.accrue_reducing_balance_interest",
             "schedule": 24 * 3600.0,  # daily
         },
     },
