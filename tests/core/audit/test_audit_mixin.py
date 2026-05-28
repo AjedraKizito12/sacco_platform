@@ -67,7 +67,11 @@ async def test_platform_model_writes_to_platform_audit_log(test_engine: AsyncEng
     # Assert
     async with factory() as session:
         await session.execute(text("SET search_path TO platform"))
-        rows = (await session.execute(select(PlatformAuditLog))).scalars().all()
+        rows = (
+            await session.execute(
+                select(PlatformAuditLog).where(PlatformAuditLog.table_name == "platform_widgets")
+            )
+        ).scalars().all()
         assert len(rows) == 1
         assert rows[0].table_name == "platform_widgets"
         assert rows[0].operation == "insert"

@@ -112,7 +112,13 @@ async def test_write_tenant_auth_event_writes_row(test_engine: AsyncEngine) -> N
         await session.execute(
             text(f"SET search_path TO {TEST_TENANT_SCHEMA}, platform")
         )
-        rows = (await session.execute(select(TenantAuditLog))).scalars().all()
+        rows = (
+            await session.execute(
+                select(TenantAuditLog)
+                .where(TenantAuditLog.actor_id == user_id)
+                .where(TenantAuditLog.operation == "login_success")
+            )
+        ).scalars().all()
         assert len(rows) == 1
         row = rows[0]
         assert row.operation == "login_success"
@@ -154,7 +160,13 @@ async def test_write_tenant_auth_event_user_table_for_reset(test_engine: AsyncEn
         await session.execute(
             text(f"SET search_path TO {TEST_TENANT_SCHEMA}, platform")
         )
-        rows = (await session.execute(select(TenantAuditLog))).scalars().all()
+        rows = (
+            await session.execute(
+                select(TenantAuditLog)
+                .where(TenantAuditLog.actor_id == user_id)
+                .where(TenantAuditLog.operation == "password_reset_confirmed")
+            )
+        ).scalars().all()
         assert len(rows) == 1
         assert rows[0].table_name == "tenant_users"
         assert rows[0].operation == "password_reset_confirmed"

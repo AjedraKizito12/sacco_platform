@@ -24,6 +24,7 @@ from app.modules.credit.models import (
     LoanInstallment,
     LoanProduct,
     LoanRepayment,
+    LoanRestructuring,
 )
 from app.modules.credit.services.application import LoanApplicationService
 from app.modules.credit.services.disbursement import LoanDisbursementService
@@ -67,6 +68,7 @@ async def _cleanup(engine: AsyncEngine) -> None:
         await session.execute(text(f"SET search_path TO {TEST_TENANT_SCHEMA}, platform"))
         await session.execute(delete(LoanRepayment))
         await session.execute(delete(LoanInstallment))
+        await session.execute(delete(LoanRestructuring))
         await session.execute(delete(Loan))
         await session.execute(delete(LoanApplication))
         await session.execute(delete(LoanProduct))
@@ -78,6 +80,103 @@ async def _cleanup(engine: AsyncEngine) -> None:
         await session.execute(delete(ChartOfAccount))
         await session.execute(delete(Member))
         await session.commit()
+
+
+async def _setup_disbursed_loan(session: AsyncSession) -> Loan:
+    """Insert a minimal disbursed Loan + 12 monthly installments.
+
+    Uses direct row insertion (no GL, no service orchestration) so it can run
+    inside an already-open session.  Suitable for restructuring tests that
+    don't need a balanced GL.
+    """
+    from datetime import date, timedelta
+    from decimal import Decimal
+
+    from app.modules.credit.services._schedule import compute_schedule
+
+    principal = Decimal("120000.0000")
+    annual_rate = Decimal("18.0000")
+    term = 12
+    today = date.today()
+
+    product = LoanProduct(
+        name=f"Restructure Test {uuid.uuid4()}",
+        interest_method="flat",
+        annual_interest_rate=annual_rate,
+        repayment_frequency="monthly",
+        max_term_periods=term,
+        min_amount=Decimal("10000"),
+        max_amount=Decimal("500000"),
+        required_approvals=1,
+        disbursement_destinations=["cash"],
+        gl_principal_receivable_code="1300",
+        gl_interest_receivable_code="1310",
+        gl_interest_income_code="4100",
+    )
+    session.add(product)
+    await session.flush()
+
+    application = LoanApplication(
+        loan_product_id=product.id,
+        member_id=uuid.uuid4(),
+        requested_amount=principal,
+        requested_term_periods=term,
+        disbursement_destination="cash",
+        status="disbursed",
+        idempotency_key=str(uuid.uuid4()),
+    )
+    session.add(application)
+    await session.flush()
+
+    schedule = compute_schedule(
+        principal=principal,
+        annual_interest_rate=annual_rate,
+        interest_method="flat",
+        repayment_frequency="monthly",
+        term_periods=term,
+        disbursement_date=today,
+    )
+    maturity_date = schedule[-1].due_date
+
+    loan = Loan(
+        loan_reference=f"RST-{uuid.uuid4().hex[:8].upper()}",
+        loan_application_id=application.id,
+        loan_product_id=product.id,
+        member_id=application.member_id,
+        status="disbursed",
+        principal_amount=principal,
+        outstanding_principal=principal,
+        interest_method="flat",
+        annual_interest_rate=annual_rate,
+        repayment_frequency="monthly",
+        term_periods=term,
+        repayment_allocation="INTEREST_PRINCIPAL",
+        disbursement_destination="cash",
+        gl_principal_receivable_id=uuid.uuid4(),
+        gl_interest_receivable_id=uuid.uuid4(),
+        gl_interest_income_id=uuid.uuid4(),
+        gl_disbursement_account_id=uuid.uuid4(),
+        first_repayment_due=schedule[0].due_date,
+        maturity_date=maturity_date,
+        disbursed_by=uuid.uuid4(),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    session.add(loan)
+    await session.flush()
+
+    for row in schedule:
+        inst = LoanInstallment(
+            loan_id=loan.id,
+            period_number=row.period_number,
+            due_date=row.due_date,
+            principal_due=row.principal_due,
+            interest_due=row.interest_due,
+            total_due=row.total_due,
+        )
+        session.add(inst)
+    await session.flush()
+
+    return loan
 
 
 def _product_kwargs(**overrides) -> dict:
