@@ -166,6 +166,16 @@ class LoanRepaymentService:
         loan.last_repayment_at = datetime.now(UTC)
         loan.last_repayment_amount = amount
 
+        # ── Step 6a: Adjust guarantor liens proportionally ────────────────────
+        from app.modules.credit.services.guarantor import GuarantorService  # noqa: PLC0415
+        guarantor_svc = GuarantorService(self._session)
+        if principal_applied > Decimal("0"):
+            await guarantor_svc.adjust_liens(
+                loan_id=loan_id,
+                principal_applied=principal_applied,
+                original_principal=loan.principal_amount,
+            )
+
         # ── Step 7: Create LoanRepayment row ──────────────────────────────────
         repayment = LoanRepayment(
             loan_id=loan_id,
@@ -199,6 +209,8 @@ class LoanRepaymentService:
         if is_closed:
             loan.status = "closed"
             loan.closed_at = datetime.now(UTC)
+            # ── Step 9a: Release all guarantor liens on closure ───────────────
+            await guarantor_svc.release_liens(loan_id=loan_id)
 
         await self._session.flush()
 
