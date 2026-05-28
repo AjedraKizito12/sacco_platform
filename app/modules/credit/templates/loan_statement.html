@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Loan Statement — {{ loan.loan_reference }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #222; margin: 40px; }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    h2 { font-size: 14px; color: #555; margin-bottom: 20px; }
+    .meta { margin-bottom: 24px; line-height: 1.8; }
+    .meta strong { display: inline-block; width: 160px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    thead tr { background: #1a3c6e; color: #fff; }
+    thead th { padding: 8px 10px; text-align: left; font-size: 11px; }
+    tbody tr:nth-child(even) { background: #f5f5f5; }
+    tbody td { padding: 6px 10px; border-bottom: 1px solid #ddd; }
+    .amount { text-align: right; }
+    .balance { text-align: right; font-weight: bold; }
+    .footer { margin-top: 32px; font-size: 10px; color: #999; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>Loan Statement</h1>
+  <h2>{{ loan.loan_reference }}</h2>
+  <div class="meta">
+    <strong>Member ID:</strong> {{ loan.member_id }}<br>
+    <strong>Principal:</strong> {{ "{:,.2f}".format(loan.principal_amount) }}<br>
+    <strong>Interest Rate:</strong> {{ loan.annual_interest_rate }}% p.a. ({{ loan.interest_method }})<br>
+    <strong>Status:</strong> {{ loan.status }}<br>
+    <strong>Outstanding:</strong> {{ "{:,.2f}".format(loan.outstanding_principal) }}<br>
+    <strong>Period:</strong>
+      {% if from_date %}{{ from_date }}{% else %}All{% endif %}
+      —
+      {% if to_date %}{{ to_date }}{% else %}present{% endif %}<br>
+    <strong>Generated:</strong> {{ generated_at }}
+  </div>
+
+  {% if lines %}
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Type</th><th>Description</th>
+        <th class="amount">Debit</th><th class="amount">Credit</th>
+        <th class="balance">Balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.date }}</td>
+        <td>{{ line.line_type | replace("_", " ") | title }}</td>
+        <td>{{ line.description }}</td>
+        <td class="amount">{% if line.debit > 0 %}{{ "{:,.2f}".format(line.debit) }}{% endif %}</td>
+        <td class="amount">{% if line.credit > 0 %}{{ "{:,.2f}".format(line.credit) }}{% endif %}</td>
+        <td class="balance">{{ "{:,.2f}".format(line.running_balance) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No transactions in the selected period.</p>
+  {% endif %}
+
+  <div class="footer">This statement is computer-generated and does not require a signature.</div>
+</body>
+</html>
