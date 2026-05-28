@@ -1762,4 +1762,176 @@ async def test_consumer_fee_collection_decrements_accrued_penalties(test_engine)
         assert updated.total_paid_penalties == collected_amount
     finally:
         await session2.close()
+
+
+# ── Arrears beat task tests ───────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_mark_in_arrears_when_installment_overdue(test_engine):
+    """Loan with an overdue installment → status transitions to in_arrears."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
+    assert loan.status == "disbursed"
+
+    yesterday = date.today() - timedelta(days=1)
+    session = await _new_session(test_engine)
+    try:
+        installment = (
+            await session.execute(
+                sa_select(LoanInstallment)
+                .where(LoanInstallment.loan_id == loan.id)
+                .order_by(LoanInstallment.period_number)
+                .limit(1)
+            )
+        ).scalars().first()
+        installment.due_date = yesterday
+        await session.commit()
+    finally:
+        await session.close()
+
+    from app.modules.credit.beat import _mark_arrears_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    await _mark_arrears_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    session2 = await _new_session(test_engine)
+    try:
+        updated = await session2.get(Loan, loan.id)
+        assert updated.status == "in_arrears"
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_clear_arrears_when_caught_up(test_engine):
+    """Loan in in_arrears with all installments now paid → status reverts to disbursed."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
+
+    session = await _new_session(test_engine)
+    try:
+        l = await session.get(Loan, loan.id)
+        l.status = "in_arrears"
+        await session.commit()
+    finally:
+        await session.close()
+
+    from datetime import timezone
+    session2 = await _new_session(test_engine)
+    try:
+        installments = list(
+            (await session2.execute(
+                sa_select(LoanInstallment).where(LoanInstallment.loan_id == loan.id)
+            )).scalars().all()
+        )
+        for inst in installments:
+            inst.status = "paid"
+            inst.principal_paid = inst.principal_due
+            inst.interest_paid = inst.interest_due
+        await session2.commit()
+    finally:
+        await session2.close()
+
+    from app.modules.credit.beat import _mark_arrears_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    await _mark_arrears_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    session3 = await _new_session(test_engine)
+    try:
+        updated = await session3.get(Loan, loan.id)
+        assert updated.status == "disbursed"
+    finally:
+        await session3.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_arrears_task_idempotent(test_engine):
+    """Running arrears task twice → no double status flips."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
+
+    yesterday = date.today() - timedelta(days=1)
+    session = await _new_session(test_engine)
+    try:
+        installment = (
+            await session.execute(
+                sa_select(LoanInstallment)
+                .where(LoanInstallment.loan_id == loan.id)
+                .order_by(LoanInstallment.period_number)
+                .limit(1)
+            )
+        ).scalars().first()
+        installment.due_date = yesterday
+        await session.commit()
+    finally:
+        await session.close()
+
+    from app.modules.credit.beat import _mark_arrears_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    await _mark_arrears_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _mark_arrears_for_tenant(TEST_TENANT_SCHEMA, _engine)  # second run
+    await _engine.dispose()
+
+    session2 = await _new_session(test_engine)
+    try:
+        updated = await session2.get(Loan, loan.id)
+        assert updated.status == "in_arrears"
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_arrears_task_skips_closed_written_off(test_engine):
+    """Closed and written_off loans are excluded from arrears processing."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
+
+    session = await _new_session(test_engine)
+    try:
+        l = await session.get(Loan, loan.id)
+        l.status = "closed"
+        await session.commit()
+    finally:
+        await session.close()
+
+    yesterday = date.today() - timedelta(days=1)
+    session2 = await _new_session(test_engine)
+    try:
+        inst = (
+            await session2.execute(
+                sa_select(LoanInstallment)
+                .where(LoanInstallment.loan_id == loan.id)
+                .limit(1)
+            )
+        ).scalars().first()
+        inst.due_date = yesterday
+        await session2.commit()
+    finally:
+        await session2.close()
+
+    from app.modules.credit.beat import _mark_arrears_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    await _mark_arrears_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    session3 = await _new_session(test_engine)
+    try:
+        updated = await session3.get(Loan, loan.id)
+        assert updated.status == "closed"
+    finally:
+        await session3.close()
+        await _cleanup(test_engine)
         await _cleanup(test_engine)

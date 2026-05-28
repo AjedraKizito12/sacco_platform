@@ -15,7 +15,7 @@ from datetime import date
 from decimal import Decimal
 
 import structlog
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
@@ -163,3 +163,111 @@ async def _run_accrue_interest() -> dict[str, int]:
 def accrue_reducing_balance_interest() -> dict[str, int]:
     """Daily: accrue interest for reducing-balance loans with installments due today."""
     return asyncio.run(_run_accrue_interest())
+
+
+# ── Arrears marking ───────────────────────────────────────────────────────────
+
+
+async def _mark_arrears_for_tenant(schema_name: str, engine) -> int:
+    """Set/clear in_arrears status for all active loans in one tenant.
+
+    Returns count of loans whose status changed.
+    """
+    from app.modules.credit.models import Loan, LoanInstallment
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    today = date.today()
+    changed_count = 0
+
+    async with factory() as session:
+        await session.execute(
+            text(f"SET LOCAL search_path TO {schema_name}, platform")  # noqa: S608
+        )
+
+        loans = list(
+            (
+                await session.execute(
+                    select(Loan).where(Loan.status.in_(["disbursed", "in_arrears"]))
+                )
+            ).scalars().all()
+        )
+
+        for loan in loans:
+            try:
+                async with session.begin_nested():
+                    overdue_count = await session.scalar(
+                        select(func.count()).select_from(LoanInstallment).where(
+                            LoanInstallment.loan_id == loan.id,
+                            LoanInstallment.due_date < today,
+                            LoanInstallment.status.in_(["pending", "partial", "overdue"]),
+                        )
+                    )
+                    has_overdue = (overdue_count or 0) > 0
+
+                    if has_overdue and loan.status == "disbursed":
+                        overdue_insts = list(
+                            (
+                                await session.execute(
+                                    select(LoanInstallment).where(
+                                        LoanInstallment.loan_id == loan.id,
+                                        LoanInstallment.due_date < today,
+                                        LoanInstallment.status.in_(["pending", "partial"]),
+                                    )
+                                )
+                            ).scalars().all()
+                        )
+                        for inst in overdue_insts:
+                            inst.status = "overdue"
+                        loan.status = "in_arrears"
+                        changed_count += 1
+
+                    elif not has_overdue and loan.status == "in_arrears":
+                        loan.status = "disbursed"
+                        changed_count += 1
+
+            except Exception as exc:
+                _log.error(
+                    "credit.beat.arrears_error",
+                    schema=schema_name,
+                    loan_id=str(loan.id),
+                    error=str(exc),
+                )
+
+        await session.commit()
+
+    return changed_count
+
+
+async def _run_mark_arrears() -> dict[str, int]:
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    totals: dict[str, int] = {}
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text("SELECT schema_name FROM platform.tenants WHERE is_active = true")
+            )
+            schemas = [row[0] for row in result.fetchall()]
+        for schema_name in schemas:
+            if not _SCHEMA_RE.match(schema_name):
+                continue
+            try:
+                count = await _mark_arrears_for_tenant(schema_name, engine)
+                if count:
+                    totals[schema_name] = count
+            except Exception as exc:
+                _log.error(
+                    "credit.beat.arrears_tenant_error",
+                    schema=schema_name,
+                    error=str(exc),
+                )
+    finally:
+        await engine.dispose()
+    _log.info("credit.beat.mark_arrears_complete", **totals)
+    return totals
+
+
+@celery_app.task(name="app.modules.credit.beat.mark_loans_in_arrears")  # type: ignore[misc]
+def mark_loans_in_arrears() -> dict[str, int]:
+    """Daily: transition disbursed ↔ in_arrears based on overdue installments."""
+    return asyncio.run(_run_mark_arrears())
