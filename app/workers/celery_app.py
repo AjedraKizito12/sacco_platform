@@ -80,5 +80,9 @@ celery_app.conf.update(
             "task": "app.modules.credit.beat.mark_loans_in_arrears",
             "schedule": 24 * 3600.0,  # daily
         },
+        "reconcile-loan-snapshots": {
+            "task": "app.modules.credit.beat.reconcile_loan_snapshots",
+            "schedule": 24 * 3600.0,  # daily
+        },
     },
 )
