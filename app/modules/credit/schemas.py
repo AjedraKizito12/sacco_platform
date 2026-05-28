@@ -195,3 +195,23 @@ class LoanRepaymentOut(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── Write-off schemas ─────────────────────────────────────────────────────────
+
+
+class WriteOffIn(BaseModel):
+    amount: Decimal = Field(gt=Decimal("0"))
+    reason: str
+    idempotency_key: str
+    loan_loss_account_code: str = "5100"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WriteOffOut(BaseModel):
+    direct: bool
+    approval_request_id: uuid.UUID | None
+    journal_entry_id: uuid.UUID | None
+
+    model_config = ConfigDict(from_attributes=True)

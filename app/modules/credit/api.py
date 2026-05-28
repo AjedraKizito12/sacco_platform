@@ -28,11 +28,14 @@ from app.modules.credit.schemas import (
     LoanProductPatchIn,
     LoanRepaymentCreateIn,
     LoanRepaymentOut,
+    WriteOffIn,
+    WriteOffOut,
 )
 from app.modules.credit.services.application import LoanApplicationService
 from app.modules.credit.services.disbursement import LoanDisbursementService
 from app.modules.credit.services.product import LoanProductService
 from app.modules.credit.services.repayment import LoanRepaymentService
+from app.modules.credit.services.write_off import LoanWriteOffService
 from app.modules.maker_checker.service import ApprovalService
 
 router = APIRouter(prefix="/credit", tags=["credit"])
@@ -309,3 +312,29 @@ async def get_schedule(
         ).scalars().all()
     )
     return [LoanInstallmentOut.model_validate(i) for i in installments]
+
+
+# ── Write-off endpoint ────────────────────────────────────────────────────────
+
+
+@router.post("/loans/{loan_id}/write-off", response_model=WriteOffOut, status_code=201)
+async def write_off_loan(
+    loan_id: uuid.UUID,
+    body: WriteOffIn,
+    session: Session,
+) -> WriteOffOut:
+    try:
+        svc = LoanWriteOffService(session)
+        result = await svc.write_off(
+            loan_id=loan_id,
+            amount=body.amount,
+            reason=body.reason,
+            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            idempotency_key=body.idempotency_key,
+            loan_loss_account_code=body.loan_loss_account_code,
+        )
+        await session.commit()
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return WriteOffOut(**result)
