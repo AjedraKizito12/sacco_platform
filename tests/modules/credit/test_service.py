@@ -1765,6 +1765,7 @@ async def test_consumer_fee_collection_decrements_accrued_penalties(test_engine)
         assert updated.total_paid_penalties == collected_amount
     finally:
         await session2.close()
+        await _cleanup(test_engine)
 
 
 # ── Arrears beat task tests ───────────────────────────────────────────────────
