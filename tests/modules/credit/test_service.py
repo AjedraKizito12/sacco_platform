@@ -7,6 +7,7 @@ to avoid asyncpg protocol-state errors with flush().
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -1076,6 +1077,159 @@ async def test_disburse_non_approved_raises(test_engine):
                 actor_id=accounts["actor"],
                 idempotency_key=f"nonapproved-disb-{uuid.uuid4()}",
             )
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+# ── Interest accrual tests ────────────────────────────────────────────────────
+
+
+async def _make_disbursed_loan(
+    engine: AsyncEngine,
+    accounts: dict,
+    interest_method: str = "reducing_balance",
+) -> Loan:
+    """Create and disburse a loan. Returns the Loan object."""
+    application, product = await _make_approved_application(
+        engine, accounts, interest_method
+    )
+    session = await _new_session(engine)
+    try:
+        svc = LoanDisbursementService(session)
+        loan = await svc.disburse(
+            loan_application_id=application.id,
+            actor_id=accounts["actor"],
+            idempotency_key=f"accrual-disb-{uuid.uuid4()}",
+        )
+        await session.commit()
+        return loan
+    finally:
+        await session.close()
+
+
+@pytest.mark.asyncio
+async def test_accrue_interest_posts_gl_entry(test_engine):
+    """Reducing balance: accrual for a loan with an installment due today posts a GL entry."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
+
+    today = date.today()
+    session = await _new_session(test_engine)
+    try:
+        installments = list(
+            (await session.execute(
+                sa_select(LoanInstallment)
+                .where(LoanInstallment.loan_id == loan.id)
+                .order_by(LoanInstallment.period_number)
+                .limit(1)
+            )).scalars().all()
+        )
+        installments[0].due_date = today
+        await session.commit()
+    finally:
+        await session.close()
+
+    from app.modules.credit.beat import _accrue_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    await _accrue_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    session2 = await _new_session(test_engine)
+    try:
+        updated_loan = await session2.get(Loan, loan.id)
+        assert updated_loan.accrued_interest > Decimal("0")
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_accrue_interest_idempotent(test_engine):
+    """Running accrual twice on the same day does not double-post."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
+
+    today = date.today()
+    session = await _new_session(test_engine)
+    try:
+        installments = list(
+            (await session.execute(
+                sa_select(LoanInstallment)
+                .where(LoanInstallment.loan_id == loan.id)
+                .order_by(LoanInstallment.period_number)
+                .limit(1)
+            )).scalars().all()
+        )
+        installments[0].due_date = today
+        await session.commit()
+    finally:
+        await session.close()
+
+    from app.modules.credit.beat import _accrue_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    await _accrue_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _accrue_for_tenant(TEST_TENANT_SCHEMA, _engine)  # second run
+    await _engine.dispose()
+
+    session2 = await _new_session(test_engine)
+    try:
+        updated_loan = await session2.get(Loan, loan.id)
+        first_run_interest = updated_loan.accrued_interest
+        assert first_run_interest > Decimal("0")
+    finally:
+        await session2.close()
+
+    _engine2 = _create_engine(get_settings().database_url)
+    await _accrue_for_tenant(TEST_TENANT_SCHEMA, _engine2)
+    await _engine2.dispose()
+
+    session3 = await _new_session(test_engine)
+    try:
+        final_loan = await session3.get(Loan, loan.id)
+        assert final_loan.accrued_interest == first_run_interest
+    finally:
+        await session3.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_accrue_skips_flat_loans(test_engine):
+    """Flat method loans: accrual task does nothing (interest booked at disbursement)."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "flat")
+
+    today = date.today()
+    session = await _new_session(test_engine)
+    try:
+        installments = list(
+            (await session.execute(
+                sa_select(LoanInstallment)
+                .where(LoanInstallment.loan_id == loan.id)
+                .order_by(LoanInstallment.period_number)
+                .limit(1)
+            )).scalars().all()
+        )
+        installments[0].due_date = today
+        await session.commit()
+    finally:
+        await session.close()
+
+    from app.modules.credit.beat import _accrue_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    await _accrue_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    session2 = await _new_session(test_engine)
+    try:
+        updated_loan = await session2.get(Loan, loan.id)
+        assert updated_loan.accrued_interest == Decimal("0")
     finally:
         await session2.close()
         await _cleanup(test_engine)
