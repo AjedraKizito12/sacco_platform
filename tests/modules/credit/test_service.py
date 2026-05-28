@@ -7,7 +7,7 @@ to avoid asyncpg protocol-state errors with flush().
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -26,6 +26,7 @@ from app.modules.credit.models import (
 from app.modules.credit.services.application import LoanApplicationService
 from app.modules.credit.services.disbursement import LoanDisbursementService
 from app.modules.credit.services.product import LoanProductService
+from app.modules.credit.services.query import CreditQueryService
 from app.modules.credit.services.repayment import LoanRepaymentService
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
 from app.modules.ledger.service import LedgerService
@@ -1571,4 +1572,209 @@ async def test_repayment_updates_installments(test_engine):
         assert first_installment.paid_at is not None
     finally:
         await session3.close()
+        await _cleanup(test_engine)
+
+
+# ── CreditQueryService tests ──────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_find_loans_eligible_for_fee_overdue(test_engine):
+    """Loans with overdue installments appear in the eligibility query."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
+
+    yesterday = date.today() - timedelta(days=1)
+    session = await _new_session(test_engine)
+    try:
+        installments = list(
+            (await session.execute(
+                sa_select(LoanInstallment).where(LoanInstallment.loan_id == loan.id)
+            )).scalars().all()
+        )
+        for inst in installments:
+            inst.due_date = yesterday
+            inst.status = "overdue"
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc = CreditQueryService(session2)
+        eligible = await svc.find_loans_eligible_for_fee(
+            as_of_date=date.today(),
+            min_days_past_due=0,
+        )
+        loan_ids = [e["loan_id"] for e in eligible]
+        assert loan.id in loan_ids
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_find_loans_eligible_for_fee_not_overdue(test_engine):
+    """Loans with no overdue installments do not appear in eligibility query."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
+
+    session = await _new_session(test_engine)
+    try:
+        svc = CreditQueryService(session)
+        eligible = await svc.find_loans_eligible_for_fee(
+            as_of_date=date.today(),
+            min_days_past_due=0,
+        )
+        loan_ids = [e["loan_id"] for e in eligible]
+        assert loan.id not in loan_ids
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+# ── Penalty consumer tests ────────────────────────────────────────────────────
+
+
+async def _insert_outbox_event(
+    engine: AsyncEngine,
+    event_type: str,
+    payload: dict,
+) -> uuid.UUID:
+    """Insert a TenantOutboxEvent directly for testing."""
+    import json
+    event_id = uuid.uuid4()
+    session = await _new_session(engine)
+    try:
+        await session.execute(
+            text(
+                "INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, occurred_at, published_at) "
+                "VALUES (:id, :atype, :aid, :etype, :payload::jsonb, now(), NULL)"
+            ),
+            {
+                "id": event_id,
+                "atype": "loan",
+                "aid": uuid.uuid4(),
+                "etype": event_type,
+                "payload": json.dumps(payload),
+            },
+        )
+        await session.commit()
+    finally:
+        await session.close()
+    return event_id
+
+
+@pytest.mark.asyncio
+async def test_consumer_fee_assessment_increments_accrued_penalties(test_engine):
+    """FeeAssessmentCreated with target_type='loan' increments loans.accrued_penalties."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
+
+    assessment_id = uuid.uuid4()
+    penalty_amount = Decimal("500.00")
+    event_id = await _insert_outbox_event(
+        test_engine,
+        "FeeAssessmentCreated",
+        {
+            "assessment_id": str(assessment_id),
+            "target_type": "loan",
+            "target_id": str(loan.id),
+            "amount": str(penalty_amount),
+        },
+    )
+
+    from app.modules.credit.consumer import _process_tenant_events
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    await _process_tenant_events(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    session = await _new_session(test_engine)
+    try:
+        updated = await session.get(Loan, loan.id)
+        assert updated.accrued_penalties == penalty_amount
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_consumer_fee_assessment_idempotent(test_engine):
+    """Replaying FeeAssessmentCreated does not double-increment accrued_penalties."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
+
+    penalty_amount = Decimal("300.00")
+    event_id = await _insert_outbox_event(
+        test_engine,
+        "FeeAssessmentCreated",
+        {
+            "assessment_id": str(uuid.uuid4()),
+            "target_type": "loan",
+            "target_id": str(loan.id),
+            "amount": str(penalty_amount),
+        },
+    )
+
+    from app.modules.credit.consumer import _process_tenant_events
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+
+    _engine = _create_engine(get_settings().database_url)
+    await _process_tenant_events(TEST_TENANT_SCHEMA, _engine)
+    await _process_tenant_events(TEST_TENANT_SCHEMA, _engine)  # replay
+    await _engine.dispose()
+
+    session = await _new_session(test_engine)
+    try:
+        updated = await session.get(Loan, loan.id)
+        assert updated.accrued_penalties == penalty_amount  # not doubled
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_consumer_fee_collection_decrements_accrued_penalties(test_engine):
+    """FeeCollectionCreated with target_type='loan' decrements accrued_penalties, increments total_paid_penalties."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
+
+    penalty_amount = Decimal("200.00")
+    session = await _new_session(test_engine)
+    try:
+        l = await session.get(Loan, loan.id)
+        l.accrued_penalties = penalty_amount
+        await session.commit()
+    finally:
+        await session.close()
+
+    collected_amount = Decimal("150.00")
+    await _insert_outbox_event(
+        test_engine,
+        "FeeCollectionCreated",
+        {
+            "collection_id": str(uuid.uuid4()),
+            "target_type": "loan",
+            "target_id": str(loan.id),
+            "amount_collected": str(collected_amount),
+        },
+    )
+
+    from app.modules.credit.consumer import _process_tenant_events
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    await _process_tenant_events(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    session2 = await _new_session(test_engine)
+    try:
+        updated = await session2.get(Loan, loan.id)
+        assert updated.accrued_penalties == penalty_amount - collected_amount
+        assert updated.total_paid_penalties == collected_amount
+    finally:
+        await session2.close()
         await _cleanup(test_engine)
