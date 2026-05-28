@@ -13,16 +13,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
+from app.modules.credit.models import Loan
 from app.modules.credit.schemas import (
+    DisburseIn,
     LoanApplicationApproveIn,
     LoanApplicationCreateIn,
     LoanApplicationOut,
     LoanApplicationRejectIn,
+    LoanOut,
     LoanProductCreateIn,
     LoanProductOut,
     LoanProductPatchIn,
 )
 from app.modules.credit.services.application import LoanApplicationService
+from app.modules.credit.services.disbursement import LoanDisbursementService
 from app.modules.credit.services.product import LoanProductService
 from app.modules.maker_checker.service import ApprovalService
 
@@ -205,3 +209,41 @@ async def reject_loan_application(
         status_code = 404 if "not found" in str(exc) else 400
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return LoanApplicationOut.model_validate(application)
+
+
+# ── Disbursement ──────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/loans/{application_id}/disburse",
+    response_model=LoanOut,
+    status_code=201,
+)
+async def disburse_loan(
+    application_id: uuid.UUID,
+    body: DisburseIn,
+    session: Session,
+) -> LoanOut:
+    try:
+        svc = LoanDisbursementService(session)
+        loan = await svc.disburse(
+            loan_application_id=application_id,
+            actor_id=uuid.uuid4(),  # TODO: replace with CurrentTenantUser in sub-plan 12
+            idempotency_key=body.idempotency_key,
+        )
+        await session.commit()
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return LoanOut.model_validate(loan)
+
+
+@router.get("/loans/{loan_id}", response_model=LoanOut)
+async def get_loan(
+    loan_id: uuid.UUID,
+    session: Session,
+) -> LoanOut:
+    loan = await session.get(Loan, loan_id)
+    if loan is None:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    return LoanOut.model_validate(loan)
