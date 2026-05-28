@@ -125,3 +125,18 @@ Schema-per-tenant on PostgreSQL. Each tenant SACCO gets its own schema.
 - Direct execution paths for `credit.write_off` (below `write_off_threshold`) and
   `credit.approve_application` are registered via `@approval_executor` in
   `app/modules/credit/executors.py`. Do not add alternate execution paths.
+
+## Credit module v1b contracts (do not violate)
+- Guarantor lien balance is always computed as SUM(current_lien WHERE is_active=true)
+  from loan_guarantor_liens. Never cache this value outside a transaction.
+- SavingsService.get_available_balance() must always subtract active liens before
+  returning a withdrawable balance. Never bypass this for guarantors.
+- Lien mutations (place_liens, adjust_liens, release_liens, reactivate_liens) must
+  happen in the same DB transaction as the triggering financial operation (disbursement,
+  repayment, write-off, recovery). Never update liens in a separate transaction.
+- Payroll batch lines are applied one per commit. A failed line records status=error
+  and does NOT roll back successfully applied lines.
+- Restructuring never deletes installment rows. Mark is_superseded=true and write new rows.
+- Write-off recovery does not require maker-checker. The cash receipt is the authorizing event.
+- WeasyPrint is the only permitted PDF renderer in this module. Do not add alternative
+  PDF libraries.
