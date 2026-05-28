@@ -9,7 +9,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     import uuid
@@ -135,6 +135,7 @@ class LoanInstallmentOut(BaseModel):
     principal_paid: Decimal
     interest_paid: Decimal
     status: str
+    paid_at: datetime | None
 
 
 class LoanOut(BaseModel):
@@ -163,3 +164,34 @@ class LoanOut(BaseModel):
 
 class DisburseIn(BaseModel):
     idempotency_key: str
+
+
+# ── Repayment schemas ─────────────────────────────────────────────────────────
+
+
+class LoanRepaymentCreateIn(BaseModel):
+    amount: Decimal = Field(gt=Decimal("0"))
+    payment_account_id: uuid.UUID
+    narration: str | None = None
+    idempotency_key: str
+    savings_account_id: uuid.UUID | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LoanRepaymentOut(BaseModel):
+    id: uuid.UUID
+    loan_id: uuid.UUID
+    amount: Decimal
+    principal_applied: Decimal
+    interest_applied: Decimal
+    penalties_applied: Decimal
+    overpayment: Decimal
+    payment_account_id: uuid.UUID
+    journal_entry_id: uuid.UUID
+    posted_by: uuid.UUID
+    narration: str | None
+    idempotency_key: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

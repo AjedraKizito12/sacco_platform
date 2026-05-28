@@ -10,24 +10,29 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select as _select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
-from app.modules.credit.models import Loan
+from app.modules.credit.models import Loan, LoanInstallment
 from app.modules.credit.schemas import (
     DisburseIn,
     LoanApplicationApproveIn,
     LoanApplicationCreateIn,
     LoanApplicationOut,
     LoanApplicationRejectIn,
+    LoanInstallmentOut,
     LoanOut,
     LoanProductCreateIn,
     LoanProductOut,
     LoanProductPatchIn,
+    LoanRepaymentCreateIn,
+    LoanRepaymentOut,
 )
 from app.modules.credit.services.application import LoanApplicationService
 from app.modules.credit.services.disbursement import LoanDisbursementService
 from app.modules.credit.services.product import LoanProductService
+from app.modules.credit.services.repayment import LoanRepaymentService
 from app.modules.maker_checker.service import ApprovalService
 
 router = APIRouter(prefix="/credit", tags=["credit"])
@@ -247,3 +252,60 @@ async def get_loan(
     if loan is None:
         raise HTTPException(status_code=404, detail="Loan not found")
     return LoanOut.model_validate(loan)
+
+
+# ── Repayment endpoints ───────────────────────────────────────────────────────
+
+
+@router.post("/loans/{loan_id}/repayments", response_model=LoanRepaymentOut, status_code=201)
+async def post_repayment(
+    loan_id: uuid.UUID,
+    body: LoanRepaymentCreateIn,
+    session: Session,
+) -> LoanRepaymentOut:
+    try:
+        svc = LoanRepaymentService(session)
+        repayment = await svc.apply_repayment(
+            loan_id=loan_id,
+            amount=body.amount,
+            payment_account_id=body.payment_account_id,
+            posted_by=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            narration=body.narration,
+            idempotency_key=body.idempotency_key,
+            savings_account_id=body.savings_account_id,
+        )
+        await session.commit()
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return LoanRepaymentOut.model_validate(repayment)
+
+
+@router.get("/loans/{loan_id}/repayments", response_model=list[LoanRepaymentOut])
+async def list_repayments(
+    loan_id: uuid.UUID,
+    session: Session,
+) -> list[LoanRepaymentOut]:
+    svc = LoanRepaymentService(session)
+    repayments = await svc.list_repayments(loan_id)
+    return [LoanRepaymentOut.model_validate(r) for r in repayments]
+
+
+# ── Schedule endpoint ─────────────────────────────────────────────────────────
+
+
+@router.get("/loans/{loan_id}/schedule", response_model=list[LoanInstallmentOut])
+async def get_schedule(
+    loan_id: uuid.UUID,
+    session: Session,
+) -> list[LoanInstallmentOut]:
+    installments = list(
+        (
+            await session.execute(
+                _select(LoanInstallment)
+                .where(LoanInstallment.loan_id == loan_id)
+                .order_by(LoanInstallment.period_number)
+            )
+        ).scalars().all()
+    )
+    return [LoanInstallmentOut.model_validate(i) for i in installments]
