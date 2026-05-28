@@ -10,6 +10,8 @@ import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
+import logging
+
 import pytest
 from sqlalchemy import delete, func, text
 from sqlalchemy import select as sa_select
@@ -2194,3 +2196,128 @@ async def test_write_off_idempotency(test_engine):
     finally:
         await session4.close()
         await _cleanup(test_engine)
+
+
+# ── Reconciliation tests ──────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_no_drift_after_clean_lifecycle(test_engine, caplog):
+    """After disburse → repay lifecycle, reconciliation finds no drift."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan, accrued_interest = await _make_disbursed_loan_with_interest(test_engine, accounts)
+
+    repayment_amount = accrued_interest + Decimal("50.00")
+    session = await _new_session(test_engine)
+    try:
+        from app.modules.credit.services.repayment import LoanRepaymentService
+        svc = LoanRepaymentService(session)
+        await svc.apply_repayment(
+            loan_id=loan.id,
+            amount=repayment_amount,
+            payment_account_id=accounts["disbursement_account"],
+            posted_by=accounts["actor"],
+            idempotency_key=f"rpy-{uuid.uuid4()}",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    from app.modules.credit.beat import _reconcile_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+
+    with caplog.at_level(logging.ERROR):
+        drifted = await _reconcile_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    assert drifted == 0, f"Expected no drift, got {drifted} drifted loans"
+    assert "loan_snapshot_drift" not in caplog.text
+
+    await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_detects_injected_drift(test_engine):
+    """Direct UPDATE to outstanding_principal bypassing service → reconciliation detects drift."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "flat")
+
+    session = await _new_session(test_engine)
+    try:
+        l = await session.get(Loan, loan.id)
+        l.outstanding_principal = l.outstanding_principal - Decimal("999.00")
+        await session.commit()
+    finally:
+        await session.close()
+
+    from app.modules.credit.beat import _reconcile_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    drifted = await _reconcile_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    assert drifted == 1, f"Expected 1 drifted loan, got {drifted}"
+
+    await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_does_not_modify_loan(test_engine):
+    """Reconciliation task is read-only — does not update outstanding_principal."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "flat")
+    original_principal = loan.outstanding_principal
+
+    session = await _new_session(test_engine)
+    try:
+        l = await session.get(Loan, loan.id)
+        l.outstanding_principal = l.outstanding_principal - Decimal("100.00")
+        drifted_principal = l.outstanding_principal
+        await session.commit()
+    finally:
+        await session.close()
+
+    from app.modules.credit.beat import _reconcile_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    await _reconcile_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    session2 = await _new_session(test_engine)
+    try:
+        after = await session2.get(Loan, loan.id)
+        assert after.outstanding_principal == drifted_principal
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_skips_closed_loans(test_engine):
+    """Closed loans are excluded from reconciliation checks."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "flat")
+
+    session = await _new_session(test_engine)
+    try:
+        l = await session.get(Loan, loan.id)
+        l.status = "closed"
+        l.outstanding_principal = Decimal("0")
+        await session.commit()
+    finally:
+        await session.close()
+
+    from app.modules.credit.beat import _reconcile_for_tenant
+    from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+    from app.core.config import get_settings
+    _engine = _create_engine(get_settings().database_url)
+    drifted = await _reconcile_for_tenant(TEST_TENANT_SCHEMA, _engine)
+    await _engine.dispose()
+
+    assert drifted == 0, "Closed loan should not be checked"
+
+    await _cleanup(test_engine)

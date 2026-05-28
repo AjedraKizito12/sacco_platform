@@ -271,3 +271,117 @@ async def _run_mark_arrears() -> dict[str, int]:
 def mark_loans_in_arrears() -> dict[str, int]:
     """Daily: transition disbursed ↔ in_arrears based on overdue installments."""
     return asyncio.run(_run_mark_arrears())
+
+
+# ── Snapshot reconciliation ───────────────────────────────────────────────────
+
+
+async def _reconcile_for_tenant(schema_name: str, engine) -> int:
+    """Compare loan snapshot outstanding_principal against GL net for one tenant.
+
+    Checks disbursed, in_arrears, and written_off loans only.
+    Returns count of drifted loans (read-only — never modifies loan rows).
+    """
+    from app.modules.credit.models import Loan
+    from app.modules.ledger.models import JournalLine
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    drift_count = 0
+
+    async with factory() as session:
+        await session.execute(
+            text(f"SET LOCAL search_path TO {schema_name}, platform")  # noqa: S608
+        )
+
+        loans = list(
+            (
+                await session.execute(
+                    select(Loan).where(
+                        Loan.status.in_(["disbursed", "in_arrears", "written_off"])
+                    )
+                )
+            ).scalars().all()
+        )
+
+        for loan in loans:
+            gl_net = await session.scalar(
+                select(
+                    func.coalesce(func.sum(JournalLine.debit_amount), Decimal("0"))
+                    - func.coalesce(func.sum(JournalLine.credit_amount), Decimal("0"))
+                ).where(
+                    JournalLine.sub_ledger_type == "loan",
+                    JournalLine.sub_ledger_id == loan.id,
+                    JournalLine.account_id == loan.gl_principal_receivable_id,
+                )
+            ) or Decimal("0")
+
+            snapshot = loan.outstanding_principal
+
+            if abs(gl_net - snapshot) > Decimal("0.01"):
+                drift_count += 1
+                _log.error(
+                    "loan_snapshot_drift",
+                    schema=schema_name,
+                    loan_id=str(loan.id),
+                    loan_reference=loan.loan_reference,
+                    snapshot_outstanding_principal=str(snapshot),
+                    gl_net_principal=str(gl_net),
+                    diff=str(gl_net - snapshot),
+                )
+                try:
+                    from app.core.audit.service import TenantAuditService
+                    audit_svc = TenantAuditService(session)
+                    await audit_svc.record(
+                        table_name="loans",
+                        record_id=loan.id,
+                        operation="loan_snapshot_drift_detected",
+                        actor_type="system",
+                        actor_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+                        before_state={"outstanding_principal": str(snapshot)},
+                        after_state={"gl_net_principal": str(gl_net)},
+                    )
+                except Exception as audit_exc:
+                    _log.error(
+                        "credit.beat.reconcile_audit_error",
+                        loan_id=str(loan.id),
+                        error=str(audit_exc),
+                    )
+
+        await session.commit()
+
+    return drift_count
+
+
+async def _run_reconcile_snapshots() -> dict[str, int]:
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    totals: dict[str, int] = {}
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text("SELECT schema_name FROM platform.tenants WHERE is_active = true")
+            )
+            schemas = [row[0] for row in result.fetchall()]
+        for schema_name in schemas:
+            if not _SCHEMA_RE.match(schema_name):
+                continue
+            try:
+                count = await _reconcile_for_tenant(schema_name, engine)
+                if count:
+                    totals[schema_name] = count
+            except Exception as exc:
+                _log.error(
+                    "credit.beat.reconcile_tenant_error",
+                    schema=schema_name,
+                    error=str(exc),
+                )
+    finally:
+        await engine.dispose()
+    _log.info("credit.beat.reconcile_complete", **totals)
+    return totals
+
+
+@celery_app.task(name="app.modules.credit.beat.reconcile_loan_snapshots")  # type: ignore[misc]
+def reconcile_loan_snapshots() -> dict[str, int]:
+    """Daily: compare loan snapshot fields to GL sums; alert on mismatch."""
+    return asyncio.run(_run_reconcile_snapshots())
