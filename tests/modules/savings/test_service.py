@@ -862,3 +862,85 @@ async def test_savings_transaction_accepts_external_debit_type(test_engine):
     finally:
         await session.close()
         await _cleanup(test_engine)
+
+
+@pytest.mark.anyio
+async def test_get_available_balance_subtracts_active_liens(test_engine: AsyncEngine) -> None:
+    """Available balance = raw balance - SUM(active current_lien)."""
+    from app.modules.credit.models import (
+        LoanGuarantor,
+        LoanGuarantorLien,
+        LoanApplication,
+        LoanProduct,
+    )
+
+    # Set up GL accounts and a real member (savings_accounts FK requires both)
+    _, liability_account_id = await _setup_gl_accounts(test_engine)
+    member_id = await _setup_member(test_engine)
+    product_id = await _setup_product(test_engine, liability_account_id)
+
+    session = await _new_session(test_engine)
+    try:
+        sav_svc = SavingsService(session)
+        savings_account = await sav_svc.open_account(
+            member_id=member_id, savings_product_id=product_id
+        )
+        await session.flush()
+
+        # Create loan product + application + guarantor rows (needed for FK chain)
+        loan_product = LoanProduct(
+            name=f"avail-bal-lp-{uuid.uuid4()}",
+            interest_method="flat",
+            annual_interest_rate=Decimal("12.0000"),
+            repayment_frequency="monthly",
+            max_term_periods=12,
+            min_amount=Decimal("1000.0000"),
+            max_amount=Decimal("100000.0000"),
+            required_approvals=1,
+            required_guarantors=1,
+            disbursement_destinations=["member_savings"],
+            gl_principal_receivable_code="1100",
+            gl_interest_receivable_code="1110",
+            gl_interest_income_code="4100",
+        )
+        session.add(loan_product)
+        await session.flush()
+        loan_app = LoanApplication(
+            loan_product_id=loan_product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("10000.0000"),
+            requested_term_periods=12,
+            disbursement_destination="member_savings",
+            status="submitted",
+            idempotency_key=str(uuid.uuid4()),
+        )
+        session.add(loan_app)
+        await session.flush()
+        guarantor_row = LoanGuarantor(
+            loan_application_id=loan_app.id,
+            guarantor_member_id=member_id,
+            guaranteed_amount=Decimal("5000.0000"),
+            status="accepted",
+            idempotency_key=str(uuid.uuid4()),
+        )
+        session.add(guarantor_row)
+        await session.flush()
+
+        # Add a lien linked to the real guarantor row
+        lien = LoanGuarantorLien(
+            loan_guarantor_id=guarantor_row.id,
+            savings_account_id=savings_account.id,
+            original_lien=Decimal("5000.0000"),
+            current_lien=Decimal("3000.0000"),
+            is_active=True,
+        )
+        session.add(lien)
+        await session.commit()
+
+        # Raw balance is 0 (no transactions); available should subtract the lien
+        available = await sav_svc.get_available_balance(savings_account.id)
+        # raw balance = 0, lien = 3000, available = 0 - 3000 = -3000
+        assert available == Decimal("-3000.0000")
+    finally:
+        await session.close()
+        await _cleanup(test_engine)

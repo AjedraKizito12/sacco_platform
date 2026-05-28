@@ -155,6 +155,22 @@ class SavingsService:
 
         return Decimal(str(deposits)) - Decimal(str(withdrawals))
 
+    async def get_available_balance(self, savings_account_id: uuid.UUID) -> Decimal:
+        """Raw balance minus any active guarantor liens on this account."""
+        raw = await self.get_balance(savings_account_id)
+
+        # Local import avoids circular dependency (credit imports savings).
+        from app.modules.credit.models import LoanGuarantorLien
+        from sqlalchemy import func as sa_func
+
+        result = await self._session.execute(
+            select(sa_func.coalesce(sa_func.sum(LoanGuarantorLien.current_lien), Decimal("0")))
+            .where(LoanGuarantorLien.savings_account_id == savings_account_id)
+            .where(LoanGuarantorLien.is_active.is_(True))
+        )
+        total_lien: Decimal = result.scalar_one()
+        return raw - total_lien
+
     # ── Transactions ──────────────────────────────────────────────────────────
 
     async def list_transactions(
