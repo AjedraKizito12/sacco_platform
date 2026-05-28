@@ -10,7 +10,7 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy import select as _select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +32,8 @@ from app.modules.credit.schemas import (
     LoanProductPatchIn,
     LoanRepaymentCreateIn,
     LoanRepaymentOut,
+    PayrollBatchJsonIn,
+    PayrollBatchOut,
     RestructureIn,
     RestructuringOut,
     WriteOffIn,
@@ -505,3 +507,79 @@ async def list_restructurings(
         .order_by(LoanRestructuring.executed_at)
     )
     return [RestructuringOut.model_validate(r) for r in result.scalars().all()]
+
+
+# ── Payroll batch endpoints ───────────────────────────────────────────────────
+
+
+@router.post("/payroll-batches", status_code=201)
+async def submit_payroll_batch_json(
+    body: PayrollBatchJsonIn,
+    session: Session,
+) -> PayrollBatchOut:
+    from app.modules.credit.services.payroll import PayrollBatchService  # noqa: PLC0415
+    svc = PayrollBatchService(session)
+    rows = [{"member_id": r.member_id, "amount": str(r.amount)} for r in body.rows]
+    try:
+        batch = await svc.submit_batch(
+            rows=rows,
+            source_format="json",
+            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            idempotency_key=body.idempotency_key,
+            clearing_account_id=body.clearing_account_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return PayrollBatchOut.model_validate(batch)
+
+
+@router.post("/payroll-batches/csv", status_code=201)
+async def submit_payroll_batch_csv(
+    file: UploadFile,
+    clearing_account_id: uuid.UUID,
+    idempotency_key: str,
+    session: Session,
+) -> PayrollBatchOut:
+    from app.modules.credit.services.payroll import PayrollBatchService  # noqa: PLC0415
+    svc = PayrollBatchService(session)
+    contents = await file.read()
+    try:
+        batch = await svc.submit_batch_csv(
+            csv_bytes=contents,
+            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            idempotency_key=idempotency_key,
+            clearing_account_id=clearing_account_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return PayrollBatchOut.model_validate(batch)
+
+
+@router.get("/payroll-batches/{batch_id}")
+async def get_payroll_batch(
+    batch_id: uuid.UUID,
+    session: Session,
+) -> PayrollBatchOut:
+    from app.modules.credit.models import PayrollBatch  # noqa: PLC0415
+    batch = await session.get(PayrollBatch, batch_id)
+    if batch is None:
+        raise HTTPException(status_code=404, detail="Payroll batch not found")
+    return PayrollBatchOut.model_validate(batch)
+
+
+@router.post("/payroll-batches/{batch_id}/reject")
+async def reject_payroll_batch(
+    batch_id: uuid.UUID,
+    session: Session,
+) -> PayrollBatchOut:
+    from app.modules.credit.models import PayrollBatch  # noqa: PLC0415
+    batch = await session.scalar(
+        _select(PayrollBatch).where(PayrollBatch.id == batch_id).with_for_update()
+    )
+    if batch is None:
+        raise HTTPException(status_code=404, detail="Payroll batch not found")
+    if batch.status != "pending_review":
+        raise HTTPException(status_code=409, detail=f"Batch status is '{batch.status}'")
+    batch.status = "rejected"
+    batch.approved_by = uuid.uuid4()  # TODO SP12: replace with current_user.user_id
+    return PayrollBatchOut.model_validate(batch)

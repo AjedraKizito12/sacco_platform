@@ -2,6 +2,7 @@
 """PayrollBatchService — CSV/JSON batch submission, preview, and application."""
 from __future__ import annotations
 
+import contextlib
 import csv
 import io
 import uuid
@@ -155,10 +156,8 @@ class PayrollBatchService:
 
             # Try to find member by UUID
             member_id: uuid.UUID | None = None
-            try:
+            with contextlib.suppress(ValueError):
                 member_id = uuid.UUID(raw_ref)
-            except ValueError:
-                pass
 
             if member_id is None:
                 unmatched.append({
@@ -225,10 +224,13 @@ class PayrollBatchService:
             idem_key = f"payroll-{batch_id}-{line.id}"
             try:
                 repayment_svc = LoanRepaymentService(self._session)
+                _clearing = clearing_account_id or uuid.UUID(
+                    "00000000-0000-0000-0000-000000000001"
+                )
                 repayment = await repayment_svc.apply_repayment(
                     loan_id=line.loan_id,
                     amount=line.amount,
-                    payment_account_id=clearing_account_id or uuid.UUID("00000000-0000-0000-0000-000000000001"),
+                    payment_account_id=_clearing,
                     posted_by=actor_id,
                     narration=f"Payroll deduction batch {batch.reference}",
                     idempotency_key=idem_key,

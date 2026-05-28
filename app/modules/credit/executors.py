@@ -124,13 +124,15 @@ async def execute_restructure_schedule(
 
 
 @approval_executor("credit.apply_payroll_batch")
-async def execute_apply_payroll_batch(session: AsyncSession, payload: dict[str, Any]) -> dict[str, Any]:
+async def execute_apply_payroll_batch(
+    session: AsyncSession, payload: dict[str, Any]
+) -> dict[str, Any]:
     """Executor: called by ApprovalService when payroll batch is approved."""
     batch_id = uuid.UUID(payload["batch_id"])
     clearing_account_id = uuid.UUID(payload["clearing_account_id"])
 
-    from app.modules.credit.services.payroll import PayrollBatchService  # noqa: PLC0415
     from app.modules.credit.models import PayrollBatch  # noqa: PLC0415
+    from app.modules.credit.services.payroll import PayrollBatchService  # noqa: PLC0415
 
     # Mark batch as approved before applying
     batch = await session.get(PayrollBatch, batch_id)

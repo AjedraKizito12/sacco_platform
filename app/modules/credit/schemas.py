@@ -236,6 +236,44 @@ class GuarantorConsentIn(BaseModel):
     guarantor_member_id: uuid.UUID
 
 
+# ── Payroll batch schemas ─────────────────────────────────────────────────────
+
+
+class PayrollRowIn(BaseModel):
+    member_id: str
+    amount: Decimal
+
+
+class PayrollBatchJsonIn(BaseModel):
+    rows: list[PayrollRowIn]
+    clearing_account_id: uuid.UUID
+    idempotency_key: str
+
+
+class PayrollBatchLineOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    raw_member_ref: str
+    member_id: uuid.UUID | None
+    loan_id: uuid.UUID | None
+    amount: Decimal
+    status: str
+    error_reason: str | None
+
+
+class PayrollBatchOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    reference: str
+    status: str
+    total_rows: int
+    matched_rows: int
+    unmatched_rows: int
+    total_amount: Decimal
+    source_format: str
+    approval_request_id: uuid.UUID | None
+
+
 # ── Restructuring schemas ─────────────────────────────────────────────────────
 
 
