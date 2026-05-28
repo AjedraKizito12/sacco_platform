@@ -179,6 +179,11 @@ class LoanWriteOffService:
 
         await self._session.flush()
 
+        # ── Release guarantor liens on write-off ─────────────────────────────
+        from app.modules.credit.services.guarantor import GuarantorService  # noqa: PLC0415
+        guarantor_svc = GuarantorService(self._session)
+        await guarantor_svc.release_liens(loan_id=loan.id)
+
         await EventPublisher.publish(
             self._session,
             aggregate_type="loan",
