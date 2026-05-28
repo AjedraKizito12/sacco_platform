@@ -240,6 +240,16 @@ class LoanDisbursementService:
 
         # Step 11: Finalize.
         loan.status = "disbursed"
+
+        # ── Step 11a: Place guarantor liens (no-op when required_guarantors=0) ──
+        from app.modules.credit.services.guarantor import GuarantorService  # noqa: PLC0415
+        guarantor_svc = GuarantorService(self._session)
+        await guarantor_svc.place_liens(
+            loan_id=loan.id,
+            loan_application_id=loan_application_id,
+            principal_amount=principal,
+        )
+
         loan.disbursed_at = disbursement_date
         application.status = "disbursed"
         await self._session.flush()
