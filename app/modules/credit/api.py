@@ -18,6 +18,9 @@ from app.core.db import get_tenant_session
 from app.modules.credit.models import Loan, LoanInstallment
 from app.modules.credit.schemas import (
     DisburseIn,
+    GuarantorConsentIn,
+    GuarantorNominateIn,
+    GuarantorOut,
     LoanApplicationApproveIn,
     LoanApplicationCreateIn,
     LoanApplicationOut,
@@ -381,3 +384,79 @@ async def loans_eligible_for_fee(
         as_of_date=date.today(),
         min_days_past_due=min_days_past_due,
     )
+
+
+# ── Guarantor endpoints ───────────────────────────────────────────────────────
+
+
+@router.post("/applications/{application_id}/guarantors", status_code=201)
+async def nominate_guarantors(
+    application_id: uuid.UUID,
+    body: GuarantorNominateIn,
+    session: Session,
+) -> list[GuarantorOut]:
+    try:
+        from app.modules.credit.services.guarantor import GuarantorService
+        svc = GuarantorService(session)
+        guarantors = await svc.nominate(
+            application_id=application_id,
+            guarantor_member_ids=body.guarantor_member_ids,
+            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+        )
+        await session.commit()
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return [GuarantorOut.model_validate(g) for g in guarantors]
+
+
+@router.get("/applications/{application_id}/guarantors")
+async def list_guarantors(
+    application_id: uuid.UUID,
+    session: Session,
+) -> list[GuarantorOut]:
+    from app.modules.credit.models import LoanGuarantor
+    result = await session.execute(
+        _select(LoanGuarantor).where(LoanGuarantor.loan_application_id == application_id)
+    )
+    return [GuarantorOut.model_validate(g) for g in result.scalars().all()]
+
+
+@router.post("/guarantors/{guarantor_id}/accept")
+async def accept_guarantor(
+    guarantor_id: uuid.UUID,
+    body: GuarantorConsentIn,
+    session: Session,
+) -> GuarantorOut:
+    try:
+        from app.modules.credit.services.guarantor import GuarantorService
+        svc = GuarantorService(session)
+        g = await svc.accept(
+            loan_guarantor_id=guarantor_id,
+            guarantor_member_id=body.guarantor_member_id,
+        )
+        await session.commit()
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return GuarantorOut.model_validate(g)
+
+
+@router.post("/guarantors/{guarantor_id}/decline")
+async def decline_guarantor(
+    guarantor_id: uuid.UUID,
+    body: GuarantorConsentIn,
+    session: Session,
+) -> GuarantorOut:
+    try:
+        from app.modules.credit.services.guarantor import GuarantorService
+        svc = GuarantorService(session)
+        g = await svc.decline(
+            loan_guarantor_id=guarantor_id,
+            guarantor_member_id=body.guarantor_member_id,
+        )
+        await session.commit()
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return GuarantorOut.model_validate(g)

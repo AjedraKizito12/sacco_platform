@@ -217,3 +217,26 @@ class WriteOffOut(BaseModel):
     journal_entry_id: uuid.UUID | None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── Guarantor schemas ─────────────────────────────────────────────────────────
+
+
+class GuarantorNominateIn(BaseModel):
+    guarantor_member_ids: list[uuid.UUID]
+
+
+class GuarantorOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    loan_application_id: uuid.UUID
+    guarantor_member_id: uuid.UUID
+    guaranteed_amount: Decimal
+    status: str
+    consented_at: datetime | None = None
+
+
+class GuarantorConsentIn(BaseModel):
+    """The acting member_id is passed by the caller (resolved from X-Actor-ID header)."""
+    guarantor_member_id: uuid.UUID
