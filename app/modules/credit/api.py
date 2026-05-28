@@ -7,6 +7,7 @@ Remaining endpoints are added in sub-plans 03, 04, 07, 10, 12.
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -246,6 +247,21 @@ async def disburse_loan(
     return LoanOut.model_validate(loan)
 
 
+@router.get("/loans", response_model=list[LoanOut])
+async def list_loans(
+    session: Session,
+    member_id: Annotated[uuid.UUID | None, Query()] = None,
+    status: Annotated[str | None, Query()] = None,
+) -> list[LoanOut]:
+    stmt = _select(Loan)
+    if member_id is not None:
+        stmt = stmt.where(Loan.member_id == member_id)
+    if status is not None:
+        stmt = stmt.where(Loan.status == status)
+    loans = list((await session.execute(stmt)).scalars().all())
+    return [LoanOut.model_validate(l) for l in loans]
+
+
 @router.get("/loans/{loan_id}", response_model=LoanOut)
 async def get_loan(
     loan_id: uuid.UUID,
@@ -338,3 +354,19 @@ async def write_off_loan(
         status_code = 404 if "not found" in str(exc) else 400
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return WriteOffOut(**result)
+
+
+# ── Query endpoints ───────────────────────────────────────────────────────────
+
+
+@router.get("/query/loans-eligible-for-fee", response_model=list[dict])
+async def loans_eligible_for_fee(
+    session: Session,
+    min_days_past_due: int = 0,
+) -> list[dict]:
+    from app.modules.credit.services.query import CreditQueryService
+    svc = CreditQueryService(session)
+    return await svc.find_loans_eligible_for_fee(
+        as_of_date=date.today(),
+        min_days_past_due=min_days_past_due,
+    )
