@@ -11,8 +11,10 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import delete, text
+from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+import app.modules.credit.executors  # noqa: F401 — registers credit.approve_application
 from app.modules.credit.models import (
     Loan,
     LoanApplication,
@@ -20,11 +22,14 @@ from app.modules.credit.models import (
     LoanProduct,
     LoanRepayment,
 )
-from app.modules.credit.services.product import LoanProductService
-
-import app.modules.credit.executors  # noqa: F401 — registers credit.approve_application
 from app.modules.credit.services.application import LoanApplicationService
+from app.modules.credit.services.disbursement import LoanDisbursementService
+from app.modules.credit.services.product import LoanProductService
+from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
+from app.modules.ledger.service import LedgerService
 from app.modules.maker_checker.service import ApprovalService
+from app.modules.members.models import Member
+from app.modules.savings.models import SavingsAccount, SavingsProduct, SavingsTransaction
 
 TEST_TENANT_SCHEMA = "tenant_test"
 
@@ -51,7 +56,7 @@ async def _new_session(engine: AsyncEngine) -> AsyncSession:
 
 
 async def _cleanup(engine: AsyncEngine) -> None:
-    """Delete all credit + related rows in dependency order."""
+    """Delete all credit + savings + GL rows in dependency order."""
     async with _factory(engine)() as session:
         await session.execute(text(f"SET search_path TO {TEST_TENANT_SCHEMA}, platform"))
         await session.execute(delete(LoanRepayment))
@@ -59,6 +64,13 @@ async def _cleanup(engine: AsyncEngine) -> None:
         await session.execute(delete(Loan))
         await session.execute(delete(LoanApplication))
         await session.execute(delete(LoanProduct))
+        await session.execute(delete(SavingsTransaction))
+        await session.execute(delete(SavingsAccount))
+        await session.execute(delete(SavingsProduct))
+        await session.execute(delete(JournalLine))
+        await session.execute(delete(JournalEntry))
+        await session.execute(delete(ChartOfAccount))
+        await session.execute(delete(Member))
         await session.commit()
 
 
@@ -758,6 +770,312 @@ async def test_list_applications_filter_by_member(test_engine):
         member_a_apps = await svc2.list(member_id=member_a)
         assert len(member_a_apps) == 1
         assert member_a_apps[0].id == app_a.id
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+# ── Disbursement helpers ──────────────────────────────────────────────────────
+
+
+async def _setup_disbursement_accounts(engine: AsyncEngine) -> dict:
+    """Create GL accounts and savings product needed for disbursement tests."""
+    session = await _new_session(engine)
+    try:
+        actor = uuid.uuid4()
+        ledger = LedgerService(session)
+        principal_recv = await ledger.create_account(
+            code="1300", name="Loans Receivable", account_type="asset", created_by=actor
+        )
+        interest_recv = await ledger.create_account(
+            code="1310", name="Interest Receivable", account_type="asset", created_by=actor
+        )
+        interest_income = await ledger.create_account(
+            code="4100", name="Interest Income", account_type="income", created_by=actor
+        )
+        cash_account = await ledger.create_account(
+            code="1020", name="Cash", account_type="asset", created_by=actor
+        )
+        savings_liability = await ledger.create_account(
+            code="2010", name="Member Savings Liability", account_type="liability", created_by=actor
+        )
+        loan_loss = await ledger.create_account(
+            code="5100", name="Loan Loss Expense", account_type="expense", created_by=actor
+        )
+        savings_product = SavingsProduct(
+            name="Standard Savings",
+            interest_rate=Decimal("5"),
+            minimum_balance=Decimal("0"),
+            liability_account_id=savings_liability.id,
+        )
+        session.add(savings_product)
+        await session.flush()
+        await session.commit()
+        return {
+            "actor": actor,
+            "principal_recv_id": principal_recv.id,
+            "principal_recv_code": "1300",
+            "interest_recv_id": interest_recv.id,
+            "interest_recv_code": "1310",
+            "interest_income_id": interest_income.id,
+            "interest_income_code": "4100",
+            "cash_account_id": cash_account.id,
+            "cash_account_code": "1020",
+            "savings_liability_id": savings_liability.id,
+            "savings_liability_code": "2010",
+            "loan_loss_id": loan_loss.id,
+            "loan_loss_code": "5100",
+            "savings_product_id": savings_product.id,
+        }
+    finally:
+        await session.close()
+
+
+async def _make_approved_application(
+    engine: AsyncEngine,
+    accounts: dict,
+    interest_method: str = "flat",
+) -> tuple[LoanApplication, LoanProduct]:
+    """Create product + submit + approve. Returns (application, product)."""
+    product = await _make_product(
+        engine,
+        name=f"Disburse Test {interest_method}",
+        interest_method=interest_method,
+        gl_principal_receivable_code=accounts["principal_recv_code"],
+        gl_interest_receivable_code=accounts["interest_recv_code"],
+        gl_interest_income_code=accounts["interest_income_code"],
+        gl_loan_loss_expense_code=accounts["loan_loss_code"],
+        disbursement_destinations=["cash", "member_savings"],
+        required_approvals=1,
+    )
+
+    submitter = uuid.uuid4()
+    approver = uuid.uuid4()
+
+    session = await _new_session(engine)
+    try:
+        app_svc = LoanApplicationService(session)
+        approval_svc = ApprovalService(session)
+        application = await app_svc.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("120000"),
+            requested_term_periods=12,
+            disbursement_destination="cash",
+            disbursement_account_id=accounts["cash_account_id"],
+            submitted_by=submitter,
+            idempotency_key=f"app-{uuid.uuid4()}",
+        )
+        await approval_svc.approve(
+            request_id=application.approval_request_id,
+            actor_user_id=approver,
+        )
+        await session.commit()
+        return application, product
+    finally:
+        await session.close()
+
+
+# ── Disbursement tests ────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_disburse_cash_destination_creates_loan(test_engine):
+    accounts = await _setup_disbursement_accounts(test_engine)
+    application, product = await _make_approved_application(test_engine, accounts, "flat")
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanDisbursementService(session)
+        loan = await svc.disburse(
+            loan_application_id=application.id,
+            actor_id=accounts["actor"],
+            idempotency_key=f"disb-{uuid.uuid4()}",
+        )
+        await session.commit()
+
+        assert loan.id is not None
+        assert loan.status == "disbursed"
+        assert loan.outstanding_principal == Decimal("120000")
+        assert loan.loan_reference.startswith("LN-")
+        assert len(loan.loan_reference) == len("LN-202601-000001")
+        assert loan.disbursed_at is not None
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_disburse_creates_installments(test_engine):
+    accounts = await _setup_disbursement_accounts(test_engine)
+    application, product = await _make_approved_application(test_engine, accounts, "flat")
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanDisbursementService(session)
+        loan = await svc.disburse(
+            loan_application_id=application.id,
+            actor_id=accounts["actor"],
+            idempotency_key=f"disb-inst-{uuid.uuid4()}",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        installments = list(
+            (await session2.execute(
+                sa_select(LoanInstallment).where(LoanInstallment.loan_id == loan.id)
+                .order_by(LoanInstallment.period_number)
+            )).scalars().all()
+        )
+        assert len(installments) == 12
+        assert installments[0].period_number == 1
+        total_principal = sum(i.principal_due for i in installments)
+        assert abs(total_principal - Decimal("120000")) <= Decimal("1")
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_disburse_gl_entry_balanced(test_engine):
+    accounts = await _setup_disbursement_accounts(test_engine)
+    application, product = await _make_approved_application(test_engine, accounts, "flat")
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanDisbursementService(session)
+        loan = await svc.disburse(
+            loan_application_id=application.id,
+            actor_id=accounts["actor"],
+            idempotency_key=f"disb-gl-{uuid.uuid4()}",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        lines = list(
+            (await session2.execute(
+                sa_select(JournalLine).where(JournalLine.sub_ledger_id == loan.id)
+            )).scalars().all()
+        )
+        assert len(lines) >= 2
+        total_dr = sum(ln.debit_amount for ln in lines)
+        total_cr = sum(ln.credit_amount for ln in lines)
+        assert total_dr == total_cr
+        for ln in lines:
+            assert ln.sub_ledger_type == "loan"
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_disburse_flat_posts_interest_gl(test_engine):
+    """Flat method: second GL entry Dr interest_receivable / Cr interest_income."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    application, product = await _make_approved_application(test_engine, accounts, "flat")
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanDisbursementService(session)
+        loan = await svc.disburse(
+            loan_application_id=application.id,
+            actor_id=accounts["actor"],
+            idempotency_key=f"disb-flat-{uuid.uuid4()}",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        lines = list(
+            (await session2.execute(
+                sa_select(JournalLine).where(
+                    JournalLine.sub_ledger_id == loan.id,
+                    JournalLine.account_id == accounts["interest_recv_id"],
+                )
+            )).scalars().all()
+        )
+        assert any(ln.debit_amount > 0 for ln in lines)
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_disburse_idempotency(test_engine):
+    """Same idempotency_key → returns same loan."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    application, product = await _make_approved_application(test_engine, accounts, "flat")
+
+    idem_key = f"disb-idem-{uuid.uuid4()}"
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanDisbursementService(session)
+        loan1 = await svc.disburse(
+            loan_application_id=application.id,
+            actor_id=accounts["actor"],
+            idempotency_key=idem_key,
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc2 = LoanDisbursementService(session2)
+        loan2 = await svc2.disburse(
+            loan_application_id=application.id,
+            actor_id=accounts["actor"],
+            idempotency_key=idem_key,
+        )
+        assert loan2.id == loan1.id
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_disburse_non_approved_raises(test_engine):
+    accounts = await _setup_disbursement_accounts(test_engine)
+    product = await _make_product(
+        test_engine,
+        gl_principal_receivable_code=accounts["principal_recv_code"],
+        gl_interest_receivable_code=accounts["interest_recv_code"],
+        gl_interest_income_code=accounts["interest_income_code"],
+    )
+    session = await _new_session(test_engine)
+    try:
+        app_svc = LoanApplicationService(session)
+        application = await app_svc.submit(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("100000"),
+            requested_term_periods=6,
+            disbursement_destination="cash",
+            disbursement_account_id=accounts["cash_account_id"],
+            submitted_by=uuid.uuid4(),
+            idempotency_key=f"not-approved-{uuid.uuid4()}",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc = LoanDisbursementService(session2)
+        with pytest.raises(ValueError, match="[Aa]pproved|status"):
+            await svc.disburse(
+                loan_application_id=application.id,
+                actor_id=accounts["actor"],
+                idempotency_key=f"nonapproved-disb-{uuid.uuid4()}",
+            )
     finally:
         await session2.close()
         await _cleanup(test_engine)
