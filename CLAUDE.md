@@ -99,3 +99,29 @@ Schema-per-tenant on PostgreSQL. Each tenant SACCO gets its own schema.
 - Every savings_transactions row with source_module IS NOT NULL must also have source_id populated.
 - Partial collection is a first-class outcome, not an error. Callers must handle shortfall_amount > 0 explicitly.
 - System-initiated debit/credit: maker-checker is on the originating operation (e.g., assessment), not the financial movement.
+
+## Credit module contracts (do not violate)
+- Loan balance snapshot (`loans.outstanding_principal`, `accrued_interest`, `accrued_penalties`,
+  `total_paid_principal`, `total_paid_interest`, `total_paid_penalties`, `total_written_off`) is
+  the authoritative source for operational balance queries. GL is authoritative for
+  accounting reports. The two are reconciled nightly by `reconcile_loan_snapshots`.
+- All snapshot updates happen inside `app/modules/credit/services/` in a single transaction
+  with the matching GL post. No other code path may UPDATE the snapshot columns.
+  CI enforces this with a ripgrep check (see `scripts/check_snapshot_writes.sh`).
+- Every `journal_line` produced by a credit operation must carry `sub_ledger_type='loan'`
+  and `sub_ledger_id=loan.id`. Lines without `sub_ledger_id` are not queryable in the
+  loan sub-ledger.
+- Loan penalties are fees. The authoritative penalty record is `fee_assessments` with
+  `target_type='loan'`. The credit module snapshots `accrued_penalties`; it does not store
+  penalty history. There is no `loan_penalty_charges` table.
+- Loan write-off is the only operation that decreases `outstanding_principal` without a
+  member payment. It requires maker-checker with quorum=2 above the product's
+  `write_off_threshold`.
+- `SavingsService.record_external_credit` and `record_external_debit` are the only permitted
+  paths for the credit module to create savings transaction rows. Never call savings
+  `system_debit`/`system_credit` from the credit module.
+- `CreditQueryService.find_loans_eligible_for_fee` is the only cross-module interface
+  the fees engine may call into the credit module. No other direct calls between modules.
+- Direct execution paths for `credit.write_off` (below `write_off_threshold`) and
+  `credit.approve_application` are registered via `@approval_executor` in
+  `app/modules/credit/executors.py`. Do not add alternate execution paths.
