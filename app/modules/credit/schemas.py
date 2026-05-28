@@ -310,3 +310,23 @@ class RestructuringOut(BaseModel):
     new_maturity_date: date
     reason: str
     executed_at: datetime
+
+
+# ── Loan Statement ────────────────────────────────────────────────────────────
+
+
+class StatementLineOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    date: date
+    line_type: str
+    description: str
+    debit: Decimal
+    credit: Decimal
+    running_balance: Decimal
+
+
+class LoanStatementOut(BaseModel):
+    loan_id: uuid.UUID
+    from_date: date | None
+    to_date: date | None
+    lines: list[StatementLineOut]

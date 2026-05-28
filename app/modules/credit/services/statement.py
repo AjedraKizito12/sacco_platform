@@ -1,9 +1,8 @@
 """LoanStatementService — JSON statement assembly and WeasyPrint PDF rendering."""
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -11,6 +10,8 @@ import structlog
 from sqlalchemy import select
 
 if TYPE_CHECKING:
+    import uuid
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.credit.models import Loan
@@ -138,9 +139,10 @@ class LoanStatementService:
         to_date: date | None = None,
     ) -> bytes:
         """Render loan statement as PDF bytes via WeasyPrint."""
-        import weasyprint  # noqa: PLC0415
-        import jinja2  # noqa: PLC0415
         from pathlib import Path  # noqa: PLC0415
+
+        import jinja2  # noqa: PLC0415
+        import weasyprint  # noqa: PLC0415
 
         lines = await self.get_statement(
             loan_id=loan_id, from_date=from_date, to_date=to_date
@@ -161,7 +163,7 @@ class LoanStatementService:
             lines=lines,
             from_date=from_date,
             to_date=to_date,
-            generated_at=datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+            generated_at=datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M UTC"),
         )
 
         pdf_bytes: bytes = weasyprint.HTML(string=html_str).write_pdf()

@@ -10,7 +10,7 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select as _select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,10 +34,12 @@ from app.modules.credit.schemas import (
     LoanRecoveryOut,
     LoanRepaymentCreateIn,
     LoanRepaymentOut,
+    LoanStatementOut,
     PayrollBatchJsonIn,
     PayrollBatchOut,
     RestructureIn,
     RestructuringOut,
+    StatementLineOut,
     WriteOffIn,
     WriteOffOut,
 )
@@ -607,3 +609,55 @@ async def reject_payroll_batch(
     batch.status = "rejected"
     batch.approved_by = uuid.uuid4()  # TODO SP12: replace with current_user.user_id
     return PayrollBatchOut.model_validate(batch)
+
+
+# ── Loan Statements ───────────────────────────────────────────────────────────
+
+
+@router.get("/loans/{loan_id}/statement", response_model=LoanStatementOut)
+async def get_loan_statement(
+    loan_id: uuid.UUID,
+    session: Session,
+    from_date: Annotated[date | None, Query()] = None,
+    to_date: Annotated[date | None, Query()] = None,
+) -> LoanStatementOut:
+    """Return JSON loan statement with running balance."""
+    from app.modules.credit.services.statement import LoanStatementService  # noqa: PLC0415
+    svc = LoanStatementService(session)
+    lines = await svc.get_statement(loan_id=loan_id, from_date=from_date, to_date=to_date)
+    return LoanStatementOut(
+        loan_id=loan_id,
+        from_date=from_date,
+        to_date=to_date,
+        lines=[
+            StatementLineOut(
+                date=line.date,
+                line_type=line.line_type,
+                description=line.description,
+                debit=line.debit,
+                credit=line.credit,
+                running_balance=line.running_balance,
+            )
+            for line in lines
+        ],
+    )
+
+
+@router.get("/loans/{loan_id}/statement.pdf")
+async def get_loan_statement_pdf(
+    loan_id: uuid.UUID,
+    session: Session,
+    from_date: Annotated[date | None, Query()] = None,
+    to_date: Annotated[date | None, Query()] = None,
+) -> Response:
+    """Return PDF loan statement."""
+    from fastapi.responses import Response as FastAPIResponse  # noqa: PLC0415
+
+    from app.modules.credit.services.statement import LoanStatementService  # noqa: PLC0415
+    svc = LoanStatementService(session)
+    pdf_bytes = await svc.render_pdf(loan_id=loan_id, from_date=from_date, to_date=to_date)
+    return FastAPIResponse(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="statement-{loan_id}.pdf"'},
+    )
