@@ -1,7 +1,6 @@
 # app/modules/credit/services/disbursement.py
 from __future__ import annotations
 
-import uuid  # noqa: TC003 — uuid.UUID used at runtime via asyncpg
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -10,6 +9,8 @@ import structlog
 from sqlalchemy import select, text
 
 if TYPE_CHECKING:
+    import uuid
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.credit.models import Loan, LoanApplication, LoanInstallment
@@ -33,7 +34,17 @@ class LoanDisbursementService:
         """Disburse an approved loan application. All steps in one transaction."""
         from app.modules.ledger.service import LedgerService
 
-        # Step 1: Lock application row.
+        # Step 1: Idempotency guard (checked first so retries don't hit status guard).
+        existing_loan = await self._session.scalar(
+            select(Loan).where(Loan.idempotency_key == idempotency_key)
+        )
+        if existing_loan is not None:
+            _log.info(
+                "credit.disburse.idempotent_hit", idempotency_key=idempotency_key
+            )
+            return existing_loan
+
+        # Step 2: Lock application row.
         result = await self._session.execute(
             select(LoanApplication)
             .where(LoanApplication.id == loan_application_id)
@@ -47,16 +58,6 @@ class LoanDisbursementService:
                 f"Cannot disburse application with status '{application.status}' — "
                 f"must be 'approved'"
             )
-
-        # Step 2: Idempotency guard.
-        existing_loan = await self._session.scalar(
-            select(Loan).where(Loan.idempotency_key == idempotency_key)
-        )
-        if existing_loan is not None:
-            _log.info(
-                "credit.disburse.idempotent_hit", idempotency_key=idempotency_key
-            )
-            return existing_loan
 
         # Fetch product for terms.
         from app.modules.credit.models import LoanProduct
@@ -240,6 +241,7 @@ class LoanDisbursementService:
         # Step 11: Finalize.
         loan.status = "disbursed"
         loan.disbursed_at = disbursement_date
+        application.status = "disbursed"
         await self._session.flush()
 
         _log.info(

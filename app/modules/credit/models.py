@@ -111,7 +111,7 @@ class LoanApplication(AuditableMixin, Base):
     __table_args__ = (
         UniqueConstraint("idempotency_key", name="uq_la_idempotency_key"),
         CheckConstraint(
-            "status IN ('draft', 'submitted', 'under_review', 'approved', 'rejected', 'withdrawn', 'cancelled')",
+            "status IN ('draft', 'submitted', 'under_review', 'approved', 'rejected', 'withdrawn', 'cancelled', 'disbursed')",
             name="ck_la_status",
         ),
         CheckConstraint(

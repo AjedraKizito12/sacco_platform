@@ -108,7 +108,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.UniqueConstraint("idempotency_key", name="uq_la_idempotency_key"),
         sa.CheckConstraint(
-            "status IN ('draft', 'submitted', 'under_review', 'approved', 'rejected', 'withdrawn', 'cancelled')",
+            "status IN ('draft', 'submitted', 'under_review', 'approved', 'rejected', 'withdrawn', 'cancelled', 'disbursed')",
             name="ck_la_status",
         ),
         sa.CheckConstraint(
