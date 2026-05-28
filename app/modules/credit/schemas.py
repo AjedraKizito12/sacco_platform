@@ -6,17 +6,11 @@ sub-plans: applications (03), disbursement (04), repayment (07), write-off (10).
 """
 from __future__ import annotations
 
+import uuid  # noqa: TC003
+from datetime import date, datetime  # noqa: TC003
 from decimal import Decimal
-from typing import TYPE_CHECKING
-
-import uuid
-from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
-
-if TYPE_CHECKING:
-    pass
-
 
 # ── Loan Products ─────────────────────────────────────────────────────────────
 

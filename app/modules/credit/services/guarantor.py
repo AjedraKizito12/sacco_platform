@@ -2,7 +2,6 @@
 """GuarantorService — guarantor lifecycle + savings lien management."""
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -11,6 +10,8 @@ import structlog
 from sqlalchemy import select
 
 if TYPE_CHECKING:
+    import uuid
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.credit.models import LoanGuarantor, LoanGuarantorLien, LoanProduct
@@ -39,7 +40,8 @@ class GuarantorService:
             raise ValueError(f"LoanApplication '{application_id}' not found")
 
         product = await self._session.get(LoanProduct, application.loan_product_id)
-        assert product is not None
+        if product is None:
+            raise ValueError(f"LoanProduct '{application.loan_product_id}' not found")
 
         if product.required_guarantors == 0:
             raise ValueError(
@@ -153,6 +155,10 @@ class GuarantorService:
             savings_acct = await sav_svc.get_primary_account_for_member(
                 g.guarantor_member_id
             )
+            if savings_acct is None:
+                raise ValueError(
+                    f"Guarantor member '{g.guarantor_member_id}' has no savings account"
+                )
             lien = LoanGuarantorLien(
                 loan_guarantor_id=g.id,
                 savings_account_id=savings_acct.id,
@@ -262,7 +268,8 @@ class GuarantorService:
         if application is None:
             return True
         product = await self._session.get(LoanProduct, application.loan_product_id)
-        assert product is not None
+        if product is None:
+            raise ValueError(f"LoanProduct '{application.loan_product_id}' not found")
         if product.required_guarantors == 0:
             return True
 

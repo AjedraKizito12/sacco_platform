@@ -9,8 +9,7 @@ import pytest
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.modules.credit.models import LoanGuarantor, LoanProduct, LoanApplication
-
+from app.modules.credit.models import Loan, LoanApplication, LoanGuarantor, LoanProduct
 
 TEST_TENANT_SCHEMA = "tenant_test"
 
@@ -44,6 +43,7 @@ async def _cleanup(engine: AsyncEngine) -> None:
         from app.modules.credit.models import LoanGuarantorLien
         await session.execute(delete(LoanGuarantorLien))
         await session.execute(delete(LoanGuarantor))
+        await session.execute(delete(Loan))
         await session.execute(delete(LoanApplication))
         await session.execute(delete(LoanProduct))
         await session.commit()
@@ -84,6 +84,35 @@ async def _create_application(session: AsyncSession, product: LoanProduct) -> Lo
     session.add(app)
     await session.commit()
     return app
+
+
+async def _create_loan(
+    session: AsyncSession, application: LoanApplication, product: LoanProduct
+) -> Loan:
+    """Create a minimal Loan row to satisfy the FK on loan_guarantors.loan_id."""
+    loan = Loan(
+        loan_reference=f"TEST-{uuid.uuid4().hex[:8].upper()}",
+        loan_application_id=application.id,
+        loan_product_id=product.id,
+        member_id=application.member_id,
+        status="disbursed",
+        principal_amount=application.requested_amount,
+        interest_method=product.interest_method,
+        annual_interest_rate=product.annual_interest_rate,
+        repayment_frequency=product.repayment_frequency,
+        term_periods=application.requested_term_periods,
+        repayment_allocation="INTEREST_PRINCIPAL",
+        disbursement_destination=application.disbursement_destination,
+        gl_principal_receivable_id=uuid.uuid4(),
+        gl_interest_receivable_id=uuid.uuid4(),
+        gl_interest_income_id=uuid.uuid4(),
+        gl_disbursement_account_id=uuid.uuid4(),
+        disbursed_by=uuid.uuid4(),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    session.add(loan)
+    await session.commit()
+    return loan
 
 
 @pytest.mark.anyio
@@ -226,6 +255,158 @@ async def test_accept_wrong_member_raises(test_engine: AsyncEngine) -> None:
                 loan_guarantor_id=lg.id,
                 guarantor_member_id=uuid.uuid4(),  # wrong member
             )
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.anyio
+async def test_adjust_liens_reduces_proportionally(test_engine: AsyncEngine) -> None:
+    """adjust_liens reduces current_lien by fraction = principal_applied / original_principal."""
+    from app.modules.credit.models import LoanGuarantorLien
+
+    session = await _new_session(test_engine)
+    try:
+        # Setup: product, application, guarantor, lien
+        product = await _create_product(session, required_guarantors=1)
+        application = await _create_application(session, product)
+        guarantor_member_id = uuid.uuid4()
+
+        from app.modules.credit.services.guarantor import GuarantorService
+        svc = GuarantorService(session)
+        guarantors = await svc.nominate(
+            application_id=application.id,
+            guarantor_member_ids=[guarantor_member_id],
+            actor_id=uuid.uuid4(),
+        )
+        lg = guarantors[0]
+        await svc.accept(loan_guarantor_id=lg.id, guarantor_member_id=guarantor_member_id)
+
+        # Simulate place_liens: create real Loan, set loan_id, create lien directly
+        loan = await _create_loan(session, application, product)
+        lg.loan_id = loan.id
+        lien = LoanGuarantorLien(
+            loan_guarantor_id=lg.id,
+            savings_account_id=uuid.uuid4(),
+            original_lien=Decimal("10000.0000"),
+            current_lien=Decimal("10000.0000"),
+            is_active=True,
+        )
+        session.add(lien)
+        await session.commit()
+
+        # apply 25% of 40000 principal → fraction=0.25, reduction=original*0.25=2500
+        await svc.adjust_liens(
+            loan_id=loan.id,
+            principal_applied=Decimal("10000.0000"),  # 10000/40000 = 0.25
+            original_principal=Decimal("40000.0000"),
+        )
+        await session.commit()
+
+        await session.refresh(lien)
+        expected = Decimal("10000.0000") - Decimal("10000.0000") * (
+            Decimal("10000.0000") / Decimal("40000.0000")
+        )
+        assert lien.current_lien == expected
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.anyio
+async def test_release_liens_zeros_and_deactivates(test_engine: AsyncEngine) -> None:
+    """release_liens sets is_active=False, current_lien=0, guarantor status=released."""
+    from app.modules.credit.models import LoanGuarantorLien
+
+    session = await _new_session(test_engine)
+    try:
+        product = await _create_product(session, required_guarantors=1)
+        application = await _create_application(session, product)
+        guarantor_member_id = uuid.uuid4()
+
+        from app.modules.credit.services.guarantor import GuarantorService
+        svc = GuarantorService(session)
+        guarantors = await svc.nominate(
+            application_id=application.id,
+            guarantor_member_ids=[guarantor_member_id],
+            actor_id=uuid.uuid4(),
+        )
+        lg = guarantors[0]
+        await svc.accept(loan_guarantor_id=lg.id, guarantor_member_id=guarantor_member_id)
+
+        loan = await _create_loan(session, application, product)
+        lg.loan_id = loan.id
+        lien = LoanGuarantorLien(
+            loan_guarantor_id=lg.id,
+            savings_account_id=uuid.uuid4(),
+            original_lien=Decimal("10000.0000"),
+            current_lien=Decimal("7500.0000"),
+            is_active=True,
+        )
+        session.add(lien)
+        await session.commit()
+
+        await svc.release_liens(loan_id=loan.id)
+        await session.commit()
+
+        await session.refresh(lien)
+        await session.refresh(lg)
+        assert lien.is_active is False
+        assert lien.current_lien == Decimal("0")
+        assert lg.status == "released"
+        assert lg.released_at is not None
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.anyio
+async def test_reactivate_liens_restores_lien(test_engine: AsyncEngine) -> None:
+    """reactivate_liens reactivates the most recent inactive lien for each guarantor."""
+    from datetime import UTC, datetime
+
+    from app.modules.credit.models import LoanGuarantorLien
+
+    session = await _new_session(test_engine)
+    try:
+        product = await _create_product(session, required_guarantors=1)
+        application = await _create_application(session, product)
+        guarantor_member_id = uuid.uuid4()
+
+        from app.modules.credit.services.guarantor import GuarantorService
+        svc = GuarantorService(session)
+        guarantors = await svc.nominate(
+            application_id=application.id,
+            guarantor_member_ids=[guarantor_member_id],
+            actor_id=uuid.uuid4(),
+        )
+        lg = guarantors[0]
+        await svc.accept(loan_guarantor_id=lg.id, guarantor_member_id=guarantor_member_id)
+
+        loan = await _create_loan(session, application, product)
+        lg.loan_id = loan.id
+        # Simulate post-release state
+        lg.status = "released"
+        lg.released_at = datetime.now(UTC)
+        lien = LoanGuarantorLien(
+            loan_guarantor_id=lg.id,
+            savings_account_id=uuid.uuid4(),
+            original_lien=Decimal("10000.0000"),
+            current_lien=Decimal("0"),
+            is_active=False,
+        )
+        session.add(lien)
+        await session.commit()
+
+        await svc.reactivate_liens(loan_id=loan.id, restored_amount=Decimal("6000.0000"))
+        await session.commit()
+
+        await session.refresh(lien)
+        await session.refresh(lg)
+        assert lien.is_active is True
+        assert lien.current_lien == Decimal("6000.0000")
+        assert lg.status == "accepted"
+        assert lg.released_at is None
     finally:
         await session.close()
         await _cleanup(test_engine)

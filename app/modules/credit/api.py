@@ -273,7 +273,7 @@ async def list_loans(
     if status is not None:
         stmt = stmt.where(Loan.status == status)
     loans = list((await session.execute(stmt)).scalars().all())
-    return [LoanOut.model_validate(l) for l in loans]
+    return [LoanOut.model_validate(loan) for loan in loans]
 
 
 @router.get("/loans/{loan_id}", response_model=LoanOut)

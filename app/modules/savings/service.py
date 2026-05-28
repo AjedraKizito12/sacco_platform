@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 import structlog
 from sqlalchemy import func, select
 
+from app.modules.savings.models import SavingsAccount, SavingsProduct, SavingsTransaction
+
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,8 +24,6 @@ class SystemDebitResult:
     requested_amount: Decimal
     shortfall_amount: Decimal
     status: str  # 'full' | 'partial' | 'zero'
-
-from app.modules.savings.models import SavingsAccount, SavingsProduct, SavingsTransaction
 
 _log = structlog.get_logger(__name__)
 
@@ -160,8 +160,9 @@ class SavingsService:
         raw = await self.get_balance(savings_account_id)
 
         # Local import avoids circular dependency (credit imports savings).
+        from sqlalchemy import func as sa_func  # noqa: PLC0415
+
         from app.modules.credit.models import LoanGuarantorLien
-        from sqlalchemy import func as sa_func
 
         result = await self._session.execute(
             select(sa_func.coalesce(sa_func.sum(LoanGuarantorLien.current_lien), Decimal("0")))
@@ -370,7 +371,10 @@ class SavingsService:
         the original shortfall (the SavingsTransaction row does not store requested_amount).
         Callers must not rely on shortfall_amount/status fields of a replayed result.
         """
-        if on_insufficient_funds == "allow_negative" and source_module not in _ALLOW_NEGATIVE_MODULES:
+        if (
+            on_insufficient_funds == "allow_negative"
+            and source_module not in _ALLOW_NEGATIVE_MODULES
+        ):
             raise ValueError(
                 f"'allow_negative' is not permitted for source_module='{source_module}'"
             )
