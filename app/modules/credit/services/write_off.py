@@ -239,7 +239,9 @@ class LoanWriteOffService:
                 "Only written_off loans can be recovered."
             )
 
-        if amount <= Decimal("0") or amount > loan.total_written_off:
+        if amount <= Decimal("0"):
+            raise ValueError(f"Recovery amount must be greater than 0, got {amount}")
+        if amount > loan.total_written_off:
             raise ValueError(
                 f"Recovery amount {amount} exceeds total_written_off "
                 f"{loan.total_written_off} for loan '{loan_id}'"
