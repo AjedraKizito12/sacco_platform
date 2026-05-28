@@ -30,6 +30,8 @@ from app.modules.credit.schemas import (
     LoanProductCreateIn,
     LoanProductOut,
     LoanProductPatchIn,
+    LoanRecoveryIn,
+    LoanRecoveryOut,
     LoanRepaymentCreateIn,
     LoanRepaymentOut,
     PayrollBatchJsonIn,
@@ -373,6 +375,28 @@ async def write_off_loan(
         status_code = 404 if "not found" in str(exc) else 400
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return WriteOffOut(**result)
+
+
+@router.post("/loans/{loan_id}/recover", response_model=LoanRecoveryOut, status_code=201)
+async def recover_written_off_loan(
+    loan_id: uuid.UUID,
+    body: LoanRecoveryIn,
+    session: Session,
+) -> LoanRecoveryOut:
+    try:
+        svc = LoanWriteOffService(session)
+        result = await svc.recover(
+            loan_id=loan_id,
+            amount=body.amount,
+            reason=body.reason,
+            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            idempotency_key=body.idempotency_key,
+        )
+        await session.commit()
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return LoanRecoveryOut(**result)
 
 
 # ── Query endpoints ───────────────────────────────────────────────────────────

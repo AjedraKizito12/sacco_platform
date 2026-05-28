@@ -213,6 +213,21 @@ class WriteOffOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ── Write-Off Recovery schemas ───────────────────────────────────────────────
+
+
+class LoanRecoveryIn(BaseModel):
+    amount: Decimal = Field(gt=Decimal("0"))
+    reason: str = Field(min_length=1, max_length=500)
+    idempotency_key: str = Field(min_length=1, max_length=200)
+
+
+class LoanRecoveryOut(BaseModel):
+    journal_entry_id: uuid.UUID
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ── Guarantor schemas ─────────────────────────────────────────────────────────
 
 
