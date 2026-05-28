@@ -90,6 +90,10 @@ class LoanRestructuringService:
             requested_by=actor_id,
             required_approvals=2,
         )
+        # Back-fill approval_request_id into the payload now that request.id is known.
+        request.payload = {**request.payload, "approval_request_id": str(request.id)}
+        await self._session.flush()
+
         _log.info(
             "credit.restructuring.submitted",
             loan_id=str(loan_id),

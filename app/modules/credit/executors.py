@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 
@@ -18,7 +18,9 @@ if TYPE_CHECKING:
 
 
 @approval_executor("credit.approve_application")
-async def execute_approve_application(session: AsyncSession, payload: dict) -> dict:
+async def execute_approve_application(
+    session: AsyncSession, payload: dict[str, Any]
+) -> dict[str, Any]:
     """Executor: called by ApprovalService.approve() when quorum is met.
 
     payload keys (all strings — JSON round-tripped through JSONB):
@@ -55,7 +57,9 @@ async def execute_approve_application(session: AsyncSession, payload: dict) -> d
 
 
 @approval_executor("credit.write_off")
-async def execute_write_off(session: AsyncSession, payload: dict) -> dict:
+async def execute_write_off(
+    session: AsyncSession, payload: dict[str, Any]
+) -> dict[str, Any]:
     """Executor: called by ApprovalService.approve() when quorum=2 is met for write-off."""
     loan_id = uuid.UUID(payload["loan_id"])
     amount = Decimal(payload["amount"])
@@ -92,15 +96,19 @@ async def execute_write_off(session: AsyncSession, payload: dict) -> dict:
 
 
 @approval_executor("credit.restructure_schedule")
-async def execute_restructure_schedule(session: AsyncSession, payload: dict) -> dict:
+async def execute_restructure_schedule(
+    session: AsyncSession, payload: dict[str, Any]
+) -> dict[str, Any]:
     """Executor: called by ApprovalService when quorum=2 is met for restructuring."""
+    from app.modules.credit.services.restructuring import LoanRestructuringService  # noqa: PLC0415
+
     loan_id = uuid.UUID(payload["loan_id"])
     restructuring_type = str(payload["restructuring_type"])
     periods_added = int(payload["periods_added"])
     reason = str(payload["reason"])
     idempotency_key = str(payload["idempotency_key"])
-
-    from app.modules.credit.services.restructuring import LoanRestructuringService  # noqa: PLC0415
+    raw_approval_id = payload.get("approval_request_id")
+    approval_request_id = uuid.UUID(raw_approval_id) if raw_approval_id else None
 
     svc = LoanRestructuringService(session)
     restructuring = await svc._execute_restructuring(
@@ -110,6 +118,6 @@ async def execute_restructure_schedule(session: AsyncSession, payload: dict) -> 
         reason=reason,
         actor_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
         idempotency_key=idempotency_key,
-        approval_request_id=None,
+        approval_request_id=approval_request_id,
     )
     return {"status": "restructured", "restructuring_id": str(restructuring.id)}
