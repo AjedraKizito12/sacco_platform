@@ -40,9 +40,15 @@ async def _cleanup(engine: AsyncEngine) -> None:
     """Delete guarantor rows after tests."""
     async with _factory(engine)() as session:
         await session.execute(text(f"SET search_path TO {TEST_TENANT_SCHEMA}, platform"))
-        from app.modules.credit.models import LoanGuarantorLien
+        from app.modules.credit.models import (
+            LoanGuarantorLien,
+            LoanInstallment,
+            LoanRepayment,
+        )
         await session.execute(delete(LoanGuarantorLien))
         await session.execute(delete(LoanGuarantor))
+        await session.execute(delete(LoanRepayment))
+        await session.execute(delete(LoanInstallment))
         await session.execute(delete(Loan))
         await session.execute(delete(LoanApplication))
         await session.execute(delete(LoanProduct))

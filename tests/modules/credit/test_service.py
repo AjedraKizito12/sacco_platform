@@ -21,6 +21,8 @@ import app.modules.credit.executors  # noqa: F401 — registers credit.approve_a
 from app.modules.credit.models import (
     Loan,
     LoanApplication,
+    LoanGuarantor,
+    LoanGuarantorLien,
     LoanInstallment,
     LoanProduct,
     LoanRepayment,
@@ -66,6 +68,8 @@ async def _cleanup(engine: AsyncEngine) -> None:
     """Delete all credit + savings + GL rows in dependency order."""
     async with _factory(engine)() as session:
         await session.execute(text(f"SET search_path TO {TEST_TENANT_SCHEMA}, platform"))
+        await session.execute(delete(LoanGuarantorLien))
+        await session.execute(delete(LoanGuarantor))
         await session.execute(delete(LoanRepayment))
         await session.execute(delete(LoanInstallment))
         await session.execute(delete(LoanRestructuring))
