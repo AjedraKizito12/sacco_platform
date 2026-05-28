@@ -9,6 +9,8 @@ import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from sqlalchemy import select
+
 from app.modules.maker_checker.registry import approval_executor
 
 if TYPE_CHECKING:
@@ -50,3 +52,40 @@ async def execute_approve_application(session: AsyncSession, payload: dict) -> d
         "application_id": str(application_id),
         "status": "approved",
     }
+
+
+@approval_executor("credit.write_off")
+async def execute_write_off(session: AsyncSession, payload: dict) -> dict:
+    """Executor: called by ApprovalService.approve() when quorum=2 is met for write-off."""
+    loan_id = uuid.UUID(payload["loan_id"])
+    amount = Decimal(payload["amount"])
+    reason = str(payload["reason"])
+    idempotency_key = str(payload["idempotency_key"])
+    loan_loss_account_code = str(payload.get("loan_loss_account_code", "5100"))
+
+    from app.modules.credit.models import Loan  # noqa: PLC0415
+    from app.modules.credit.services.write_off import LoanWriteOffService  # noqa: PLC0415
+    from app.modules.ledger.models import JournalEntry  # noqa: PLC0415
+
+    # Idempotency guard.
+    idem_key = f"loan-wo-{idempotency_key}"
+    existing = await session.scalar(
+        select(JournalEntry).where(JournalEntry.idempotency_key == idem_key)
+    )
+    if existing is not None:
+        return {"status": "already_executed"}
+
+    loan = await session.scalar(select(Loan).where(Loan.id == loan_id).with_for_update())
+    if loan is None:
+        raise ValueError(f"Loan {loan_id} not found in write_off executor")
+
+    svc = LoanWriteOffService(session)
+    await svc._execute_write_off(
+        loan=loan,
+        amount=amount,
+        reason=reason,
+        actor_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
+        idem_key=idem_key,
+        loan_loss_account_code=loan_loss_account_code,
+    )
+    return {"status": "written_off", "loan_id": str(loan_id)}

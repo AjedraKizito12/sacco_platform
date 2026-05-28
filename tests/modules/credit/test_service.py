@@ -28,6 +28,7 @@ from app.modules.credit.services.disbursement import LoanDisbursementService
 from app.modules.credit.services.product import LoanProductService
 from app.modules.credit.services.query import CreditQueryService
 from app.modules.credit.services.repayment import LoanRepaymentService
+from app.modules.credit.services.write_off import LoanWriteOffService
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
 from app.modules.ledger.service import LedgerService
 from app.modules.maker_checker.service import ApprovalService
@@ -1934,4 +1935,262 @@ async def test_arrears_task_skips_closed_written_off(test_engine):
     finally:
         await session3.close()
         await _cleanup(test_engine)
+        await _cleanup(test_engine)
+
+
+# ── Write-off tests ───────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_write_off_below_threshold_direct(test_engine):
+    """Write-off amount <= threshold → direct execution, no approval_request, status=written_off."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "flat")
+
+    # Update product to set write_off_threshold = 999999 so any write-off is direct.
+    session = await _new_session(test_engine)
+    try:
+        from app.modules.credit.models import LoanProduct
+        product = await session.get(LoanProduct, loan.loan_product_id)
+        product.write_off_threshold = Decimal("999999.00")
+        await session.commit()
+    finally:
+        await session.close()
+
+    write_off_amount = loan.outstanding_principal
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc = LoanWriteOffService(session2)
+        result = await svc.write_off(
+            loan_id=loan.id,
+            amount=write_off_amount,
+            reason="Non-recoverable debt",
+            actor_id=accounts["actor"],
+            idempotency_key=f"wo-{uuid.uuid4()}",
+        )
+        await session2.commit()
+    finally:
+        await session2.close()
+
+    assert result["direct"] is True
+    assert result["approval_request_id"] is None
+
+    session3 = await _new_session(test_engine)
+    try:
+        updated = await session3.get(Loan, loan.id)
+        assert updated.status == "written_off"
+        assert updated.outstanding_principal == Decimal("0")
+        assert updated.total_written_off == write_off_amount
+    finally:
+        await session3.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_write_off_gl_balanced(test_engine):
+    """Write-off GL entry: Dr loan_loss_expense / Cr gl_principal_receivable_id — balanced."""
+    from app.modules.ledger.models import JournalLine
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "flat")
+
+    session = await _new_session(test_engine)
+    try:
+        from app.modules.credit.models import LoanProduct
+        product = await session.get(LoanProduct, loan.loan_product_id)
+        product.write_off_threshold = Decimal("999999.00")
+        await session.commit()
+    finally:
+        await session.close()
+
+    write_off_amount = Decimal("100.00")
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc = LoanWriteOffService(session2)
+        result = await svc.write_off(
+            loan_id=loan.id,
+            amount=write_off_amount,
+            reason="Partial write-off",
+            actor_id=accounts["actor"],
+            idempotency_key=f"wo-{uuid.uuid4()}",
+        )
+        await session2.commit()
+        journal_entry_id = result["journal_entry_id"]
+    finally:
+        await session2.close()
+
+    session3 = await _new_session(test_engine)
+    try:
+        lines = list(
+            (await session3.execute(
+                sa_select(JournalLine).where(JournalLine.journal_entry_id == journal_entry_id)
+            )).scalars().all()
+        )
+        total_debit = sum(l.debit_amount for l in lines)
+        total_credit = sum(l.credit_amount for l in lines)
+        assert total_debit == total_credit == write_off_amount
+
+        for line in lines:
+            assert line.sub_ledger_type == "loan"
+            assert line.sub_ledger_id == loan.id
+    finally:
+        await session3.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_write_off_above_threshold_creates_approval_request(test_engine):
+    """Write-off amount > threshold → approval_request created, GL not yet posted."""
+    from app.modules.ledger.models import JournalEntry
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "flat")
+
+    # Product has write_off_threshold=0 by default → any amount > 0 needs approval.
+    write_off_amount = Decimal("500.00")
+
+    session = await _new_session(test_engine)
+    try:
+        svc = LoanWriteOffService(session)
+        result = await svc.write_off(
+            loan_id=loan.id,
+            amount=write_off_amount,
+            reason="Needs approval",
+            actor_id=accounts["actor"],
+            idempotency_key=f"wo-{uuid.uuid4()}",
+        )
+        await session.commit()
+    finally:
+        await session.close()
+
+    assert result["direct"] is False
+    assert result["approval_request_id"] is not None
+
+    session2 = await _new_session(test_engine)
+    try:
+        updated = await session2.get(Loan, loan.id)
+        assert updated.status != "written_off"
+        assert updated.total_written_off == Decimal("0")
+
+        count = await session2.scalar(
+            sa_select(func.count()).select_from(JournalEntry).where(
+                JournalEntry.reference.like("LOAN-WO-%")
+            )
+        )
+        assert count == 0
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_write_off_already_written_off_raises(test_engine):
+    """Write-off on a written_off loan raises ValueError."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "flat")
+
+    session = await _new_session(test_engine)
+    try:
+        l = await session.get(Loan, loan.id)
+        l.status = "written_off"
+        await session.commit()
+    finally:
+        await session.close()
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc = LoanWriteOffService(session2)
+        with pytest.raises(ValueError, match="written_off"):
+            await svc.write_off(
+                loan_id=loan.id,
+                amount=Decimal("100.00"),
+                reason="Double write-off",
+                actor_id=accounts["actor"],
+                idempotency_key=f"wo-{uuid.uuid4()}",
+            )
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_write_off_amount_exceeds_principal_raises(test_engine):
+    """Write-off amount > outstanding_principal raises ValueError."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "flat")
+
+    session = await _new_session(test_engine)
+    try:
+        from app.modules.credit.models import LoanProduct
+        product = await session.get(LoanProduct, loan.loan_product_id)
+        product.write_off_threshold = Decimal("999999.00")
+        await session.commit()
+    finally:
+        await session.close()
+
+    too_much = loan.outstanding_principal + Decimal("1.00")
+    session2 = await _new_session(test_engine)
+    try:
+        svc = LoanWriteOffService(session2)
+        with pytest.raises(ValueError, match="outstanding_principal"):
+            await svc.write_off(
+                loan_id=loan.id,
+                amount=too_much,
+                reason="Too much",
+                actor_id=accounts["actor"],
+                idempotency_key=f"wo-{uuid.uuid4()}",
+            )
+    finally:
+        await session2.close()
+        await _cleanup(test_engine)
+
+
+@pytest.mark.asyncio
+async def test_write_off_idempotency(test_engine):
+    """Same idempotency_key twice → second call is no-op, returns same result."""
+    accounts = await _setup_disbursement_accounts(test_engine)
+    loan = await _make_disbursed_loan(test_engine, accounts, "flat")
+
+    session = await _new_session(test_engine)
+    try:
+        from app.modules.credit.models import LoanProduct
+        product = await session.get(LoanProduct, loan.loan_product_id)
+        product.write_off_threshold = Decimal("999999.00")
+        await session.commit()
+    finally:
+        await session.close()
+
+    idem_key = f"wo-idem-{uuid.uuid4()}"
+    write_off_amount = Decimal("100.00")
+
+    session2 = await _new_session(test_engine)
+    try:
+        svc = LoanWriteOffService(session2)
+        r1 = await svc.write_off(
+            loan_id=loan.id, amount=write_off_amount, reason="First",
+            actor_id=accounts["actor"], idempotency_key=idem_key,
+        )
+        await session2.commit()
+    finally:
+        await session2.close()
+
+    session3 = await _new_session(test_engine)
+    try:
+        svc2 = LoanWriteOffService(session3)
+        r2 = await svc2.write_off(
+            loan_id=loan.id, amount=write_off_amount, reason="Second",
+            actor_id=accounts["actor"], idempotency_key=idem_key,
+        )
+        await session3.commit()
+    finally:
+        await session3.close()
+
+    assert r1["journal_entry_id"] == r2["journal_entry_id"]
+
+    session4 = await _new_session(test_engine)
+    try:
+        updated = await session4.get(Loan, loan.id)
+        assert updated.total_written_off == write_off_amount  # not doubled
+    finally:
+        await session4.close()
         await _cleanup(test_engine)
