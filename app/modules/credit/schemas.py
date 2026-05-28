@@ -9,11 +9,13 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+import uuid
+from datetime import date, datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
-    import uuid
-    from datetime import date, datetime
+    pass
 
 
 # ── Loan Products ─────────────────────────────────────────────────────────────

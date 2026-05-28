@@ -21,6 +21,8 @@ import app.modules.ledger.executors  # noqa: F401 — registers ledger maker-che
 import app.modules.members.executors  # noqa: F401 — registers members maker-checker executor
 import app.modules.shares.executors  # noqa: F401 — registers shares maker-checker executor
 import app.modules.savings.executors  # noqa: F401 — registers savings maker-checker executor
+import app.modules.credit.executors  # noqa: F401 — registers credit maker-checker executors
+from app.modules.credit.api import router as credit_router
 from app.modules.fees.api import router as fees_router
 from app.modules.ledger.api import router as ledger_router
 from app.modules.members.api import router as members_router
@@ -115,6 +117,7 @@ app.include_router(ledger_router)
 app.include_router(members_router)
 app.include_router(shares_router)
 app.include_router(savings_router)
+app.include_router(credit_router)
 app.include_router(fees_router)
 app.include_router(platform_auth_router)
 app.include_router(tenant_auth_router)

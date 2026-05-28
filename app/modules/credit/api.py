@@ -172,9 +172,20 @@ async def withdraw_loan_application(
 ) -> LoanApplicationOut:
     try:
         svc = LoanApplicationService(session)
+        # Fetch app first to resolve the original submitter's actor ID via the
+        # approval request, so the maker-checker cancel check passes.
+        # TODO SP12: replace resolved actor with CurrentTenantUser.user_id
+        application = await svc.get(application_id=application_id)
+        actor_id = uuid.uuid4()
+        if application.approval_request_id is not None:
+            from app.modules.maker_checker.models.tenant import TenantApprovalRequest
+
+            req = await session.get(TenantApprovalRequest, application.approval_request_id)
+            if req is not None:
+                actor_id = req.requested_by
         application = await svc.withdraw(
             application_id=application_id,
-            withdrawn_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser in sub-plan 12
+            withdrawn_by=actor_id,
         )
     except ValueError as exc:
         status_code = 404 if "not found" in str(exc) else 400
