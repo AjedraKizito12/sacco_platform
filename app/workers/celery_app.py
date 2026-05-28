@@ -76,5 +76,9 @@ celery_app.conf.update(
             "task": "app.modules.credit.beat.accrue_reducing_balance_interest",
             "schedule": 24 * 3600.0,  # daily
         },
+        "mark-loans-in-arrears": {
+            "task": "app.modules.credit.beat.mark_loans_in_arrears",
+            "schedule": 24 * 3600.0,  # daily
+        },
     },
 )
