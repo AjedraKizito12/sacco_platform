@@ -21,6 +21,7 @@ from sqlalchemy import (
     Numeric,
     Text,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -47,7 +48,7 @@ class ReportRun(Base):
             "report_type IN ('trial_balance', 'loan_portfolio', 'income_statement', 'savings_statement', 'fee_collection')",
             name="ck_rr_report_type",
         ),
-        Index("ix_rr_type_date", "report_type", "as_of_date"),
+        Index("ix_rr_type_date", "report_type", text("as_of_date DESC")),
     )
 
 
