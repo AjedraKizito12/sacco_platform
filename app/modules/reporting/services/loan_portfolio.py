@@ -57,11 +57,29 @@ class LoanPortfolioService:
                 )
             )
 
-            # Load all loans with their product name.
+            # Earliest overdue installment per loan (LEFT JOIN — most loans have none).
+            overdue_subq = (
+                select(
+                    LoanInstallment.loan_id,
+                    func.min(LoanInstallment.due_date).label("earliest_overdue"),
+                )
+                .where(
+                    LoanInstallment.status == "overdue",
+                    LoanInstallment.is_superseded.is_(False),
+                )
+                .group_by(LoanInstallment.loan_id)
+                .subquery()
+            )
+
             loan_rows = (
                 await self._session.execute(
-                    select(Loan, LoanProduct.name.label("product_name"))
+                    select(
+                        Loan,
+                        LoanProduct.name.label("product_name"),
+                        overdue_subq.c.earliest_overdue,
+                    )
                     .join(LoanProduct, Loan.loan_product_id == LoanProduct.id)
+                    .outerjoin(overdue_subq, overdue_subq.c.loan_id == Loan.id)
                     .where(Loan.status.in_(["disbursed", "in_arrears", "written_off", "closed"]))
                     .order_by(Loan.loan_reference)
                 )
@@ -70,20 +88,10 @@ class LoanPortfolioService:
             today = date.today()
 
             portfolio_rows = []
-            for loan, product_name in loan_rows:
-                # Compute days_in_arrears from earliest overdue installment.
+            for loan, product_name, earliest_overdue in loan_rows:
                 days_in_arrears = 0
-                if loan.status == "in_arrears":
-                    earliest_overdue = await self._session.scalar(
-                        select(func.min(LoanInstallment.due_date))
-                        .where(
-                            LoanInstallment.loan_id == loan.id,
-                            LoanInstallment.status == "overdue",
-                            LoanInstallment.is_superseded.is_(False),
-                        )
-                    )
-                    if earliest_overdue is not None:
-                        days_in_arrears = (today - earliest_overdue).days
+                if loan.status == "in_arrears" and earliest_overdue is not None:
+                    days_in_arrears = (today - earliest_overdue).days
 
                 bucket = _aging_bucket(days_in_arrears)
                 disbursed_at_date = loan.disbursed_at.date() if loan.disbursed_at else as_of_date
