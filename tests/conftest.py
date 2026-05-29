@@ -51,6 +51,7 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     import app.modules.savings.models  # noqa: F401 — registers savings tables in Base.metadata
     import app.modules.fees.models  # noqa: F401 — registers fee tables in Base.metadata
     import app.modules.credit.models  # noqa: F401 — registers credit tables in Base.metadata
+    import app.modules.reporting.models  # noqa: F401 — registers reporting tables in Base.metadata
 
     url = os.environ["DATABASE_URL"]
     engine = create_async_engine(url, echo=False, poolclass=NullPool)
