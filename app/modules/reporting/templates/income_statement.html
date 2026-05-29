@@ -1,0 +1,54 @@
+<!-- app/modules/reporting/templates/income_statement.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Income Statement</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; }
+    h1 { font-size: 16px; margin-bottom: 4px; }
+    .meta { color: #555; font-size: 10px; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #1e8449; color: white; padding: 6px 8px; text-align: left; }
+    td { padding: 5px 8px; border-bottom: 1px solid #e0e0e0; }
+    tr:nth-child(even) td { background: #f8f8f8; }
+    .num { text-align: right; }
+    .positive { color: #1e8449; }
+    .negative { color: #c0392b; }
+    tfoot td { font-weight: bold; border-top: 2px solid #1e8449; }
+  </style>
+</head>
+<body>
+  <h1>Income Statement</h1>
+  <div class="meta">
+    Period: {{ from_date }} to {{ to_date }} &nbsp;|&nbsp;
+    Generated: {{ generated_at.strftime('%Y-%m-%d %H:%M UTC') if generated_at else '' }}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Code</th>
+        <th>Account Name</th>
+        <th>Type</th>
+        <th class="num">Debit Total</th>
+        <th class="num">Credit Total</th>
+        <th class="num">Net Movement</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ln in lines %}
+      <tr>
+        <td>{{ ln.account_code }}</td>
+        <td>{{ ln.account_name }}</td>
+        <td>{{ ln.account_type }}</td>
+        <td class="num">{{ "{:,.4f}".format(ln.debit_total) }}</td>
+        <td class="num">{{ "{:,.4f}".format(ln.credit_total) }}</td>
+        <td class="num {% if ln.net_movement >= 0 %}positive{% else %}negative{% endif %}">
+          {{ "{:,.4f}".format(ln.net_movement) }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

@@ -126,3 +126,51 @@ async def _run_materialize_loan_portfolio() -> dict[str, str]:
 def materialize_loan_portfolio() -> dict[str, str]:
     """Nightly 01:00 UTC: materialize loan portfolio for all active tenants."""
     return asyncio.run(_run_materialize_loan_portfolio())
+
+
+async def _materialize_income_statement_for_tenant(schema_name: str, engine) -> None:
+    from app.modules.reporting.services.income_statement import IncomeStatementService  # noqa: PLC0415
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    today = date.today()
+    period_start = today.replace(day=1)  # First of current month.
+    period_end = today
+
+    async with factory() as session:
+        await session.execute(
+            text(f"SET LOCAL search_path TO {schema_name}, platform")  # noqa: S608
+        )
+        svc = IncomeStatementService(session)
+        await svc.materialize(period_start=period_start, period_end=period_end)
+        await session.commit()
+
+
+async def _run_materialize_income_statement() -> dict[str, str]:
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    result: dict[str, str] = {}
+    try:
+        async with engine.connect() as conn:
+            rows = await conn.execute(
+                text("SELECT schema_name FROM platform.tenants WHERE is_active = true")
+            )
+            schemas = [row[0] for row in rows.fetchall()]
+        for schema_name in schemas:
+            if not _SCHEMA_RE.match(schema_name):
+                continue
+            try:
+                await _materialize_income_statement_for_tenant(schema_name, engine)
+                result[schema_name] = "done"
+            except Exception as exc:
+                _log.error("reporting.beat.income_statement_error", schema=schema_name, error=str(exc))
+                result[schema_name] = f"error: {exc}"
+    finally:
+        await engine.dispose()
+    _log.info("reporting.beat.income_statement_complete", **result)
+    return result
+
+
+@celery_app.task(name="app.modules.reporting.beat.materialize_income_statement")  # type: ignore[misc]
+def materialize_income_statement() -> dict[str, str]:
+    """Nightly 01:00 UTC: materialize current-month income statement for all active tenants."""
+    return asyncio.run(_run_materialize_income_statement())
