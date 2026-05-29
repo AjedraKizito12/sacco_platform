@@ -197,3 +197,24 @@ async def test_materialize_idempotent(test_engine: AsyncEngine):
         )).scalar()
         assert count == 1  # Second run replaces first.
         await _cleanup(session)
+
+
+@pytest.mark.anyio
+async def test_render_pdf_returns_pdf_bytes(test_engine: AsyncEngine):
+    async with _new_session(test_engine) as session:
+        await _make_loan(session, status="disbursed")
+        await session.commit()
+
+    as_of = date.today()
+    async with _new_session(test_engine) as session:
+        svc = LoanPortfolioService(session)
+        run = await svc.materialize(as_of_date=as_of)
+        _, rows = await svc.get_loan_portfolio(as_of_date=as_of)
+        await session.commit()
+
+    from app.modules.reporting._base import render_pdf
+    pdf = render_pdf("loan_portfolio.html", {"run": run, "rows": rows, "generated_at": datetime.now(tz=UTC)})
+    assert pdf[:4] == b"%PDF"
+
+    async with _new_session(test_engine) as session:
+        await _cleanup(session)

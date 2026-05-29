@@ -1,0 +1,61 @@
+<!-- app/modules/reporting/templates/loan_portfolio.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Loan Portfolio — {{ run.as_of_date }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 10px; margin: 20px; }
+    h1 { font-size: 15px; margin-bottom: 4px; }
+    .meta { color: #555; font-size: 9px; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #1a5276; color: white; padding: 5px 6px; text-align: left; font-size: 9px; }
+    td { padding: 4px 6px; border-bottom: 1px solid #e0e0e0; }
+    tr:nth-child(even) td { background: #f5f5f5; }
+    .num { text-align: right; }
+    .badge-current { color: #27ae60; }
+    .badge-1_30, .badge-31_60 { color: #e67e22; }
+    .badge-61_90, .badge-90_plus { color: #c0392b; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Loan Portfolio Report</h1>
+  <div class="meta">
+    As of: {{ run.as_of_date }} &nbsp;|&nbsp; Generated: {{ generated_at.strftime('%Y-%m-%d %H:%M UTC') if generated_at else '' }}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Loan Ref</th>
+        <th>Member ID</th>
+        <th>Product</th>
+        <th>Disbursed</th>
+        <th>Maturity</th>
+        <th>Status</th>
+        <th class="num">Outstanding</th>
+        <th class="num">Accrued Int.</th>
+        <th class="num">Written Off</th>
+        <th class="num">Days Arrears</th>
+        <th>Aging</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.loan_reference }}</td>
+        <td>{{ r.member_id }}</td>
+        <td>{{ r.product_name }}</td>
+        <td>{{ r.disbursed_at }}</td>
+        <td>{{ r.maturity_date or '—' }}</td>
+        <td>{{ r.status }}</td>
+        <td class="num">{{ "{:,.4f}".format(r.outstanding_principal) }}</td>
+        <td class="num">{{ "{:,.4f}".format(r.accrued_interest) }}</td>
+        <td class="num">{{ "{:,.4f}".format(r.total_written_off) }}</td>
+        <td class="num">{{ r.days_in_arrears }}</td>
+        <td class="badge-{{ r.aging_bucket }}">{{ r.aging_bucket }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
