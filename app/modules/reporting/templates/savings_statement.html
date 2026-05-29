@@ -1,0 +1,52 @@
+<!-- app/modules/reporting/templates/savings_statement.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Savings Statement — {{ member_id }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; }
+    h1 { font-size: 16px; margin-bottom: 4px; }
+    .meta { color: #555; font-size: 10px; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #1a5276; color: white; padding: 6px 8px; text-align: left; }
+    td { padding: 5px 8px; border-bottom: 1px solid #e0e0e0; }
+    tr:nth-child(even) td { background: #f8f8f8; }
+    .num { text-align: right; }
+    .cr { color: #1e8449; }
+    .dr { color: #c0392b; }
+  </style>
+</head>
+<body>
+  <h1>Savings Statement</h1>
+  <div class="meta">
+    Member: {{ member_id }} &nbsp;|&nbsp;
+    Period: {{ from_date }} to {{ to_date }} &nbsp;|&nbsp;
+    Generated: {{ generated_at.strftime('%Y-%m-%d %H:%M UTC') if generated_at else '' }}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Narration</th>
+        <th class="num">Amount</th>
+        <th class="num">Running Balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ln in lines %}
+      <tr>
+        <td>{{ ln.posted_at.strftime('%Y-%m-%d') }}</td>
+        <td>{{ ln.transaction_type }}</td>
+        <td>{{ ln.narration or '—' }}</td>
+        <td class="num {% if ln.transaction_type in ('deposit', 'SYSTEM_CREDIT', 'EXTERNAL_CREDIT') %}cr{% else %}dr{% endif %}">
+          {{ "{:,.4f}".format(ln.amount) }}
+        </td>
+        <td class="num">{{ "{:,.4f}".format(ln.running_balance) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

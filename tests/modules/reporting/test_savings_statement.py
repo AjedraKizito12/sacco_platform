@@ -163,3 +163,45 @@ async def test_materialize_idempotent(test_engine: AsyncEngine):
         )).scalar()
         assert count == 3  # 3 transactions. Second run replaces — not 6.
         await _cleanup(session)
+
+
+@pytest.mark.anyio
+async def test_render_pdf_returns_pdf_bytes(test_engine: AsyncEngine):
+    async with _new_session(test_engine) as session:
+        member_id, _ = await _seed_savings(session)
+
+    period_start = date(2026, 1, 1)
+    period_end = date(2026, 1, 31)
+    async with _new_session(test_engine) as session:
+        svc = SavingsStatementService(session)
+        run = await svc.materialize(period_start=period_start, period_end=period_end)
+        _, lines = await svc.get_savings_statement(member_id=member_id)
+        await session.commit()
+
+    from app.modules.reporting._base import render_pdf
+    pdf = render_pdf("savings_statement.html", {
+        "run": run, "lines": lines, "member_id": member_id,
+        "from_date": period_start, "to_date": period_end,
+        "generated_at": datetime.now(tz=UTC),
+    })
+    assert pdf[:4] == b"%PDF"
+
+    async with _new_session(test_engine) as session:
+        await _cleanup(session)
+
+
+@pytest.mark.anyio
+async def test_beat_task_creates_done_run(test_engine: AsyncEngine):
+    from app.modules.reporting.beat import _materialize_savings_statement_for_tenant
+
+    async with _new_session(test_engine) as session:
+        await _seed_savings(session)
+
+    await _materialize_savings_statement_for_tenant(TEST_SCHEMA, test_engine)
+
+    async with _new_session(test_engine) as session:
+        status = (await session.execute(
+            text("SELECT status FROM report_runs WHERE report_type = 'savings_statement' ORDER BY started_at DESC LIMIT 1")
+        )).scalar()
+        assert status == "done"
+        await _cleanup(session)
