@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import io
 
-import pytest
+import pytest  # noqa: F401 — spec-mandated
 
 from app.modules.reporting._base import render_csv
 

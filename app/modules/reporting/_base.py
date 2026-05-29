@@ -14,11 +14,12 @@ from __future__ import annotations
 import csv
 import io
 from pathlib import Path
+from typing import Any
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 
-def render_pdf(template_name: str, context: dict) -> bytes:
+def render_pdf(template_name: str, context: dict[str, Any]) -> bytes:
     """Render a Jinja2 HTML template to PDF bytes via WeasyPrint.
 
     Args:
@@ -42,7 +43,7 @@ def render_pdf(template_name: str, context: dict) -> bytes:
     return pdf_bytes
 
 
-def render_csv(headers: list[str], rows: list[list]) -> bytes:
+def render_csv(headers: list[str], rows: list[list[Any]]) -> bytes:
     """Render headers + rows as UTF-8-BOM CSV bytes.
 
     Args:
