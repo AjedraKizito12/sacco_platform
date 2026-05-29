@@ -218,3 +218,23 @@ async def test_render_pdf_returns_pdf_bytes(test_engine: AsyncEngine):
 
     async with _new_session(test_engine) as session:
         await _cleanup(session)
+
+
+@pytest.mark.anyio
+async def test_beat_task_creates_done_run(test_engine: AsyncEngine):
+    from app.modules.reporting.beat import _materialize_loan_portfolio_for_tenant
+
+    as_of = date.today()
+    async with _new_session(test_engine) as session:
+        await _make_loan(session, status="disbursed")
+        await session.commit()
+
+    await _materialize_loan_portfolio_for_tenant(TEST_SCHEMA, test_engine, as_of)
+
+    async with _new_session(test_engine) as session:
+        status = (await session.execute(
+            text("SELECT status FROM report_runs WHERE report_type = 'loan_portfolio' AND as_of_date = :d"),
+            {"d": as_of},
+        )).scalar()
+        assert status == "done"
+        await _cleanup(session)

@@ -77,3 +77,52 @@ async def _run_materialize_trial_balance() -> dict[str, str]:
 def materialize_trial_balance() -> dict[str, str]:
     """Nightly 01:00 UTC: materialize trial balance for all active tenants."""
     return asyncio.run(_run_materialize_trial_balance())
+
+
+async def _materialize_loan_portfolio_for_tenant(schema_name: str, engine, as_of: date) -> None:
+    from app.modules.reporting.services.loan_portfolio import LoanPortfolioService  # noqa: PLC0415
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        await session.execute(
+            text(f"SET LOCAL search_path TO {schema_name}, platform")  # noqa: S608
+        )
+        svc = LoanPortfolioService(session)
+        await svc.materialize(as_of_date=as_of)
+        await session.commit()
+
+
+async def _run_materialize_loan_portfolio() -> dict[str, str]:
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    as_of = date.today()
+    result: dict[str, str] = {}
+    try:
+        async with engine.connect() as conn:
+            rows = await conn.execute(
+                text("SELECT schema_name FROM platform.tenants WHERE is_active = true")
+            )
+            schemas = [row[0] for row in rows.fetchall()]
+        for schema_name in schemas:
+            if not _SCHEMA_RE.match(schema_name):
+                continue
+            try:
+                await _materialize_loan_portfolio_for_tenant(schema_name, engine, as_of)
+                result[schema_name] = "done"
+            except Exception as exc:
+                _log.error(
+                    "reporting.beat.loan_portfolio_error",
+                    schema=schema_name,
+                    error=str(exc),
+                )
+                result[schema_name] = f"error: {exc}"
+    finally:
+        await engine.dispose()
+    _log.info("reporting.beat.loan_portfolio_complete", **result)
+    return result
+
+
+@celery_app.task(name="app.modules.reporting.beat.materialize_loan_portfolio")  # type: ignore[misc]
+def materialize_loan_portfolio() -> dict[str, str]:
+    """Nightly 01:00 UTC: materialize loan portfolio for all active tenants."""
+    return asyncio.run(_run_materialize_loan_portfolio())
