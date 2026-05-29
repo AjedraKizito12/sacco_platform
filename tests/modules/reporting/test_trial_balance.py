@@ -2,7 +2,6 @@
 """Tests for TrialBalanceService."""
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -11,7 +10,6 @@ from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
-from app.modules.reporting.models import ReportRun, ReportTrialBalanceLine
 from app.modules.reporting.services.trial_balance import TrialBalanceService
 
 TEST_SCHEMA = "tenant_test"
@@ -74,7 +72,10 @@ async def _cleanup(session: AsyncSession, asset_id, income_id) -> None:
     await session.execute(text("DELETE FROM report_runs"))
     await session.execute(text("DELETE FROM journal_lines"))
     await session.execute(text("DELETE FROM journal_entries"))
-    await session.execute(text(f"DELETE FROM chart_of_accounts WHERE id IN ('{asset_id}', '{income_id}')"))
+    await session.execute(
+        text("DELETE FROM chart_of_accounts WHERE id IN (:a, :i)"),
+        {"a": str(asset_id), "i": str(income_id)},
+    )
     await session.commit()
 
 

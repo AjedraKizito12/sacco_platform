@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import traceback
-import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import structlog
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,7 +67,7 @@ class TrialBalanceService:
                     )
                     .join(JournalLine, JournalLine.account_id == ChartOfAccount.id)
                     .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-                    .where(JournalEntry.posted_at <= datetime(as_of_date.year, as_of_date.month, as_of_date.day, 23, 59, 59, tzinfo=UTC))
+                    .where(JournalEntry.posted_at < datetime(as_of_date.year, as_of_date.month, as_of_date.day, tzinfo=UTC) + timedelta(days=1))
                     .group_by(ChartOfAccount.id, ChartOfAccount.code, ChartOfAccount.name, ChartOfAccount.account_type)
                     .order_by(ChartOfAccount.code)
                 )
@@ -109,7 +108,7 @@ class TrialBalanceService:
             await self._session.flush()
             raise
 
-    async def get_trial_balance(self, *, as_of_date: date | None = None) -> tuple[ReportRun, list[ReportTrialBalanceLine]]:
+    async def get_trial_balance(self, *, as_of_date: date | None = None) -> tuple[ReportRun | None, list[ReportTrialBalanceLine]]:
         """Return (run, lines) for the latest successful trial balance run.
 
         If as_of_date is provided, returns the run for that date.
