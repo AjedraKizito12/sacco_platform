@@ -142,3 +142,55 @@ async def test_materialize_idempotent(test_engine: AsyncEngine):
         assert run_count == 2  # Two ReportRun rows (one per materialization run).
 
         await _cleanup(session, asset.id, income.id)
+
+
+@pytest.mark.anyio
+async def test_render_pdf_returns_pdf_bytes(test_engine: AsyncEngine):
+    async with _new_session(test_engine) as session:
+        asset, income = await _seed_gl(session)
+
+    as_of = date(2026, 2, 28)
+    async with _new_session(test_engine) as session:
+        svc = TrialBalanceService(session)
+        run, lines = await _get_or_materialize(svc, as_of)
+        await session.commit()
+
+    from app.modules.reporting._base import render_pdf
+    pdf = render_pdf("trial_balance.html", {
+        "run": run, "lines": lines, "generated_at": datetime.now(tz=UTC),
+    })
+    assert pdf[:4] == b"%PDF"
+
+    async with _new_session(test_engine) as session:
+        await _cleanup(session, asset.id, income.id)
+
+
+@pytest.mark.anyio
+async def test_render_csv_trial_balance(test_engine: AsyncEngine):
+    async with _new_session(test_engine) as session:
+        asset, income = await _seed_gl(session)
+
+    as_of = date(2026, 3, 31)
+    async with _new_session(test_engine) as session:
+        svc = TrialBalanceService(session)
+        run, lines = await _get_or_materialize(svc, as_of)
+        await session.commit()
+
+    from app.modules.reporting._base import render_csv
+    import csv, io
+    headers = ["Account Code", "Account Name", "Account Type", "Debit Total", "Credit Total", "Balance"]
+    rows = [[ln.account_code, ln.account_name, ln.account_type, ln.debit_total, ln.credit_total, ln.balance] for ln in lines]
+    result = render_csv(headers, rows)
+    assert result[:3] == b"\xef\xbb\xbf"
+    text_content = result.decode("utf-8-sig")
+    reader = list(csv.reader(io.StringIO(text_content)))
+    assert reader[0] == headers
+
+    async with _new_session(test_engine) as session:
+        await _cleanup(session, asset.id, income.id)
+
+
+async def _get_or_materialize(svc: TrialBalanceService, as_of: date):
+    run = await svc.materialize(as_of_date=as_of)
+    run2, lines = await svc.get_trial_balance(as_of_date=as_of)
+    return run2 or run, lines
