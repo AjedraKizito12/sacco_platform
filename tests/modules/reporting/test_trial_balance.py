@@ -194,3 +194,26 @@ async def _get_or_materialize(svc: TrialBalanceService, as_of: date):
     run = await svc.materialize(as_of_date=as_of)
     run2, lines = await svc.get_trial_balance(as_of_date=as_of)
     return run2 or run, lines
+
+
+@pytest.mark.anyio
+async def test_beat_task_creates_done_run(test_engine: AsyncEngine):
+    """Call the task function directly (not via worker) and assert ReportRun status=done."""
+    from sqlalchemy import text as sql_text
+    from app.modules.reporting.beat import _materialize_trial_balance_for_tenant
+
+    as_of = date(2026, 4, 30)
+    await _materialize_trial_balance_for_tenant(TEST_SCHEMA, test_engine, as_of)
+
+    async with _new_session(test_engine) as session:
+        run = await session.scalar(
+            sql_text(
+                "SELECT status FROM report_runs WHERE report_type = 'trial_balance' AND as_of_date = :d"
+            ),
+            {"d": as_of},
+        )
+        assert run == "done"
+        # Cleanup
+        await session.execute(sql_text("DELETE FROM report_trial_balance_lines"))
+        await session.execute(sql_text("DELETE FROM report_runs WHERE report_type = 'trial_balance'"))
+        await session.commit()
