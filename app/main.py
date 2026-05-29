@@ -26,6 +26,7 @@ from app.modules.credit.api import router as credit_router
 from app.modules.fees.api import router as fees_router
 from app.modules.ledger.api import router as ledger_router
 from app.modules.members.api import router as members_router
+from app.modules.reporting.api import router as reporting_router
 from app.modules.shares.api import router as shares_router
 from app.modules.savings.api import router as savings_router
 from app.platform_.auth import get_current_superuser
@@ -119,6 +120,7 @@ app.include_router(shares_router)
 app.include_router(savings_router)
 app.include_router(credit_router)
 app.include_router(fees_router)
+app.include_router(reporting_router)
 app.include_router(platform_auth_router)
 app.include_router(tenant_auth_router)
 app.include_router(platform_tenants_router)
