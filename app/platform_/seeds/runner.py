@@ -84,7 +84,8 @@ async def _seed_fee_types(session: AsyncSession, schema_name: str) -> None:
                         "gl_income_account_code, gl_receivable_account_code, "
                         "is_active, requires_collection, created_at, updated_at) "
                         "VALUES (:code, :name, :description, :applicable_to, :amount_kind, "
-                        ":amount, :currency, :trigger_kind, :event_name, :schedule_config::jsonb, "
+                        ":amount, :currency, :trigger_kind, :event_name, "
+                        "CAST(:schedule_config AS jsonb), "
                         ":gl_income_account_code, :gl_receivable_account_code, "
                         ":is_active, :requires_collection, now(), now()) "
                         "ON CONFLICT (code) DO NOTHING"
@@ -118,13 +119,17 @@ async def _seed_chart_of_accounts(session: AsyncSession, schema_name: str) -> No
                 await session.execute(
                     text(
                         "INSERT INTO chart_of_accounts "
-                        "(code, name, account_type, normal_balance, "
+                        "(code, name, account_type, "
                         "is_active, created_at, updated_at) "
-                        "VALUES (:code, :name, :account_type, :normal_balance, "
+                        "VALUES (:code, :name, :account_type, "
                         "true, now(), now()) "
                         "ON CONFLICT (code) DO NOTHING"
                     ),
-                    account,
+                    {
+                        "code": account["code"],
+                        "name": account["name"],
+                        "account_type": account["account_type"],
+                    },
                 )
         except ProgrammingError:
             _log.warning("seed.chart_of_accounts_table_missing", schema=schema_name)
