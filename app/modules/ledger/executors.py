@@ -6,16 +6,17 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.maker_checker.registry import approval_executor
 
 
-@approval_executor("ledger.post_journal_entry")
+@approval_executor("ledger.post_journal_entry")  # type: ignore[misc]
 async def execute_post_journal_entry(
-    session: AsyncSession, payload: dict
-) -> dict:
+    session: AsyncSession, payload: dict[str, Any]
+) -> dict[str, Any]:
     """Executor: called by ApprovalService.approve() when quorum is met.
 
     payload keys (all strings — JSON round-tripped through JSONB):

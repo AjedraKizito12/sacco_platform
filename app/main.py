@@ -11,11 +11,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 
-import app.modules.credit.executors  # noqa: F401 — registers credit maker-checker executors
-import app.modules.ledger.executors  # noqa: F401 — registers ledger maker-checker executor
-import app.modules.members.executors  # noqa: F401 — registers members maker-checker executor
-import app.modules.savings.executors  # noqa: F401 — registers savings maker-checker executor
-import app.modules.shares.executors  # noqa: F401 — registers shares maker-checker executor
+from app.modules.credit import executors as _credit_executors  # noqa: F401
+from app.modules.ledger import executors as _ledger_executors  # noqa: F401
+from app.modules.members import executors as _members_executors  # noqa: F401
+from app.modules.savings import executors as _savings_executors  # noqa: F401
+from app.modules.shares import executors as _shares_executors  # noqa: F401
 from app.core.config import get_settings
 from app.core.db import engine
 from app.modules.credit.api import router as credit_router
@@ -92,7 +92,7 @@ async def lifespan(app: FastAPI) -> Any:
     _log.info("Shutdown complete")
 
 
-app = FastAPI(title="SACCO Platform API", lifespan=lifespan)
+app: FastAPI = FastAPI(title="SACCO Platform API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

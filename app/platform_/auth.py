@@ -95,3 +95,11 @@ async def get_current_superuser(
 
 
 CurrentSuperuser = Annotated[PlatformUser, Depends(get_current_superuser)]
+
+
+__all__ = [
+    "CurrentPlatformUser",
+    "CurrentSuperuser",
+    "get_current_platform_user",
+    "get_current_superuser",
+]

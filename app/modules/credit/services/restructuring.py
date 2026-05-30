@@ -43,7 +43,8 @@ def _shift_date(d: date, frequency: str, periods: int) -> date:
     if frequency in _FREQ_WEEKS:
         return d + timedelta(weeks=_FREQ_WEEKS[frequency] * periods)
     months = _FREQ_MONTHS.get(frequency, 1)
-    return d + relativedelta(months=months * periods)
+    result: date = d + relativedelta(months=months * periods)
+    return result
 
 
 class LoanRestructuringService:

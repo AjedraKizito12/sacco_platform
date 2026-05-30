@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from sqlalchemy import select
@@ -100,7 +100,7 @@ class LoanRepaymentService:
         # Dr payment_account (cash/bank) for the total applied.
         # Cr principal_receivable for principal_applied (if > 0).
         # Cr interest_receivable for interest_applied (if > 0).
-        gl_lines: list[dict] = []
+        gl_lines: list[dict[str, Any]] = []
 
         if total_applied > Decimal("0"):
             gl_lines.append({

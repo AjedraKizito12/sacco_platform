@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select as _select
@@ -426,12 +426,12 @@ async def recover_written_off_loan(
 # ── Query endpoints ───────────────────────────────────────────────────────────
 
 
-@router.get("/query/loans-eligible-for-fee", response_model=list[dict])
+@router.get("/query/loans-eligible-for-fee", response_model=list[dict[str, Any]])
 async def loans_eligible_for_fee(
     session: Session,
     user: CurrentTenantUser,
     min_days_past_due: int = 0,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     from app.modules.credit.services.query import CreditQueryService
     svc = CreditQueryService(session)
     return await svc.find_loans_eligible_for_fee(
@@ -529,7 +529,7 @@ async def restructure_loan(
     body: RestructureIn,
     session: Session,
     user: CurrentTenantUser,
-) -> dict:
+) -> dict[str, str]:
     """Submit a loan restructuring for maker-checker approval (quorum=2)."""
     try:
         svc = LoanRestructuringService(session)

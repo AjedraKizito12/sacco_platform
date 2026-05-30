@@ -8,10 +8,11 @@ from __future__ import annotations
 import asyncio
 import re
 from datetime import date
+from typing import Any
 
 import structlog
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 from app.workers.celery_app import celery_app
@@ -20,14 +21,16 @@ _log = structlog.get_logger(__name__)
 _SCHEMA_RE = re.compile(r"^tenant_[a-z0-9_]{1,40}$")
 
 
-def _is_annual_sub_due(fee_type, member_id, today: date, last_assessment_period_end: date | None) -> bool:
+def _is_annual_sub_due(
+    fee_type: Any, member_id: Any, today: date, last_assessment_period_end: date | None,
+) -> bool:
     """Return True if member is due for annual subscription fee."""
     if last_assessment_period_end is None:
         return True
     return last_assessment_period_end < today
 
 
-async def _assess_scheduled_for_tenant(schema_name: str, engine) -> int:
+async def _assess_scheduled_for_tenant(schema_name: str, engine: AsyncEngine) -> int:
     """Assess all due schedule-triggered fees for one tenant. Returns count."""
     import uuid as _uuid
 
@@ -125,7 +128,7 @@ async def _assess_scheduled_for_tenant(schema_name: str, engine) -> int:
     return assessed
 
 
-async def _retry_partial_for_tenant(schema_name: str, engine) -> dict[str, int]:
+async def _retry_partial_for_tenant(schema_name: str, engine: AsyncEngine) -> dict[str, int]:
     """Retry collection for assessed/partially_paid assessments. Returns stats."""
     import uuid as _uuid
 

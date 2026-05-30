@@ -8,10 +8,11 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
+from typing import Any
 
 import structlog
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 from app.workers.celery_app import celery_app
@@ -22,7 +23,7 @@ _CONSUMER_NAME = "fees.event_consumer"
 _BATCH = 50
 
 
-async def _process_tenant_events(schema_name: str, engine) -> int:
+async def _process_tenant_events(schema_name: str, engine: AsyncEngine) -> int:
     """Process unhandled fee-relevant outbox events for one tenant schema.
 
     Returns count of events processed.
@@ -63,7 +64,7 @@ async def _process_tenant_events(schema_name: str, engine) -> int:
                     select(TenantOutboxEvent)
                     .where(
                         TenantOutboxEvent.event_type.in_(event_names),
-                        ~TenantOutboxEvent.id.in_(  # type: ignore[arg-type]
+                        ~TenantOutboxEvent.id.in_(
                             select(
                                 text("event_id")
                             ).select_from(
@@ -117,7 +118,7 @@ async def _process_tenant_events(schema_name: str, engine) -> int:
     return processed
 
 
-async def _handle_event(session, event, fee_types: list) -> None:
+async def _handle_event(session: AsyncSession, event: Any, fee_types: list[Any]) -> None:
     """Dispatch a single event to all matching fee types."""
     from datetime import date
 

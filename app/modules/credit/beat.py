@@ -16,7 +16,7 @@ from decimal import Decimal
 
 import structlog
 from sqlalchemy import func, select, text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 from app.workers.celery_app import celery_app
@@ -26,7 +26,7 @@ _SCHEMA_RE = re.compile(r"^tenant_[a-z0-9_]{1,40}$")
 _SYSTEM_ACTOR = uuid.UUID("00000000-0000-0000-0000-000000000000")
 
 
-async def _accrue_for_tenant(schema_name: str, engine) -> int:
+async def _accrue_for_tenant(schema_name: str, engine: AsyncEngine) -> int:
     """Accrue reducing-balance interest for all eligible loans in one tenant.
 
     Eligible: status IN ('disbursed', 'in_arrears'), interest_method='reducing_balance',
@@ -168,7 +168,7 @@ def accrue_reducing_balance_interest() -> dict[str, int]:
 # ── Arrears marking ───────────────────────────────────────────────────────────
 
 
-async def _mark_arrears_for_tenant(schema_name: str, engine) -> int:
+async def _mark_arrears_for_tenant(schema_name: str, engine: AsyncEngine) -> int:
     """Set/clear in_arrears status for all active loans in one tenant.
 
     Returns count of loans whose status changed.
@@ -276,7 +276,7 @@ def mark_loans_in_arrears() -> dict[str, int]:
 # ── Snapshot reconciliation ───────────────────────────────────────────────────
 
 
-async def _reconcile_for_tenant(schema_name: str, engine) -> int:
+async def _reconcile_for_tenant(schema_name: str, engine: AsyncEngine) -> int:
     """Compare loan snapshot outstanding_principal against GL net for one tenant.
 
     Checks disbursed, in_arrears, and written_off loans only.

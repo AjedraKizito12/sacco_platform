@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
-@approval_executor("credit.approve_application")
+@approval_executor("credit.approve_application")  # type: ignore[misc]
 async def execute_approve_application(
     session: AsyncSession, payload: dict[str, Any]
 ) -> dict[str, Any]:
@@ -56,7 +56,7 @@ async def execute_approve_application(
     }
 
 
-@approval_executor("credit.write_off")
+@approval_executor("credit.write_off")  # type: ignore[misc]
 async def execute_write_off(
     session: AsyncSession, payload: dict[str, Any]
 ) -> dict[str, Any]:
@@ -95,7 +95,7 @@ async def execute_write_off(
     return {"status": "written_off", "loan_id": str(loan_id)}
 
 
-@approval_executor("credit.restructure_schedule")
+@approval_executor("credit.restructure_schedule")  # type: ignore[misc]
 async def execute_restructure_schedule(
     session: AsyncSession, payload: dict[str, Any]
 ) -> dict[str, Any]:
@@ -123,7 +123,7 @@ async def execute_restructure_schedule(
     return {"status": "restructured", "restructuring_id": str(restructuring.id)}
 
 
-@approval_executor("credit.apply_payroll_batch")
+@approval_executor("credit.apply_payroll_batch")  # type: ignore[misc]
 async def execute_apply_payroll_batch(
     session: AsyncSession, payload: dict[str, Any]
 ) -> dict[str, Any]:

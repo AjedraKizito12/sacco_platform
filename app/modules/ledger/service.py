@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
+from typing import Any
 
 import structlog
 from sqlalchemy import func, select
@@ -79,7 +80,7 @@ class LedgerService:
         description: str,
         posted_by: uuid.UUID,
         idempotency_key: str,
-        lines: list[dict],
+        lines: list[dict[str, Any]],
     ) -> JournalEntry:
         """Post a balanced double-entry journal.
 
@@ -166,7 +167,7 @@ class LedgerService:
         description: str,
         submitted_by: uuid.UUID,
         idempotency_key: str,
-        lines: list[dict],
+        lines: list[dict[str, Any]],
     ) -> uuid.UUID:
         """Submit a manual GL entry for maker-checker approval.
 

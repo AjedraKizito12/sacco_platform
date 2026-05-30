@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.modules.maker_checker.registry import approval_executor
 
@@ -14,8 +14,8 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
-@approval_executor("savings.withdraw")
-async def execute_withdraw(session: AsyncSession, payload: dict) -> dict:
+@approval_executor("savings.withdraw")  # type: ignore[misc]
+async def execute_withdraw(session: AsyncSession, payload: dict[str, Any]) -> dict[str, Any]:
     """Executor: called by ApprovalService.approve() when quorum is met.
 
     payload keys (all strings — JSON round-tripped through JSONB):

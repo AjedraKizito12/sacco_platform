@@ -66,6 +66,11 @@ class LoanDisbursementService:
         if product is None:
             raise ValueError(f"LoanProduct '{application.loan_product_id}' not found")
 
+        if application.approved_amount is None or application.approved_term_periods is None:
+            raise ValueError(
+                "Application is missing approved_amount or approved_term_periods; "
+                "cannot disburse before maker-checker approval has populated these."
+            )
         principal = application.approved_amount
         term_periods = application.approved_term_periods
 

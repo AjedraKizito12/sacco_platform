@@ -80,5 +80,14 @@ plugins = ["pydantic.mypy"]
 ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
-module = ["aio_pika.*", "passlib.*", "jose.*", "celery.*", "elasticsearch.*"]
+module = [
+    "aio_pika.*",
+    "passlib.*",
+    "jose.*",
+    "celery.*",
+    "elasticsearch.*",
+    "weasyprint.*",
+    "jinja2.*",
+    "aiohttp.*",
+]
 ignore_missing_imports = true

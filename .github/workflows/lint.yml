@@ -33,3 +33,6 @@ jobs:
             exit 1
           fi
           echo "Outbox boundary check passed."
+
+      - name: Enforce credit snapshot write boundary
+        run: bash scripts/check_snapshot_writes.sh

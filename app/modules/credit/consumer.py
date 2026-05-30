@@ -14,10 +14,11 @@ import asyncio
 import re
 import uuid
 from decimal import Decimal
+from typing import Any
 
 import structlog
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 from app.workers.celery_app import celery_app
@@ -42,7 +43,7 @@ def _fetch_sql(schema: str) -> str:
     )
 
 
-async def _process_tenant_events(schema_name: str, engine) -> int:
+async def _process_tenant_events(schema_name: str, engine: AsyncEngine) -> int:
     """Process unhandled credit-relevant outbox events for one tenant schema.
 
     All table references are fully schema-qualified so the query works on a
@@ -59,7 +60,7 @@ async def _process_tenant_events(schema_name: str, engine) -> int:
         for row in rows:
             event_id: uuid.UUID = row[0]
             event_type: str = row[1]
-            payload: dict = row[2]
+            payload: dict[str, Any] = row[2]
             try:
                 async with session.begin_nested():
                     # Double-check idempotency inside savepoint.
@@ -100,11 +101,11 @@ async def _process_tenant_events(schema_name: str, engine) -> int:
 
 
 async def _handle_event(  # noqa: PLR0913
-    session,
+    session: AsyncSession,
     schema_name: str,
     event_id: uuid.UUID,
     event_type: str,
-    payload: dict,
+    payload: dict[str, Any],
 ) -> None:
     """Dispatch a single event to the appropriate handler."""
     if event_type == "FeeAssessmentCreated":
@@ -120,7 +121,7 @@ async def _handle_event(  # noqa: PLR0913
             text(update_sql),
             {"amount": amount, "loan_id": loan_id},
         )
-        if updated.rowcount == 0:
+        if updated.rowcount == 0:  # type: ignore[attr-defined]
             _log.warning(
                 "credit.consumer.loan_not_found",
                 loan_id=str(loan_id),
@@ -142,7 +143,7 @@ async def _handle_event(  # noqa: PLR0913
             text(update_sql),
             {"amount": amount_collected, "loan_id": loan_id},
         )
-        if updated.rowcount == 0:
+        if updated.rowcount == 0:  # type: ignore[attr-defined]
             _log.warning(
                 "credit.consumer.loan_not_found",
                 loan_id=str(loan_id),
