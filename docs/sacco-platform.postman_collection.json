@@ -1,0 +1,1058 @@
+{
+  "info": {
+    "name": "SACCO Platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Full workflow collection for the SACCO Platform API. Run folders in order: 1→2→3→4→5→6→7."
+  },
+  "variable": [
+    { "key": "base_url",         "value": "http://localhost:8000" },
+    { "key": "tenant_slug",      "value": "acme" },
+    { "key": "platform_token",   "value": "" },
+    { "key": "platform_refresh", "value": "" },
+    { "key": "tenant_token",     "value": "" },
+    { "key": "tenant_refresh",   "value": "" },
+    { "key": "tenant_id",        "value": "" },
+    { "key": "member_id",        "value": "" },
+    { "key": "cash_account_id",       "value": "" },
+    { "key": "equity_account_id",     "value": "" },
+    { "key": "liability_account_id",  "value": "" },
+    { "key": "share_product_id",      "value": "" },
+    { "key": "share_account_id",      "value": "" },
+    { "key": "share_txn_id",          "value": "" },
+    { "key": "share_approval_id",     "value": "" },
+    { "key": "savings_product_id",    "value": "" },
+    { "key": "savings_account_id",    "value": "" },
+    { "key": "savings_txn_id",        "value": "" },
+    { "key": "savings_approval_id",   "value": "" },
+    { "key": "approval_id",           "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Platform Bootstrap",
+      "description": "Seed a platform superuser via SQL first (see README), then log in here.",
+      "item": [
+        {
+          "name": "Login (get platform token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('platform_token', r.access_token);",
+                  "pm.collectionVariables.set('platform_refresh', r.refresh_token);",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/platform/auth/token",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@platform.local\",\n  \"password\": \"YourPassword123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Me (verify token)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{platform_token}}" }],
+            "url": "{{base_url}}/platform/auth/me"
+          }
+        },
+        {
+          "name": "Refresh platform token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('platform_token', r.access_token);",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/platform/auth/refresh",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{platform_refresh}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List platform users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{platform_token}}" }],
+            "url": "{{base_url}}/platform/users"
+          }
+        },
+        {
+          "name": "Create platform user",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{platform_token}}" },
+              { "key": "Content-Type",   "value": "application/json" }
+            ],
+            "url": "{{base_url}}/platform/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ops@platform.local\",\n  \"full_name\": \"Ops User\",\n  \"is_superuser\": false\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Tenant Provisioning",
+      "description": "Create a tenant (async). Poll GET until provisioning_status=active before proceeding.",
+      "item": [
+        {
+          "name": "Create tenant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('tenant_id', r.tenant.id);",
+                  "pm.test('Status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{platform_token}}" },
+              { "key": "Content-Type",   "value": "application/json" }
+            ],
+            "url": "{{base_url}}/platform/tenants",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slug\": \"acme\",\n  \"name\": \"Acme SACCO\",\n  \"admin_email\": \"admin@acme.com\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Poll provisioning status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{platform_token}}" }],
+            "url": "{{base_url}}/platform/tenants/{{tenant_id}}"
+          }
+        },
+        {
+          "name": "List tenants",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{platform_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/platform/tenants?status=active",
+              "query": [{ "key": "status", "value": "active" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Tenant Auth",
+      "description": "Login as a tenant user. admin@acme.com is provisioned automatically when the tenant is created.",
+      "item": [
+        {
+          "name": "Login (get tenant token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('tenant_token', r.access_token);",
+                  "pm.collectionVariables.set('tenant_refresh', r.refresh_token);",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Tenant-Slug",  "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",   "value": "application/json" }
+            ],
+            "url": "{{base_url}}/auth/token",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@acme.com\",\n  \"password\": \"YourPassword123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Me (verify tenant token)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/auth/me"
+          }
+        },
+        {
+          "name": "Refresh tenant token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('tenant_token', r.access_token);",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/auth/refresh",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{tenant_refresh}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/auth/logout"
+          }
+        },
+        {
+          "name": "Password reset - request",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/auth/password-reset/request",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@acme.com\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Password reset - confirm",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/auth/password-reset/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"<token-from-email>\",\n  \"new_password\": \"NewPassword456!\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Ledger — Chart of Accounts",
+      "description": "Create the three GL accounts needed for shares and savings. Run all three before proceeding.",
+      "item": [
+        {
+          "name": "Create cash account (asset)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('cash_account_id', r.id);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/ledger/accounts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"1-001\",\n  \"name\": \"Cash on Hand\",\n  \"account_type\": \"asset\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create share capital account (equity)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('equity_account_id', r.id);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/ledger/accounts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"3-001\",\n  \"name\": \"Share Capital\",\n  \"account_type\": \"equity\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create members savings account (liability)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('liability_account_id', r.id);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/ledger/accounts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"2-001\",\n  \"name\": \"Members Savings\",\n  \"account_type\": \"liability\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List all GL accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/ledger/accounts"
+          }
+        },
+        {
+          "name": "Get account with balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/ledger/accounts/{{cash_account_id}}"
+          }
+        },
+        {
+          "name": "Submit manual GL entry (maker-checker)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('approval_id', r.approval_request_id);",
+                  "pm.test('Status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/ledger/journal-entries/submit",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"ADJ-001\",\n  \"description\": \"Opening balance adjustment\",\n  \"idempotency_key\": \"adj-001\",\n  \"lines\": [\n    {\n      \"account_id\": \"{{cash_account_id}}\",\n      \"debit_amount\": \"100000.00\",\n      \"credit_amount\": \"0.00\"\n    },\n    {\n      \"account_id\": \"{{equity_account_id}}\",\n      \"debit_amount\": \"0.00\",\n      \"credit_amount\": \"100000.00\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Approve manual GL entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "X-Actor-ID",    "value": "00000000-0000-0000-0000-000000000001" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/approvals/{{approval_id}}/approve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment\": \"Verified and approved\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List journal entries",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/ledger/journal-entries"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Members",
+      "description": "Register a member. member_id is used throughout shares and savings.",
+      "item": [
+        {
+          "name": "Register member",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('member_id', r.id);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/members",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Jane Nakato\",\n  \"date_of_birth\": \"1988-03-22\",\n  \"gender\": \"female\",\n  \"phone\": \"+256700000001\",\n  \"email\": \"jane@acme.com\",\n  \"national_id_number\": \"CM90000001UG\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List members",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/members"
+          }
+        },
+        {
+          "name": "Get member",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/members/{{member_id}}"
+          }
+        },
+        {
+          "name": "Submit status change (maker-checker)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('approval_id', r.approval_request_id);",
+                  "pm.test('Status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/members/{{member_id}}/status-change",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_status\": \"suspended\",\n  \"reason\": \"Overdue on loan repayments\",\n  \"idempotency_key\": \"status-001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Approve status change",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "X-Actor-ID",    "value": "00000000-0000-0000-0000-000000000001" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/approvals/{{approval_id}}/approve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment\": \"Confirmed overdue\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Shares",
+      "description": "Create share product → open account → purchase (direct) → redeem (maker-checker).",
+      "item": [
+        {
+          "name": "Create share product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('share_product_id', r.id);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/shares/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ordinary Shares\",\n  \"par_value\": \"1000.00\",\n  \"share_capital_account_id\": \"{{equity_account_id}}\",\n  \"minimum_shares\": 1,\n  \"maximum_shares\": 1000\n}"
+            }
+          }
+        },
+        {
+          "name": "List share products",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/shares/products"
+          }
+        },
+        {
+          "name": "Get share product",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/shares/products/{{share_product_id}}"
+          }
+        },
+        {
+          "name": "Open share account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('share_account_id', r.id);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/shares/accounts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"member_id\": \"{{member_id}}\",\n  \"share_product_id\": \"{{share_product_id}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get share account (with balance)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/shares/accounts/{{share_account_id}}"
+          }
+        },
+        {
+          "name": "Purchase shares (direct)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('share_txn_id', r.id);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/shares/accounts/{{share_account_id}}/purchase",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 10,\n  \"payment_account_id\": \"{{cash_account_id}}\",\n  \"idempotency_key\": \"share-buy-001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List share transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/shares/accounts/{{share_account_id}}/transactions"
+          }
+        },
+        {
+          "name": "Submit share redemption (maker-checker)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('share_approval_id', r.approval_request_id);",
+                  "pm.collectionVariables.set('approval_id', r.approval_request_id);",
+                  "pm.test('Status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/shares/accounts/{{share_account_id}}/redeem",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 3,\n  \"payment_account_id\": \"{{cash_account_id}}\",\n  \"reason\": \"Partial exit\",\n  \"idempotency_key\": \"share-redeem-001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Approve share redemption",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "X-Actor-ID",    "value": "00000000-0000-0000-0000-000000000001" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/approvals/{{share_approval_id}}/approve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment\": \"Member exit confirmed\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify balance after redemption",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/shares/accounts/{{share_account_id}}"
+          }
+        },
+        {
+          "name": "Reject share redemption (alternative)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "X-Actor-ID",    "value": "00000000-0000-0000-0000-000000000001" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/approvals/{{share_approval_id}}/reject",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Insufficient documentation\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Savings",
+      "description": "Create savings product → open account → deposit (direct) → withdraw (maker-checker).",
+      "item": [
+        {
+          "name": "Create savings product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('savings_product_id', r.id);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/savings/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Regular Savings\",\n  \"interest_rate\": \"3.5000\",\n  \"liability_account_id\": \"{{liability_account_id}}\",\n  \"minimum_balance\": \"5000.00\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List savings products",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/savings/products"
+          }
+        },
+        {
+          "name": "Get savings product",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/savings/products/{{savings_product_id}}"
+          }
+        },
+        {
+          "name": "Open savings account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('savings_account_id', r.id);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/savings/accounts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"member_id\": \"{{member_id}}\",\n  \"savings_product_id\": \"{{savings_product_id}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get savings account (with balance)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/savings/accounts/{{savings_account_id}}"
+          }
+        },
+        {
+          "name": "Deposit (direct)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('savings_txn_id', r.id);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/savings/accounts/{{savings_account_id}}/deposit",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"50000.00\",\n  \"payment_account_id\": \"{{cash_account_id}}\",\n  \"idempotency_key\": \"dep-001\",\n  \"narration\": \"Cash deposit at branch\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List savings transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/savings/accounts/{{savings_account_id}}/transactions"
+          }
+        },
+        {
+          "name": "Submit withdrawal (maker-checker)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('savings_approval_id', r.approval_request_id);",
+                  "pm.collectionVariables.set('approval_id', r.approval_request_id);",
+                  "pm.test('Status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/savings/accounts/{{savings_account_id}}/withdraw",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"10000.00\",\n  \"payment_account_id\": \"{{cash_account_id}}\",\n  \"idempotency_key\": \"wdw-001\",\n  \"narration\": \"Member withdrawal request\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Approve withdrawal",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "X-Actor-ID",    "value": "00000000-0000-0000-0000-000000000001" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/approvals/{{savings_approval_id}}/approve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment\": \"Approved at counter\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify balance after withdrawal",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" }
+            ],
+            "url": "{{base_url}}/savings/accounts/{{savings_account_id}}"
+          }
+        },
+        {
+          "name": "Reject withdrawal (alternative)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "X-Actor-ID",    "value": "00000000-0000-0000-0000-000000000001" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/approvals/{{savings_approval_id}}/reject",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Below minimum balance threshold\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Approvals — General",
+      "description": "Browse and manage all pending approvals across all modules.",
+      "item": [
+        {
+          "name": "List all pending approvals",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "X-Actor-ID",    "value": "00000000-0000-0000-0000-000000000001" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/approvals?status=pending",
+              "query": [{ "key": "status", "value": "pending" }]
+            }
+          }
+        },
+        {
+          "name": "List approvals by type",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "X-Actor-ID",    "value": "00000000-0000-0000-0000-000000000001" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/approvals?operation_type=savings.withdraw",
+              "query": [{ "key": "operation_type", "value": "savings.withdraw" }]
+            }
+          }
+        },
+        {
+          "name": "Get approval by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "X-Actor-ID",    "value": "00000000-0000-0000-0000-000000000001" }
+            ],
+            "url": "{{base_url}}/approvals/{{approval_id}}"
+          }
+        },
+        {
+          "name": "Cancel approval",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tenant_token}}" },
+              { "key": "X-Tenant-Slug", "value": "{{tenant_slug}}" },
+              { "key": "X-Actor-ID",    "value": "00000000-0000-0000-0000-000000000001" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/approvals/{{approval_id}}/cancel",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Ops",
+      "item": [
+        {
+          "name": "Health (liveness)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/healthz"
+          }
+        },
+        {
+          "name": "Readiness (infra deps)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/readyz"
+          }
+        },
+        {
+          "name": "JWKS (public keys)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/.well-known/jwks.json"
+          }
+        }
+      ]
+    }
+  ]
+}
