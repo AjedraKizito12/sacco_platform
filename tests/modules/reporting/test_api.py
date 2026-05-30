@@ -12,7 +12,7 @@ from decimal import Decimal
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.db import get_tenant_session
 from app.main import app, lifespan
@@ -76,7 +76,7 @@ async def _seed_trial_balance_run(engine: AsyncEngine) -> date:
 
 
 async def _seed_loan_portfolio_run(engine: AsyncEngine) -> date:
-    from app.modules.reporting.models import ReportRun, ReportLoanPortfolioRow
+    from app.modules.reporting.models import ReportLoanPortfolioRow, ReportRun
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     as_of = date(2026, 2, 28)
@@ -100,7 +100,7 @@ async def _seed_loan_portfolio_run(engine: AsyncEngine) -> date:
 
 
 async def _seed_income_statement_run(engine: AsyncEngine) -> tuple[date, date]:
-    from app.modules.reporting.models import ReportRun, ReportIncomeStatementLine
+    from app.modules.reporting.models import ReportIncomeStatementLine, ReportRun
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     period_start = date(2026, 1, 1)
@@ -149,7 +149,7 @@ async def _seed_savings_statement_run(engine: AsyncEngine) -> tuple[uuid.UUID, d
 
 
 async def _seed_fee_collection_run(engine: AsyncEngine) -> tuple[date, date]:
-    from app.modules.reporting.models import ReportRun, ReportFeeCollectionRow
+    from app.modules.reporting.models import ReportFeeCollectionRow, ReportRun
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     period_start = date(2026, 1, 1)

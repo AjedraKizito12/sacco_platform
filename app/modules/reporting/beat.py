@@ -21,7 +21,7 @@ from datetime import date
 
 import structlog
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 from app.workers.celery_app import celery_app
@@ -30,7 +30,9 @@ _log = structlog.get_logger(__name__)
 _SCHEMA_RE = re.compile(r"^tenant_[a-z0-9_]{1,40}$")
 
 
-async def _materialize_trial_balance_for_tenant(schema_name: str, engine, as_of: date) -> None:
+async def _materialize_trial_balance_for_tenant(
+    schema_name: str, engine: AsyncEngine, as_of: date
+) -> None:
     from app.modules.reporting.services.trial_balance import TrialBalanceService  # noqa: PLC0415
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -79,7 +81,9 @@ def materialize_trial_balance() -> dict[str, str]:
     return asyncio.run(_run_materialize_trial_balance())
 
 
-async def _materialize_loan_portfolio_for_tenant(schema_name: str, engine, as_of: date) -> None:
+async def _materialize_loan_portfolio_for_tenant(
+    schema_name: str, engine: AsyncEngine, as_of: date
+) -> None:
     from app.modules.reporting.services.loan_portfolio import LoanPortfolioService  # noqa: PLC0415
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -128,8 +132,10 @@ def materialize_loan_portfolio() -> dict[str, str]:
     return asyncio.run(_run_materialize_loan_portfolio())
 
 
-async def _materialize_income_statement_for_tenant(schema_name: str, engine) -> None:
-    from app.modules.reporting.services.income_statement import IncomeStatementService  # noqa: PLC0415
+async def _materialize_income_statement_for_tenant(schema_name: str, engine: AsyncEngine) -> None:
+    from app.modules.reporting.services.income_statement import (
+        IncomeStatementService,  # noqa: PLC0415
+    )
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     today = date.today()
@@ -176,8 +182,10 @@ def materialize_income_statement() -> dict[str, str]:
     return asyncio.run(_run_materialize_income_statement())
 
 
-async def _materialize_savings_statement_for_tenant(schema_name: str, engine) -> None:
-    from app.modules.reporting.services.savings_statement import SavingsStatementService  # noqa: PLC0415
+async def _materialize_savings_statement_for_tenant(schema_name: str, engine: AsyncEngine) -> None:
+    from app.modules.reporting.services.savings_statement import (
+        SavingsStatementService,  # noqa: PLC0415
+    )
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     today = date.today()
@@ -224,7 +232,7 @@ def materialize_savings_statement() -> dict[str, str]:
     return asyncio.run(_run_materialize_savings_statement())
 
 
-async def _materialize_fee_collection_for_tenant(schema_name: str, engine) -> None:
+async def _materialize_fee_collection_for_tenant(schema_name: str, engine: AsyncEngine) -> None:
     from app.modules.reporting.services.fee_collection import FeeCollectionService  # noqa: PLC0415
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
