@@ -16,6 +16,7 @@ celery_app = Celery(
         "app.modules.fees.beat",
         "app.modules.credit.beat",
         "app.modules.credit.consumer",
+        "app.modules.reporting.beat",
     ],
 )
 
@@ -82,6 +83,26 @@ celery_app.conf.update(
         },
         "reconcile-loan-snapshots": {
             "task": "app.modules.credit.beat.reconcile_loan_snapshots",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "materialize-trial-balance": {
+            "task": "app.modules.reporting.beat.materialize_trial_balance",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "materialize-loan-portfolio": {
+            "task": "app.modules.reporting.beat.materialize_loan_portfolio",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "materialize-income-statement": {
+            "task": "app.modules.reporting.beat.materialize_income_statement",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "materialize-savings-statement": {
+            "task": "app.modules.reporting.beat.materialize_savings_statement",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "materialize-fee-collection": {
+            "task": "app.modules.reporting.beat.materialize_fee_collection",
             "schedule": 24 * 3600.0,  # daily
         },
     },
