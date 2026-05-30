@@ -56,66 +56,78 @@ class FeeCollectionService:
             period_start_dt = datetime(period_start.year, period_start.month, period_start.day, tzinfo=UTC)
             period_end_dt = datetime(period_end.year, period_end.month, period_end.day, tzinfo=UTC) + timedelta(days=1)
 
-            # Aggregate assessed totals per (fee_type, target_type) in the period.
-            assessment_rows = (
+            # Aggregate collections per (fee_type, target_type) in the period as a subquery,
+            # so we can left-join below and resolve in a single round-trip.
+            collections_subq = (
+                select(
+                    FeeAssessment.fee_type_id.label("fee_type_id"),
+                    FeeAssessment.target_type.label("target_type"),
+                    func.sum(FeeCollection.amount).label("collected_total"),
+                )
+                .join(FeeAssessment, FeeAssessment.id == FeeCollection.fee_assessment_id)
+                .where(
+                    FeeAssessment.assessed_at >= period_start_dt,
+                    FeeAssessment.assessed_at < period_end_dt,
+                )
+                .group_by(FeeAssessment.fee_type_id, FeeAssessment.target_type)
+                .subquery()
+            )
+
+            # Single query: assessed_total + waived_total via FILTER, collected_total via LEFT JOIN.
+            result_rows = (
                 await self._session.execute(
                     select(
                         FeeType.id.label("fee_type_id"),
                         FeeType.name.label("fee_type_name"),
                         FeeAssessment.target_type,
-                        func.coalesce(func.sum(FeeAssessment.amount), Decimal("0")).label("assessed_total"),
+                        func.coalesce(
+                            func.sum(FeeAssessment.amount), Decimal("0"),
+                        ).label("assessed_total"),
+                        func.coalesce(
+                            func.sum(FeeAssessment.amount).filter(
+                                FeeAssessment.status == "waived",
+                            ),
+                            Decimal("0"),
+                        ).label("waived_total"),
+                        func.coalesce(
+                            collections_subq.c.collected_total, Decimal("0"),
+                        ).label("collected_total"),
                     )
                     .join(FeeAssessment, FeeAssessment.fee_type_id == FeeType.id)
+                    .outerjoin(
+                        collections_subq,
+                        (collections_subq.c.fee_type_id == FeeType.id)
+                        & (collections_subq.c.target_type == FeeAssessment.target_type),
+                    )
                     .where(
                         FeeAssessment.assessed_at >= period_start_dt,
                         FeeAssessment.assessed_at < period_end_dt,
                     )
-                    .group_by(FeeType.id, FeeType.name, FeeAssessment.target_type)
+                    .group_by(
+                        FeeType.id,
+                        FeeType.name,
+                        FeeAssessment.target_type,
+                        collections_subq.c.collected_total,
+                    )
                     .order_by(FeeType.name, FeeAssessment.target_type)
                 )
             ).all()
 
-            rows = []
-            for ar in assessment_rows:
-                # Sum collections for assessments of this fee_type+target_type in the period.
-                collected_total = await self._session.scalar(
-                    select(func.coalesce(func.sum(FeeCollection.amount), Decimal("0")))
-                    .join(FeeAssessment, FeeCollection.fee_assessment_id == FeeAssessment.id)
-                    .where(
-                        FeeAssessment.fee_type_id == ar.fee_type_id,
-                        FeeAssessment.target_type == ar.target_type,
-                        FeeAssessment.assessed_at >= period_start_dt,
-                        FeeAssessment.assessed_at < period_end_dt,
-                    )
-                ) or Decimal("0")
-
-                waived_total = await self._session.scalar(
-                    select(func.coalesce(func.sum(FeeAssessment.amount), Decimal("0")))
-                    .where(
-                        FeeAssessment.fee_type_id == ar.fee_type_id,
-                        FeeAssessment.target_type == ar.target_type,
-                        FeeAssessment.status == "waived",
-                        FeeAssessment.assessed_at >= period_start_dt,
-                        FeeAssessment.assessed_at < period_end_dt,
-                    )
-                ) or Decimal("0")
-
-                outstanding_total = ar.assessed_total - collected_total - waived_total
-
-                rows.append(
-                    ReportFeeCollectionRow(
-                        report_run_id=run.id,
-                        period_start=period_start,
-                        period_end=period_end,
-                        fee_type_id=ar.fee_type_id,
-                        fee_type_name=ar.fee_type_name,
-                        target_type=ar.target_type,
-                        assessed_total=ar.assessed_total,
-                        collected_total=collected_total,
-                        outstanding_total=outstanding_total,
-                        waived_total=waived_total,
-                    )
+            rows = [
+                ReportFeeCollectionRow(
+                    report_run_id=run.id,
+                    period_start=period_start,
+                    period_end=period_end,
+                    fee_type_id=r.fee_type_id,
+                    fee_type_name=r.fee_type_name,
+                    target_type=r.target_type,
+                    assessed_total=r.assessed_total,
+                    collected_total=r.collected_total,
+                    outstanding_total=r.assessed_total - r.collected_total - r.waived_total,
+                    waived_total=r.waived_total,
                 )
+                for r in result_rows
+            ]
 
             self._session.add_all(rows)
 
