@@ -17,6 +17,7 @@ celery_app = Celery(
         "app.modules.credit.beat",
         "app.modules.credit.consumer",
         "app.modules.reporting.beat",
+        "app.modules.maker_checker.service",
     ],
 )
 
