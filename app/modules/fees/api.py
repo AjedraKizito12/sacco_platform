@@ -8,8 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
-from app.modules.fees.models import FeeAssessment, FeeCollection, FeeType
-from app.modules.iam.dependencies import CurrentTenantUser
+from app.modules.fees.models import FeeType
 from app.modules.fees.schemas import (
     FeeAssessmentCreateIn,
     FeeAssessmentDetailOut,
@@ -17,10 +16,11 @@ from app.modules.fees.schemas import (
     FeeCollectionCreateIn,
     FeeCollectionOut,
     FeeTypeCreateIn,
-    FeeTypePatchIn,
     FeeTypeOut,
+    FeeTypePatchIn,
 )
 from app.modules.fees.service import FeeAssessmentService, FeeCollectionService
+from app.modules.iam.dependencies import CurrentTenantUser
 
 router = APIRouter(prefix="/fees", tags=["fees"])
 Session = Annotated[AsyncSession, Depends(get_tenant_session)]

@@ -7,14 +7,14 @@ test_platform_auth_service.py).
 """
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
-from unittest.mock import AsyncMock
 
 from app.main import app
 from app.modules.iam.platform_auth.schemas import PlatformTokenResponse
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 

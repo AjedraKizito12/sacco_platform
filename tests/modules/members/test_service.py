@@ -12,11 +12,11 @@ import pytest
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+import app.modules.members.executors  # noqa: F401 — registers members executor (added in Task 5)
+from app.modules.maker_checker.models.tenant import TenantApprovalAction, TenantApprovalRequest
+from app.modules.maker_checker.service import ApprovalService
 from app.modules.members.models import Member
 from app.modules.members.service import MemberService
-from app.modules.maker_checker.models.tenant import TenantApprovalRequest, TenantApprovalAction
-from app.modules.maker_checker.service import ApprovalService
-import app.modules.members.executors  # noqa: F401 — registers members executor (added in Task 5)
 
 TEST_TENANT_SCHEMA = "tenant_test"
 

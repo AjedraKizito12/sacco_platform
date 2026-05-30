@@ -24,7 +24,6 @@ from app.modules.iam.dependencies import (
     get_current_tenant_user_jwt,
 )
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 

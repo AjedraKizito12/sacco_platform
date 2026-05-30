@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from decimal import Decimal
 
 import pytest
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 import app.modules.credit.executors  # noqa: F401 — registers executors
-
 from app.modules.credit.models import (
     Loan,
     LoanApplication,

@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, UTC
+from datetime import date
 from decimal import Decimal
 
-import pytest
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.modules.fees.models import FeeAssessment, FeeCollection, FeeType

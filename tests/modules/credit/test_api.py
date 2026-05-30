@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
-from datetime import date
 from typing import TYPE_CHECKING
 
 import pytest

@@ -176,8 +176,10 @@ async def test_render_csv_trial_balance(test_engine: AsyncEngine):
         run, lines = await _get_or_materialize(svc, as_of)
         await session.commit()
 
+    import csv
+    import io
+
     from app.modules.reporting._base import render_csv
-    import csv, io
     headers = ["Account Code", "Account Name", "Account Type", "Debit Total", "Credit Total", "Balance"]
     rows = [[ln.account_code, ln.account_name, ln.account_type, ln.debit_total, ln.credit_total, ln.balance] for ln in lines]
     result = render_csv(headers, rows)
@@ -200,6 +202,7 @@ async def _get_or_materialize(svc: TrialBalanceService, as_of: date):
 async def test_beat_task_creates_done_run(test_engine: AsyncEngine):
     """Call the task function directly (not via worker) and assert ReportRun status=done."""
     from sqlalchemy import text as sql_text
+
     from app.modules.reporting.beat import _materialize_trial_balance_for_tenant
 
     as_of = date(2026, 4, 30)

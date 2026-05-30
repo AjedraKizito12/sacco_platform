@@ -6,7 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 Gender = Literal["male", "female", "other"]
 IdDocumentType = Literal["national_id", "passport", "driving_license"]
 

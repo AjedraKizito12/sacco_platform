@@ -19,7 +19,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.modules.iam.sessions.models import PlatformSession, TenantSession
 from app.modules.iam.sessions.service import SessionService
 
-
 # ── Factory helpers ─────────────────────────────────────────────────────────
 
 def _platform_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

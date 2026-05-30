@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
-from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy import select, text
@@ -30,7 +29,6 @@ async def _process_tenant_events(schema_name: str, engine) -> int:
     """
     from app.core.outbox.models import TenantOutboxEvent
     from app.modules.fees.models import FeeType
-    from app.modules.fees.service import FeeAssessmentService
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     processed = 0
@@ -121,8 +119,9 @@ async def _process_tenant_events(schema_name: str, engine) -> int:
 
 async def _handle_event(session, event, fee_types: list) -> None:
     """Dispatch a single event to all matching fee types."""
-    from app.modules.fees.service import FeeAssessmentService
     from datetime import date
+
+    from app.modules.fees.service import FeeAssessmentService
 
     matching = [ft for ft in fee_types if ft.event_name == event.event_type]
     if not matching:

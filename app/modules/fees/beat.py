@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import UTC, date, datetime
+from datetime import date
 
 import structlog
 from sqlalchemy import select, text
@@ -30,6 +30,7 @@ def _is_annual_sub_due(fee_type, member_id, today: date, last_assessment_period_
 async def _assess_scheduled_for_tenant(schema_name: str, engine) -> int:
     """Assess all due schedule-triggered fees for one tenant. Returns count."""
     import uuid as _uuid
+
     from app.modules.fees.models import FeeAssessment, FeeType
     from app.modules.fees.service import FeeAssessmentService
     from app.modules.members.models import Member
@@ -128,6 +129,7 @@ async def _assess_scheduled_for_tenant(schema_name: str, engine) -> int:
 async def _retry_partial_for_tenant(schema_name: str, engine) -> dict[str, int]:
     """Retry collection for assessed/partially_paid assessments. Returns stats."""
     import uuid as _uuid
+
     from app.modules.fees.models import FeeAssessment, FeeType
     from app.modules.fees.service import FeeCollectionService
     from app.modules.ledger.models import ChartOfAccount

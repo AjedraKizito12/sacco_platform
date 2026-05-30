@@ -6,11 +6,10 @@ to avoid asyncpg protocol-state errors with flush().
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
-
-import logging
 
 import pytest
 from sqlalchemy import delete, func, text
@@ -93,7 +92,7 @@ async def _setup_disbursed_loan(session: AsyncSession) -> Loan:
     inside an already-open session.  Suitable for restructuring tests that
     don't need a balanced GL.
     """
-    from datetime import date, timedelta
+    from datetime import date
     from decimal import Decimal
 
     from app.modules.credit.services._schedule import compute_schedule
@@ -1239,9 +1238,10 @@ async def test_accrue_interest_posts_gl_entry(test_engine):
     finally:
         await session.close()
 
-    from app.modules.credit.beat import _accrue_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _accrue_for_tenant
     _engine = _create_engine(get_settings().database_url)
     await _accrue_for_tenant(TEST_TENANT_SCHEMA, _engine)
     await _engine.dispose()
@@ -1277,9 +1277,10 @@ async def test_accrue_interest_idempotent(test_engine):
     finally:
         await session.close()
 
-    from app.modules.credit.beat import _accrue_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _accrue_for_tenant
     _engine = _create_engine(get_settings().database_url)
     await _accrue_for_tenant(TEST_TENANT_SCHEMA, _engine)
     await _accrue_for_tenant(TEST_TENANT_SCHEMA, _engine)  # second run
@@ -1328,9 +1329,10 @@ async def test_accrue_skips_flat_loans(test_engine):
     finally:
         await session.close()
 
-    from app.modules.credit.beat import _accrue_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _accrue_for_tenant
     _engine = _create_engine(get_settings().database_url)
     await _accrue_for_tenant(TEST_TENANT_SCHEMA, _engine)
     await _engine.dispose()
@@ -1370,9 +1372,10 @@ async def _make_disbursed_loan_with_interest(
     finally:
         await session.close()
 
-    from app.modules.credit.beat import _accrue_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _accrue_for_tenant
     _engine = _create_engine(get_settings().database_url)
     await _accrue_for_tenant(TEST_TENANT_SCHEMA, _engine)
     await _engine.dispose()
@@ -1498,7 +1501,7 @@ async def test_repayment_overpayment(test_engine):
 @pytest.mark.asyncio
 async def test_repayment_gl_balanced(test_engine):
     """GL entry for repayment is balanced (sum debits == sum credits)."""
-    from app.modules.ledger.models import JournalEntry, JournalLine
+    from app.modules.ledger.models import JournalLine
     accounts = await _setup_disbursement_accounts(test_engine)
     loan, accrued_interest = await _make_disbursed_loan_with_interest(test_engine, accounts)
 
@@ -1748,9 +1751,9 @@ async def _insert_outbox_event(
     payload: dict,
 ) -> uuid.UUID:
     """Insert a TenantOutboxEvent directly for testing."""
-    import json
+    from datetime import UTC, datetime
+
     from app.core.outbox.models import TenantOutboxEvent
-    from datetime import datetime, UTC
     event_id = uuid.uuid4()
     session = await _new_session(engine)
     try:
@@ -1897,9 +1900,10 @@ async def test_mark_in_arrears_when_installment_overdue(test_engine):
     finally:
         await session.close()
 
-    from app.modules.credit.beat import _mark_arrears_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _mark_arrears_for_tenant
     _engine = _create_engine(get_settings().database_url)
     await _mark_arrears_for_tenant(TEST_TENANT_SCHEMA, _engine)
     await _engine.dispose()
@@ -1927,7 +1931,6 @@ async def test_clear_arrears_when_caught_up(test_engine):
     finally:
         await session.close()
 
-    from datetime import timezone
     session2 = await _new_session(test_engine)
     try:
         installments = list(
@@ -1943,9 +1946,10 @@ async def test_clear_arrears_when_caught_up(test_engine):
     finally:
         await session2.close()
 
-    from app.modules.credit.beat import _mark_arrears_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _mark_arrears_for_tenant
     _engine = _create_engine(get_settings().database_url)
     await _mark_arrears_for_tenant(TEST_TENANT_SCHEMA, _engine)
     await _engine.dispose()
@@ -1981,9 +1985,10 @@ async def test_arrears_task_idempotent(test_engine):
     finally:
         await session.close()
 
-    from app.modules.credit.beat import _mark_arrears_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _mark_arrears_for_tenant
     _engine = _create_engine(get_settings().database_url)
     await _mark_arrears_for_tenant(TEST_TENANT_SCHEMA, _engine)
     await _mark_arrears_for_tenant(TEST_TENANT_SCHEMA, _engine)  # second run
@@ -2027,9 +2032,10 @@ async def test_arrears_task_skips_closed_written_off(test_engine):
     finally:
         await session2.close()
 
-    from app.modules.credit.beat import _mark_arrears_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _mark_arrears_for_tenant
     _engine = _create_engine(get_settings().database_url)
     await _mark_arrears_for_tenant(TEST_TENANT_SCHEMA, _engine)
     await _engine.dispose()
@@ -2327,9 +2333,10 @@ async def test_reconciliation_no_drift_after_clean_lifecycle(test_engine, caplog
     finally:
         await session.close()
 
-    from app.modules.credit.beat import _reconcile_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _reconcile_for_tenant
     _engine = _create_engine(get_settings().database_url)
 
     with caplog.at_level(logging.ERROR):
@@ -2356,9 +2363,10 @@ async def test_reconciliation_detects_injected_drift(test_engine):
     finally:
         await session.close()
 
-    from app.modules.credit.beat import _reconcile_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _reconcile_for_tenant
     _engine = _create_engine(get_settings().database_url)
     drifted = await _reconcile_for_tenant(TEST_TENANT_SCHEMA, _engine)
     await _engine.dispose()
@@ -2384,9 +2392,10 @@ async def test_reconciliation_does_not_modify_loan(test_engine):
     finally:
         await session.close()
 
-    from app.modules.credit.beat import _reconcile_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _reconcile_for_tenant
     _engine = _create_engine(get_settings().database_url)
     await _reconcile_for_tenant(TEST_TENANT_SCHEMA, _engine)
     await _engine.dispose()
@@ -2415,9 +2424,10 @@ async def test_reconciliation_skips_closed_loans(test_engine):
     finally:
         await session.close()
 
-    from app.modules.credit.beat import _reconcile_for_tenant
     from sqlalchemy.ext.asyncio import create_async_engine as _create_engine
+
     from app.core.config import get_settings
+    from app.modules.credit.beat import _reconcile_for_tenant
     _engine = _create_engine(get_settings().database_url)
     drifted = await _reconcile_for_tenant(TEST_TENANT_SCHEMA, _engine)
     await _engine.dispose()

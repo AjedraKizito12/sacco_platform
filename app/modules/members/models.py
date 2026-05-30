@@ -4,11 +4,11 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
+    TIMESTAMP,
     CheckConstraint,
     Date,
     Index,
     Text,
-    TIMESTAMP,
     UniqueConstraint,
     func,
 )

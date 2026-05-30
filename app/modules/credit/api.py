@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
 from app.modules.credit.models import Loan, LoanInstallment
-from app.modules.iam.dependencies import CurrentTenantUser
 from app.modules.credit.schemas import (
     DisburseIn,
     GuarantorConsentIn,
@@ -50,6 +49,7 @@ from app.modules.credit.services.product import LoanProductService
 from app.modules.credit.services.repayment import LoanRepaymentService
 from app.modules.credit.services.restructuring import LoanRestructuringService
 from app.modules.credit.services.write_off import LoanWriteOffService
+from app.modules.iam.dependencies import CurrentTenantUser
 from app.modules.maker_checker.service import ApprovalService
 
 router = APIRouter(prefix="/credit", tags=["credit"])

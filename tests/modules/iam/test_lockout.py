@@ -14,7 +14,6 @@ import pytest
 
 from app.modules.iam.lockout import is_locked, record_attempt, reset
 
-
 # ── FakeRedis ─────────────────────────────────────────────────────────────────
 
 

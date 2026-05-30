@@ -11,9 +11,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 import app.modules.credit.executors  # noqa: F401 — registers credit executors
-
 from app.modules.credit.models import PayrollBatch, PayrollBatchLine
-
 
 TEST_TENANT_SCHEMA = "tenant_test"
 
@@ -51,7 +49,7 @@ async def _new_session(engine: AsyncEngine):
 @pytest.mark.anyio
 async def test_submit_json_batch_creates_preview(test_engine: AsyncEngine) -> None:
     """JSON submission creates a batch with matched/unmatched lines."""
-    from tests.modules.credit.test_service import _setup_disbursed_loan, _cleanup
+    from tests.modules.credit.test_service import _cleanup, _setup_disbursed_loan
 
     session = await _new_session(test_engine)
     try:
@@ -90,7 +88,7 @@ async def test_submit_json_batch_creates_preview(test_engine: AsyncEngine) -> No
 @pytest.mark.anyio
 async def test_submit_csv_batch_creates_preview(test_engine: AsyncEngine) -> None:
     """CSV submission produces the same result as JSON."""
-    from tests.modules.credit.test_service import _setup_disbursed_loan, _cleanup
+    from tests.modules.credit.test_service import _cleanup, _setup_disbursed_loan
 
     session = await _new_session(test_engine)
     try:
@@ -123,10 +121,9 @@ async def test_submit_csv_batch_creates_preview(test_engine: AsyncEngine) -> Non
 async def test_apply_batch_applies_matched_lines(test_engine: AsyncEngine) -> None:
     """After approval, apply_batch posts repayments for all matched lines."""
     from tests.modules.credit.test_service import (
-        _setup_disbursement_accounts,
-        _make_disbursed_loan,
         _cleanup,
-        _new_session as _ts_new_session,
+        _make_disbursed_loan,
+        _setup_disbursement_accounts,
     )
 
     accounts = await _setup_disbursement_accounts(test_engine)
@@ -181,7 +178,7 @@ async def test_apply_batch_applies_matched_lines(test_engine: AsyncEngine) -> No
 
 @pytest.mark.anyio
 async def test_apply_before_approval_raises(test_engine: AsyncEngine) -> None:
-    from tests.modules.credit.test_service import _setup_disbursed_loan, _cleanup
+    from tests.modules.credit.test_service import _cleanup, _setup_disbursed_loan
 
     session = await _new_session(test_engine)
     try:

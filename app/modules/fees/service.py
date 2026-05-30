@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession

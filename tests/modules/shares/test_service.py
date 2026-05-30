@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+import app.modules.shares.executors  # noqa: F401 — registers shares executor in approval_registry
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
 from app.modules.ledger.service import LedgerService
 from app.modules.maker_checker.models.tenant import TenantApprovalAction, TenantApprovalRequest
@@ -21,8 +22,6 @@ from app.modules.members.models import Member
 from app.modules.members.service import MemberService
 from app.modules.shares.models import MemberShareAccount, ShareProduct, ShareTransaction
 from app.modules.shares.service import ShareService
-
-import app.modules.shares.executors  # noqa: F401 — registers shares executor in approval_registry
 
 TEST_TENANT_SCHEMA = "tenant_test"
 

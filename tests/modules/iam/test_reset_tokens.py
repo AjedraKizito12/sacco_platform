@@ -62,7 +62,7 @@ def test_wrong_token_type_raises_value_error() -> None:
     payload_b64 = base64.urlsafe_b64encode(
         json.dumps(payload).encode()
     ).rstrip(b"=").decode()
-    sig = hmac.new("secret".encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
+    sig = hmac.new(b"secret", payload_b64.encode(), hashlib.sha256).hexdigest()
     token = f"{payload_b64}.{sig}"
     with pytest.raises(ValueError, match="wrong token type"):
         verify_reset_token(token, "secret")

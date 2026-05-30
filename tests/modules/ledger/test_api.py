@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncGenerator
-from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient

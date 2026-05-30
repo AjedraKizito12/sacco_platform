@@ -868,9 +868,9 @@ async def test_savings_transaction_accepts_external_debit_type(test_engine):
 async def test_get_available_balance_subtracts_active_liens(test_engine: AsyncEngine) -> None:
     """Available balance = raw balance - SUM(active current_lien)."""
     from app.modules.credit.models import (
+        LoanApplication,
         LoanGuarantor,
         LoanGuarantorLien,
-        LoanApplication,
         LoanProduct,
     )
 

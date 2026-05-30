@@ -11,24 +11,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 
+import app.modules.credit.executors  # noqa: F401 — registers credit maker-checker executors
+import app.modules.ledger.executors  # noqa: F401 — registers ledger maker-checker executor
+import app.modules.members.executors  # noqa: F401 — registers members maker-checker executor
+import app.modules.savings.executors  # noqa: F401 — registers savings maker-checker executor
+import app.modules.shares.executors  # noqa: F401 — registers shares maker-checker executor
 from app.core.config import get_settings
 from app.core.db import engine
+from app.modules.credit.api import router as credit_router
+from app.modules.fees.api import router as fees_router
 from app.modules.iam.keys.api import jwks_router, key_mgmt_router
 from app.modules.iam.platform_auth.api import router as platform_auth_router
 from app.modules.iam.tenant_auth.api import router as tenant_auth_router
-from app.modules.maker_checker.api import router as maker_checker_router
-import app.modules.ledger.executors  # noqa: F401 — registers ledger maker-checker executor
-import app.modules.members.executors  # noqa: F401 — registers members maker-checker executor
-import app.modules.shares.executors  # noqa: F401 — registers shares maker-checker executor
-import app.modules.savings.executors  # noqa: F401 — registers savings maker-checker executor
-import app.modules.credit.executors  # noqa: F401 — registers credit maker-checker executors
-from app.modules.credit.api import router as credit_router
-from app.modules.fees.api import router as fees_router
 from app.modules.ledger.api import router as ledger_router
+from app.modules.maker_checker.api import router as maker_checker_router
 from app.modules.members.api import router as members_router
 from app.modules.reporting.api import router as reporting_router
-from app.modules.shares.api import router as shares_router
 from app.modules.savings.api import router as savings_router
+from app.modules.shares.api import router as shares_router
 from app.platform_.auth import get_current_superuser
 from app.platform_.tenants.api import router as platform_tenants_router
 from app.platform_.users.api import router as platform_users_router

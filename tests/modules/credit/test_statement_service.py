@@ -7,20 +7,20 @@ helpers from tests/modules/credit/test_service.py.
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone, timedelta
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.modules.credit.test_service import (
-    _new_session,
-    _cleanup,
-    _setup_disbursement_accounts,
-    _make_disbursed_loan,
-)
 from app.modules.credit.services.statement import LoanStatementService
 from app.modules.ledger.models import JournalEntry, JournalLine
+from tests.modules.credit.test_service import (
+    _cleanup,
+    _make_disbursed_loan,
+    _new_session,
+    _setup_disbursement_accounts,
+)
 
 VALID_LINE_TYPES = frozenset(
     [
@@ -79,8 +79,8 @@ async def test_get_statement_returns_lines_in_order(test_engine: AsyncEngine):
 
     session = await _new_session(test_engine)
     try:
-        t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-        t2 = datetime(2026, 2, 1, 0, 0, 0, tzinfo=timezone.utc)
+        t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+        t2 = datetime(2026, 2, 1, 0, 0, 0, tzinfo=UTC)
 
         await _add_journal_line(
             session,
@@ -131,8 +131,8 @@ async def test_get_statement_running_balance_correct(test_engine: AsyncEngine):
 
     session = await _new_session(test_engine)
     try:
-        t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-        t2 = datetime(2026, 2, 1, 0, 0, 0, tzinfo=timezone.utc)
+        t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+        t2 = datetime(2026, 2, 1, 0, 0, 0, tzinfo=UTC)
 
         await _add_journal_line(
             session,
@@ -181,9 +181,9 @@ async def test_get_statement_date_filter(test_engine: AsyncEngine):
 
     session = await _new_session(test_engine)
     try:
-        t_jan = datetime(2026, 1, 15, 0, 0, 0, tzinfo=timezone.utc)
-        t_feb = datetime(2026, 2, 15, 0, 0, 0, tzinfo=timezone.utc)
-        t_mar = datetime(2026, 3, 15, 0, 0, 0, tzinfo=timezone.utc)
+        t_jan = datetime(2026, 1, 15, 0, 0, 0, tzinfo=UTC)
+        t_feb = datetime(2026, 2, 15, 0, 0, 0, tzinfo=UTC)
+        t_mar = datetime(2026, 3, 15, 0, 0, 0, tzinfo=UTC)
 
         for ts, ref in [
             (t_jan, "LOAN-REP-JAN"),
@@ -259,7 +259,7 @@ async def test_get_statement_line_fields(test_engine: AsyncEngine):
             description="Field test disbursement",
             debit=Decimal("50000"),
             credit=Decimal("0"),
-            posted_at=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+            posted_at=datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC),
         )
         await session.commit()
     finally:
@@ -298,7 +298,7 @@ async def test_render_pdf_returns_bytes(test_engine: AsyncEngine):
             description="PDF test disbursement",
             debit=Decimal("120000"),
             credit=Decimal("0"),
-            posted_at=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+            posted_at=datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC),
         )
         await session.commit()
     finally:
@@ -331,7 +331,7 @@ async def test_render_pdf_date_filtered(test_engine: AsyncEngine):
             description="PDF range test repayment",
             debit=Decimal("0"),
             credit=Decimal("10000"),
-            posted_at=datetime(2026, 3, 1, 0, 0, 0, tzinfo=timezone.utc),
+            posted_at=datetime(2026, 3, 1, 0, 0, 0, tzinfo=UTC),
         )
         await session.commit()
     finally:

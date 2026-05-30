@@ -255,6 +255,7 @@ class ShareService:
         product = await self.get_product(account.share_product_id)
 
         from sqlalchemy import select as sa_select
+
         from app.modules.maker_checker.models.tenant import TenantApprovalRequest
 
         existing_req = await self._session.scalar(

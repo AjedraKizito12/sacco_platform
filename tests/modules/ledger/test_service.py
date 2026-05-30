@@ -10,13 +10,13 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import delete, text
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+import app.modules.ledger.executors  # noqa: F401 — registers ledger executor in approval_registry
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
 from app.modules.ledger.service import LedgerService
-from app.modules.maker_checker.models.tenant import TenantApprovalRequest, TenantApprovalAction
+from app.modules.maker_checker.models.tenant import TenantApprovalAction, TenantApprovalRequest
 from app.modules.maker_checker.service import ApprovalService
-import app.modules.ledger.executors  # noqa: F401 — registers ledger executor in approval_registry
 
 TEST_TENANT_SCHEMA = "tenant_test"
 
@@ -405,6 +405,7 @@ async def test_executor_posts_journal_entry_on_approve(test_engine):
 async def test_post_journal_entry_stores_sub_ledger_fields(test_engine):
     """sub_ledger_type and sub_ledger_id on a line dict are stored on JournalLine."""
     import uuid as _uuid
+
     from sqlalchemy import select as sa_select
 
     session = await _new_session(test_engine)

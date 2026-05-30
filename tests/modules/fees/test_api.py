@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pytest
@@ -19,7 +17,6 @@ from app.main import app, lifespan
 from app.modules.fees.models import FeeAssessment, FeeCollection, FeeType
 from app.modules.ledger.models import ChartOfAccount, JournalEntry, JournalLine
 from app.modules.members.models import Member
-from app.modules.savings.models import SavingsAccount, SavingsProduct, SavingsTransaction
 
 TEST_TENANT_SCHEMA = "tenant_test"
 HEADERS = {"X-Tenant-Slug": "test-tenant"}

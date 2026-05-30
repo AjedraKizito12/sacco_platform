@@ -39,20 +39,20 @@ def anyio_backend() -> str:
 @pytest.fixture(scope="session")
 async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     """One engine per test session. Schemas created once; dropped on teardown."""
-    from app.core.db import Base  # noqa: F401 — triggers metadata registration
     import app.core.outbox.models  # noqa: F401 — registers TenantOutboxEvent/PlatformOutboxEvent in Base.metadata
-    import app.modules.maker_checker.models.tenant  # noqa: F401 — registers approval_requests in Base.metadata
-    import app.modules.maker_checker.models.platform  # noqa: F401 — registers platform approval_requests in Base.metadata
+    import app.modules.credit.models  # noqa: F401 — registers credit tables in Base.metadata
+    import app.modules.fees.models  # noqa: F401 — registers fee tables in Base.metadata
     import app.modules.iam.keys.models  # noqa: F401 — registers JwtSigningKey in Base.metadata
     import app.modules.iam.sessions.models  # noqa: F401 — registers PlatformSession, TenantSession in Base.metadata
     import app.modules.iam.tenant_users.models  # noqa: F401 — registers TenantUser in Base.metadata
     import app.modules.ledger.models  # noqa: F401 — registers ledger tables in Base.metadata
+    import app.modules.maker_checker.models.platform  # noqa: F401 — registers platform approval_requests in Base.metadata
+    import app.modules.maker_checker.models.tenant  # noqa: F401 — registers approval_requests in Base.metadata
     import app.modules.members.models  # noqa: F401 — registers members table in Base.metadata
-    import app.modules.shares.models  # noqa: F401 — registers shares tables in Base.metadata
-    import app.modules.savings.models  # noqa: F401 — registers savings tables in Base.metadata
-    import app.modules.fees.models  # noqa: F401 — registers fee tables in Base.metadata
-    import app.modules.credit.models  # noqa: F401 — registers credit tables in Base.metadata
     import app.modules.reporting.models  # noqa: F401 — registers reporting tables in Base.metadata
+    import app.modules.savings.models  # noqa: F401 — registers savings tables in Base.metadata
+    import app.modules.shares.models  # noqa: F401 — registers shares tables in Base.metadata
+    from app.core.db import Base  # noqa: F401 — triggers metadata registration
 
     url = os.environ["DATABASE_URL"]
     engine = create_async_engine(url, echo=False, poolclass=NullPool)

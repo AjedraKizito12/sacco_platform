@@ -5,6 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    TIMESTAMP,
     Boolean,
     CheckConstraint,
     ForeignKey,
@@ -12,7 +13,6 @@ from sqlalchemy import (
     Integer,
     Numeric,
     Text,
-    TIMESTAMP,
     UniqueConstraint,
     func,
 )

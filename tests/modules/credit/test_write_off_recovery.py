@@ -1,29 +1,27 @@
 """Tests for LoanWriteOffService.recover()."""
 from __future__ import annotations
 
-import uuid
 from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
-
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.modules.credit.models import Loan
 
 # Import helpers from existing test_service
 from tests.modules.credit.test_service import (
+    _cleanup,
+    _make_disbursed_loan,
     _new_session,
     _setup_disbursement_accounts,
-    _make_disbursed_loan,
-    _cleanup,
 )
 
 
 async def _make_written_off_loan(test_engine: AsyncEngine, accounts: dict) -> Loan:
     """Set up a loan in written_off status with total_written_off populated."""
-    from app.modules.credit.services.write_off import LoanWriteOffService
     from app.modules.credit.models import LoanProduct
+    from app.modules.credit.services.write_off import LoanWriteOffService
 
     # First create a disbursed loan
     loan = await _make_disbursed_loan(test_engine, accounts)

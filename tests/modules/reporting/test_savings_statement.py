@@ -80,7 +80,7 @@ async def _seed_savings(session: AsyncSession) -> tuple[uuid.UUID, uuid.UUID]:
 
     amounts = [Decimal("1000"), Decimal("500"), Decimal("200")]
     txn_types = ["deposit", "deposit", "withdrawal"]
-    for i, (je, amount, txn_type) in enumerate(zip(entries, amounts, txn_types)):
+    for i, (je, amount, txn_type) in enumerate(zip(entries, amounts, txn_types, strict=False)):
         txn = SavingsTransaction(
             savings_account_id=account.id,
             transaction_type=txn_type,

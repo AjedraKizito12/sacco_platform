@@ -12,10 +12,11 @@ included in requests for realism but is not validated.
 """
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
-from unittest.mock import AsyncMock
 
 from app.main import app
 from app.modules.iam.tenant_auth.schemas import TenantTokenResponse
