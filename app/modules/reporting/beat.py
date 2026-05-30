@@ -222,3 +222,51 @@ async def _run_materialize_savings_statement() -> dict[str, str]:
 def materialize_savings_statement() -> dict[str, str]:
     """Nightly 01:00 UTC: materialize current-month savings statements for all active tenants."""
     return asyncio.run(_run_materialize_savings_statement())
+
+
+async def _materialize_fee_collection_for_tenant(schema_name: str, engine) -> None:
+    from app.modules.reporting.services.fee_collection import FeeCollectionService  # noqa: PLC0415
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    today = date.today()
+    period_start = today.replace(day=1)
+    period_end = today
+
+    async with factory() as session:
+        await session.execute(
+            text(f"SET LOCAL search_path TO {schema_name}, platform")  # noqa: S608
+        )
+        svc = FeeCollectionService(session)
+        await svc.materialize(period_start=period_start, period_end=period_end)
+        await session.commit()
+
+
+async def _run_materialize_fee_collection() -> dict[str, str]:
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    result: dict[str, str] = {}
+    try:
+        async with engine.connect() as conn:
+            rows = await conn.execute(
+                text("SELECT schema_name FROM platform.tenants WHERE is_active = true")
+            )
+            schemas = [row[0] for row in rows.fetchall()]
+        for schema_name in schemas:
+            if not _SCHEMA_RE.match(schema_name):
+                continue
+            try:
+                await _materialize_fee_collection_for_tenant(schema_name, engine)
+                result[schema_name] = "done"
+            except Exception as exc:
+                _log.error("reporting.beat.fee_collection_error", schema=schema_name, error=str(exc))
+                result[schema_name] = f"error: {exc}"
+    finally:
+        await engine.dispose()
+    _log.info("reporting.beat.fee_collection_complete", **result)
+    return result
+
+
+@celery_app.task(name="app.modules.reporting.beat.materialize_fee_collection")  # type: ignore[misc]
+def materialize_fee_collection() -> dict[str, str]:
+    """Nightly 01:00 UTC: materialize fee collection report for all active tenants."""
+    return asyncio.run(_run_materialize_fee_collection())

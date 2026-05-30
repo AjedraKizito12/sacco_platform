@@ -1,0 +1,50 @@
+<!-- app/modules/reporting/templates/fee_collection.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fee Collection Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; }
+    h1 { font-size: 16px; margin-bottom: 4px; }
+    .meta { color: #555; font-size: 10px; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #6c3483; color: white; padding: 6px 8px; text-align: left; }
+    td { padding: 5px 8px; border-bottom: 1px solid #e0e0e0; }
+    tr:nth-child(even) td { background: #f8f8f8; }
+    .num { text-align: right; }
+    tfoot td { font-weight: bold; border-top: 2px solid #6c3483; }
+  </style>
+</head>
+<body>
+  <h1>Fee Collection Report</h1>
+  <div class="meta">
+    Period: {{ from_date }} to {{ to_date }} &nbsp;|&nbsp;
+    Generated: {{ generated_at.strftime('%Y-%m-%d %H:%M UTC') if generated_at else '' }}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Fee Type</th>
+        <th>Target Type</th>
+        <th class="num">Assessed</th>
+        <th class="num">Collected</th>
+        <th class="num">Outstanding</th>
+        <th class="num">Waived</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.fee_type_name }}</td>
+        <td>{{ r.target_type }}</td>
+        <td class="num">{{ "{:,.4f}".format(r.assessed_total) }}</td>
+        <td class="num">{{ "{:,.4f}".format(r.collected_total) }}</td>
+        <td class="num">{{ "{:,.4f}".format(r.outstanding_total) }}</td>
+        <td class="num">{{ "{:,.4f}".format(r.waived_total) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
