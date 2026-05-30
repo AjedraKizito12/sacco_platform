@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
+from app.modules.iam.dependencies import CurrentTenantUser
 from app.modules.ledger.schemas import (
     AccountIn,
     AccountOut,
@@ -26,14 +27,16 @@ Session = Annotated[AsyncSession, Depends(get_tenant_session)]
 
 
 @router.post("/accounts", response_model=AccountOut, status_code=201)
-async def create_account(body: AccountIn, session: Session) -> AccountOut:
+async def create_account(
+    body: AccountIn, session: Session, user: CurrentTenantUser
+) -> AccountOut:
     svc = LedgerService(session)
     try:
         account = await svc.create_account(
             code=body.code,
             name=body.name,
             account_type=body.account_type,
-            created_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser actor
+            created_by=user.id,
             parent_id=body.parent_id,
             description=body.description,
         )
@@ -45,14 +48,18 @@ async def create_account(body: AccountIn, session: Session) -> AccountOut:
 
 
 @router.get("/accounts", response_model=list[AccountOut])
-async def list_accounts(session: Session, include_inactive: bool = False) -> list[AccountOut]:
+async def list_accounts(
+    session: Session, user: CurrentTenantUser, include_inactive: bool = False
+) -> list[AccountOut]:
     svc = LedgerService(session)
     accounts = await svc.list_accounts(include_inactive=include_inactive)
     return [AccountOut.model_validate(a) for a in accounts]
 
 
 @router.get("/accounts/{account_id}", response_model=AccountWithBalanceOut)
-async def get_account(account_id: uuid.UUID, session: Session) -> AccountWithBalanceOut:
+async def get_account(
+    account_id: uuid.UUID, session: Session, user: CurrentTenantUser
+) -> AccountWithBalanceOut:
     svc = LedgerService(session)
     try:
         account = await svc.get_account(account_id)
@@ -68,7 +75,9 @@ async def get_account(account_id: uuid.UUID, session: Session) -> AccountWithBal
 
 
 @router.post("/journal-entries/submit", response_model=ManualGLSubmitOut, status_code=202)
-async def submit_manual_entry(body: ManualGLSubmitIn, session: Session) -> ManualGLSubmitOut:
+async def submit_manual_entry(
+    body: ManualGLSubmitIn, session: Session, user: CurrentTenantUser
+) -> ManualGLSubmitOut:
     svc = LedgerService(session)
     lines = [
         {
@@ -83,7 +92,7 @@ async def submit_manual_entry(body: ManualGLSubmitIn, session: Session) -> Manua
         approval_id = await svc.submit_manual_entry(
             reference=body.reference,
             description=body.description,
-            submitted_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser actor
+            submitted_by=user.id,
             idempotency_key=body.idempotency_key,
             lines=lines,
         )
@@ -93,14 +102,18 @@ async def submit_manual_entry(body: ManualGLSubmitIn, session: Session) -> Manua
 
 
 @router.get("/journal-entries", response_model=list[JournalEntryOut])
-async def list_journal_entries(session: Session) -> list[JournalEntryOut]:
+async def list_journal_entries(
+    session: Session, user: CurrentTenantUser
+) -> list[JournalEntryOut]:
     svc = LedgerService(session)
     entries = await svc.list_journal_entries()
     return [JournalEntryOut.model_validate(e) for e in entries]
 
 
 @router.get("/journal-entries/{entry_id}", response_model=JournalEntryOut)
-async def get_journal_entry(entry_id: uuid.UUID, session: Session) -> JournalEntryOut:
+async def get_journal_entry(
+    entry_id: uuid.UUID, session: Session, user: CurrentTenantUser
+) -> JournalEntryOut:
     svc = LedgerService(session)
     try:
         entry = await svc.get_journal_entry(entry_id)
