@@ -3,11 +3,12 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
+from app.modules.iam.dependencies import CurrentTenantUser
 from app.modules.maker_checker.models.tenant import TenantApprovalRequest
 from app.modules.maker_checker.schemas import (
     ApprovalActionRequest,
@@ -21,32 +22,19 @@ router = APIRouter(prefix="/approvals", tags=["maker-checker"])
 
 Session = Annotated[AsyncSession, Depends(get_tenant_session)]
 
-# Actor resolution is a stub until the IAM module provides JWT-based identity.
-# Caller passes X-Actor-ID header for now; IAM will replace this.
-
-
-async def _get_actor(x_actor_id: str = Header(...)) -> uuid.UUID:
-    try:
-        return uuid.UUID(x_actor_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Invalid X-Actor-ID header") from exc
-
-
-Actor = Annotated[uuid.UUID, Depends(_get_actor)]
-
 
 @router.post("", response_model=ApprovalRequestOut, status_code=201)
 async def submit_approval(
     body: SubmitApprovalRequest,
     session: Session,
-    actor_id: Actor,
+    user: CurrentTenantUser,
 ) -> ApprovalRequestOut:
     svc = ApprovalService(session)
     try:
         request = await svc.submit(
             operation_type=body.operation_type,
             payload=body.payload,
-            requested_by=actor_id,
+            requested_by=user.id,
             required_approvals=body.required_approvals,
             expires_at=body.expires_at,
         )
@@ -59,6 +47,7 @@ async def submit_approval(
 @router.get("", response_model=list[ApprovalRequestOut])
 async def list_approvals(
     session: Session,
+    user: CurrentTenantUser,
     status: str | None = Query(None),
     operation_type: str | None = Query(None),
 ) -> list[ApprovalRequestOut]:
@@ -72,7 +61,9 @@ async def list_approvals(
 
 
 @router.get("/{request_id}", response_model=ApprovalRequestOut)
-async def get_approval(request_id: uuid.UUID, session: Session) -> ApprovalRequestOut:
+async def get_approval(
+    request_id: uuid.UUID, session: Session, user: CurrentTenantUser
+) -> ApprovalRequestOut:
     row = (
         await session.execute(
             select(TenantApprovalRequest).where(TenantApprovalRequest.id == request_id)
@@ -88,12 +79,12 @@ async def approve(
     request_id: uuid.UUID,
     body: ApprovalActionRequest,
     session: Session,
-    actor_id: Actor,
+    user: CurrentTenantUser,
 ) -> ApprovalRequestOut:
     svc = ApprovalService(session)
     try:
         request = await svc.approve(
-            request_id=request_id, actor_user_id=actor_id, comment=body.comment
+            request_id=request_id, actor_user_id=user.id, comment=body.comment
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -106,12 +97,12 @@ async def reject(
     request_id: uuid.UUID,
     body: RejectRequest,
     session: Session,
-    actor_id: Actor,
+    user: CurrentTenantUser,
 ) -> ApprovalRequestOut:
     svc = ApprovalService(session)
     try:
         request = await svc.reject(
-            request_id=request_id, actor_user_id=actor_id, reason=body.reason
+            request_id=request_id, actor_user_id=user.id, reason=body.reason
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -124,11 +115,11 @@ async def cancel(
     request_id: uuid.UUID,
     body: ApprovalActionRequest,
     session: Session,
-    actor_id: Actor,
+    user: CurrentTenantUser,
 ) -> ApprovalRequestOut:
     svc = ApprovalService(session)
     try:
-        request = await svc.cancel(request_id=request_id, requested_by=actor_id)
+        request = await svc.cancel(request_id=request_id, requested_by=user.id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await session.commit()

@@ -10,6 +10,8 @@ before applying their entities.
 """
 from __future__ import annotations
 
+import uuid
+
 import structlog
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
@@ -79,11 +81,11 @@ async def _seed_fee_types(session: AsyncSession, schema_name: str) -> None:
                 await session.execute(
                     text(
                         "INSERT INTO fee_types "
-                        "(code, name, description, applicable_to, amount_kind, amount, currency, "
+                        "(id, code, name, description, applicable_to, amount_kind, amount, currency, "
                         "trigger_kind, event_name, schedule_config, "
                         "gl_income_account_code, gl_receivable_account_code, "
                         "is_active, requires_collection, created_at, updated_at) "
-                        "VALUES (:code, :name, :description, :applicable_to, :amount_kind, "
+                        "VALUES (:id, :code, :name, :description, :applicable_to, :amount_kind, "
                         ":amount, :currency, :trigger_kind, :event_name, "
                         "CAST(:schedule_config AS jsonb), "
                         ":gl_income_account_code, :gl_receivable_account_code, "
@@ -91,6 +93,7 @@ async def _seed_fee_types(session: AsyncSession, schema_name: str) -> None:
                         "ON CONFLICT (code) DO NOTHING"
                     ),
                     {
+                        "id": uuid.uuid4(),
                         "code": ft["code"],
                         "name": ft["name"],
                         "description": ft.get("description"),
@@ -119,13 +122,14 @@ async def _seed_chart_of_accounts(session: AsyncSession, schema_name: str) -> No
                 await session.execute(
                     text(
                         "INSERT INTO chart_of_accounts "
-                        "(code, name, account_type, "
+                        "(id, code, name, account_type, "
                         "is_active, created_at, updated_at) "
-                        "VALUES (:code, :name, :account_type, "
+                        "VALUES (:id, :code, :name, :account_type, "
                         "true, now(), now()) "
                         "ON CONFLICT (code) DO NOTHING"
                     ),
                     {
+                        "id": uuid.uuid4(),
                         "code": account["code"],
                         "name": account["name"],
                         "account_type": account["account_type"],

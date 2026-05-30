@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
 from app.modules.credit.models import Loan, LoanInstallment
+from app.modules.iam.dependencies import CurrentTenantUser
 from app.modules.credit.schemas import (
     DisburseIn,
     GuarantorConsentIn,
@@ -59,7 +60,9 @@ Session = Annotated[AsyncSession, Depends(get_tenant_session)]
 
 
 @router.post("/products", response_model=LoanProductOut, status_code=201)
-async def create_loan_product(body: LoanProductCreateIn, session: Session) -> LoanProductOut:
+async def create_loan_product(
+    body: LoanProductCreateIn, session: Session, user: CurrentTenantUser
+) -> LoanProductOut:
     try:
         svc = LoanProductService(session)
         product = await svc.create(
@@ -80,7 +83,7 @@ async def create_loan_product(body: LoanProductCreateIn, session: Session) -> Lo
             gl_loan_loss_expense_code=body.gl_loan_loss_expense_code,
             penalty_fee_type_code=body.penalty_fee_type_code,
             write_off_threshold=body.write_off_threshold,
-            created_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser in sub-plan 12
+            created_by=user.id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -90,6 +93,7 @@ async def create_loan_product(body: LoanProductCreateIn, session: Session) -> Lo
 @router.get("/products", response_model=list[LoanProductOut])
 async def list_loan_products(
     session: Session,
+    user: CurrentTenantUser,
     include_inactive: bool = Query(default=False),
 ) -> list[LoanProductOut]:
     svc = LoanProductService(session)
@@ -98,7 +102,9 @@ async def list_loan_products(
 
 
 @router.get("/products/{product_id}", response_model=LoanProductOut)
-async def get_loan_product(product_id: uuid.UUID, session: Session) -> LoanProductOut:
+async def get_loan_product(
+    product_id: uuid.UUID, session: Session, user: CurrentTenantUser
+) -> LoanProductOut:
     try:
         svc = LoanProductService(session)
         product = await svc.get(product_id)
@@ -112,6 +118,7 @@ async def patch_loan_product(
     product_id: uuid.UUID,
     body: LoanProductPatchIn,
     session: Session,
+    user: CurrentTenantUser,
 ) -> LoanProductOut:
     try:
         svc = LoanProductService(session)
@@ -121,7 +128,7 @@ async def patch_loan_product(
             description=body.description,
             penalty_fee_type_code=body.penalty_fee_type_code,
             write_off_threshold=body.write_off_threshold,
-            updated_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser in sub-plan 12
+            updated_by=user.id,
         )
     except ValueError as exc:
         status_code = 404 if "not found" in str(exc) else 400
@@ -134,7 +141,7 @@ async def patch_loan_product(
 
 @router.post("/applications", response_model=LoanApplicationOut, status_code=201)
 async def submit_loan_application(
-    body: LoanApplicationCreateIn, session: Session
+    body: LoanApplicationCreateIn, session: Session, user: CurrentTenantUser
 ) -> LoanApplicationOut:
     try:
         svc = LoanApplicationService(session)
@@ -146,7 +153,7 @@ async def submit_loan_application(
             purpose=body.purpose,
             disbursement_destination=body.disbursement_destination,
             disbursement_account_id=body.disbursement_account_id,
-            submitted_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser in sub-plan 12
+            submitted_by=user.id,
             idempotency_key=body.idempotency_key,
         )
     except ValueError as exc:
@@ -158,6 +165,7 @@ async def submit_loan_application(
 @router.get("/applications", response_model=list[LoanApplicationOut])
 async def list_loan_applications(
     session: Session,
+    user: CurrentTenantUser,
     member_id: Annotated[uuid.UUID | None, Query()] = None,
     status: Annotated[str | None, Query()] = None,
 ) -> list[LoanApplicationOut]:
@@ -168,7 +176,7 @@ async def list_loan_applications(
 
 @router.get("/applications/{application_id}", response_model=LoanApplicationOut)
 async def get_loan_application(
-    application_id: uuid.UUID, session: Session
+    application_id: uuid.UUID, session: Session, user: CurrentTenantUser
 ) -> LoanApplicationOut:
     try:
         svc = LoanApplicationService(session)
@@ -180,15 +188,15 @@ async def get_loan_application(
 
 @router.post("/applications/{application_id}/withdraw", response_model=LoanApplicationOut)
 async def withdraw_loan_application(
-    application_id: uuid.UUID, session: Session
+    application_id: uuid.UUID, session: Session, user: CurrentTenantUser
 ) -> LoanApplicationOut:
     try:
         svc = LoanApplicationService(session)
-        # Fetch app first to resolve the original submitter's actor ID via the
-        # approval request, so the maker-checker cancel check passes.
-        # TODO SP12: replace resolved actor with CurrentTenantUser.user_id
+        # Withdraw by the original submitter (resolved via the approval request)
+        # so the maker-checker cancel check passes; fall back to the current user
+        # if there is no linked approval request (shouldn't happen in practice).
         application = await svc.get(application_id=application_id)
-        actor_id = uuid.uuid4()
+        actor_id = user.id
         if application.approval_request_id is not None:
             from app.modules.maker_checker.models.tenant import TenantApprovalRequest
 
@@ -207,7 +215,10 @@ async def withdraw_loan_application(
 
 @router.post("/applications/{application_id}/approve", response_model=LoanApplicationOut)
 async def approve_loan_application(
-    application_id: uuid.UUID, body: LoanApplicationApproveIn, session: Session
+    application_id: uuid.UUID,
+    body: LoanApplicationApproveIn,
+    session: Session,
+    user: CurrentTenantUser,
 ) -> LoanApplicationOut:
     try:
         svc = LoanApplicationService(session)
@@ -217,7 +228,7 @@ async def approve_loan_application(
         approval_svc = ApprovalService(session)
         await approval_svc.approve(
             request_id=application.approval_request_id,
-            actor_user_id=uuid.uuid4(),  # TODO: replace with CurrentTenantUser in sub-plan 12
+            actor_user_id=user.id,
             comment=body.comment,
         )
     except ValueError as exc:
@@ -228,13 +239,16 @@ async def approve_loan_application(
 
 @router.post("/applications/{application_id}/reject", response_model=LoanApplicationOut)
 async def reject_loan_application(
-    application_id: uuid.UUID, body: LoanApplicationRejectIn, session: Session
+    application_id: uuid.UUID,
+    body: LoanApplicationRejectIn,
+    session: Session,
+    user: CurrentTenantUser,
 ) -> LoanApplicationOut:
     try:
         svc = LoanApplicationService(session)
         application = await svc.reject(
             application_id=application_id,
-            rejected_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser in sub-plan 12
+            rejected_by=user.id,
             reason=body.reason,
         )
     except ValueError as exc:
@@ -255,12 +269,13 @@ async def disburse_loan(
     application_id: uuid.UUID,
     body: DisburseIn,
     session: Session,
+    user: CurrentTenantUser,
 ) -> LoanOut:
     try:
         svc = LoanDisbursementService(session)
         loan = await svc.disburse(
             loan_application_id=application_id,
-            actor_id=uuid.uuid4(),  # TODO: replace with CurrentTenantUser in sub-plan 12
+            actor_id=user.id,
             idempotency_key=body.idempotency_key,
         )
         await session.commit()
@@ -273,6 +288,7 @@ async def disburse_loan(
 @router.get("/loans", response_model=list[LoanOut])
 async def list_loans(
     session: Session,
+    user: CurrentTenantUser,
     member_id: Annotated[uuid.UUID | None, Query()] = None,
     status: Annotated[str | None, Query()] = None,
 ) -> list[LoanOut]:
@@ -289,6 +305,7 @@ async def list_loans(
 async def get_loan(
     loan_id: uuid.UUID,
     session: Session,
+    user: CurrentTenantUser,
 ) -> LoanOut:
     loan = await session.get(Loan, loan_id)
     if loan is None:
@@ -304,6 +321,7 @@ async def post_repayment(
     loan_id: uuid.UUID,
     body: LoanRepaymentCreateIn,
     session: Session,
+    user: CurrentTenantUser,
 ) -> LoanRepaymentOut:
     try:
         svc = LoanRepaymentService(session)
@@ -311,7 +329,7 @@ async def post_repayment(
             loan_id=loan_id,
             amount=body.amount,
             payment_account_id=body.payment_account_id,
-            posted_by=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            posted_by=user.id,
             narration=body.narration,
             idempotency_key=body.idempotency_key,
             savings_account_id=body.savings_account_id,
@@ -327,6 +345,7 @@ async def post_repayment(
 async def list_repayments(
     loan_id: uuid.UUID,
     session: Session,
+    user: CurrentTenantUser,
 ) -> list[LoanRepaymentOut]:
     svc = LoanRepaymentService(session)
     repayments = await svc.list_repayments(loan_id)
@@ -340,6 +359,7 @@ async def list_repayments(
 async def get_schedule(
     loan_id: uuid.UUID,
     session: Session,
+    user: CurrentTenantUser,
 ) -> list[LoanInstallmentOut]:
     installments = list(
         (
@@ -361,6 +381,7 @@ async def write_off_loan(
     loan_id: uuid.UUID,
     body: WriteOffIn,
     session: Session,
+    user: CurrentTenantUser,
 ) -> WriteOffOut:
     try:
         svc = LoanWriteOffService(session)
@@ -368,7 +389,7 @@ async def write_off_loan(
             loan_id=loan_id,
             amount=body.amount,
             reason=body.reason,
-            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            actor_id=user.id,
             idempotency_key=body.idempotency_key,
             loan_loss_account_code=body.loan_loss_account_code,
         )
@@ -384,6 +405,7 @@ async def recover_written_off_loan(
     loan_id: uuid.UUID,
     body: LoanRecoveryIn,
     session: Session,
+    user: CurrentTenantUser,
 ) -> LoanRecoveryOut:
     try:
         svc = LoanWriteOffService(session)
@@ -391,7 +413,7 @@ async def recover_written_off_loan(
             loan_id=loan_id,
             amount=body.amount,
             reason=body.reason,
-            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            actor_id=user.id,
             idempotency_key=body.idempotency_key,
         )
         await session.commit()
@@ -407,6 +429,7 @@ async def recover_written_off_loan(
 @router.get("/query/loans-eligible-for-fee", response_model=list[dict])
 async def loans_eligible_for_fee(
     session: Session,
+    user: CurrentTenantUser,
     min_days_past_due: int = 0,
 ) -> list[dict]:
     from app.modules.credit.services.query import CreditQueryService
@@ -425,6 +448,7 @@ async def nominate_guarantors(
     application_id: uuid.UUID,
     body: GuarantorNominateIn,
     session: Session,
+    user: CurrentTenantUser,
 ) -> list[GuarantorOut]:
     try:
         from app.modules.credit.services.guarantor import GuarantorService
@@ -432,7 +456,7 @@ async def nominate_guarantors(
         guarantors = await svc.nominate(
             application_id=application_id,
             guarantor_member_ids=body.guarantor_member_ids,
-            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            actor_id=user.id,
         )
         await session.commit()
     except ValueError as exc:
@@ -445,6 +469,7 @@ async def nominate_guarantors(
 async def list_guarantors(
     application_id: uuid.UUID,
     session: Session,
+    user: CurrentTenantUser,
 ) -> list[GuarantorOut]:
     from app.modules.credit.models import LoanGuarantor
     result = await session.execute(
@@ -458,6 +483,7 @@ async def accept_guarantor(
     guarantor_id: uuid.UUID,
     body: GuarantorConsentIn,
     session: Session,
+    user: CurrentTenantUser,
 ) -> GuarantorOut:
     try:
         from app.modules.credit.services.guarantor import GuarantorService
@@ -478,6 +504,7 @@ async def decline_guarantor(
     guarantor_id: uuid.UUID,
     body: GuarantorConsentIn,
     session: Session,
+    user: CurrentTenantUser,
 ) -> GuarantorOut:
     try:
         from app.modules.credit.services.guarantor import GuarantorService
@@ -501,6 +528,7 @@ async def restructure_loan(
     loan_id: uuid.UUID,
     body: RestructureIn,
     session: Session,
+    user: CurrentTenantUser,
 ) -> dict:
     """Submit a loan restructuring for maker-checker approval (quorum=2)."""
     try:
@@ -510,7 +538,7 @@ async def restructure_loan(
             restructuring_type=body.restructuring_type,
             periods_added=body.periods_added,
             reason=body.reason,
-            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            actor_id=user.id,
             idempotency_key=body.idempotency_key,
         )
         await session.commit()
@@ -524,6 +552,7 @@ async def restructure_loan(
 async def list_restructurings(
     loan_id: uuid.UUID,
     session: Session,
+    user: CurrentTenantUser,
 ) -> list[RestructuringOut]:
     """List all executed restructurings for a loan."""
     from app.modules.credit.models import LoanRestructuring  # noqa: PLC0415
@@ -542,6 +571,7 @@ async def list_restructurings(
 async def submit_payroll_batch_json(
     body: PayrollBatchJsonIn,
     session: Session,
+    user: CurrentTenantUser,
 ) -> PayrollBatchOut:
     from app.modules.credit.services.payroll import PayrollBatchService  # noqa: PLC0415
     svc = PayrollBatchService(session)
@@ -550,7 +580,7 @@ async def submit_payroll_batch_json(
         batch = await svc.submit_batch(
             rows=rows,
             source_format="json",
-            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            actor_id=user.id,
             idempotency_key=body.idempotency_key,
             clearing_account_id=body.clearing_account_id,
         )
@@ -565,6 +595,7 @@ async def submit_payroll_batch_csv(
     clearing_account_id: uuid.UUID,
     idempotency_key: str,
     session: Session,
+    user: CurrentTenantUser,
 ) -> PayrollBatchOut:
     from app.modules.credit.services.payroll import PayrollBatchService  # noqa: PLC0415
     svc = PayrollBatchService(session)
@@ -572,7 +603,7 @@ async def submit_payroll_batch_csv(
     try:
         batch = await svc.submit_batch_csv(
             csv_bytes=contents,
-            actor_id=uuid.uuid4(),  # TODO SP12: replace with current_user.user_id
+            actor_id=user.id,
             idempotency_key=idempotency_key,
             clearing_account_id=clearing_account_id,
         )
@@ -585,6 +616,7 @@ async def submit_payroll_batch_csv(
 async def get_payroll_batch(
     batch_id: uuid.UUID,
     session: Session,
+    user: CurrentTenantUser,
 ) -> PayrollBatchOut:
     from app.modules.credit.models import PayrollBatch  # noqa: PLC0415
     batch = await session.get(PayrollBatch, batch_id)
@@ -597,6 +629,7 @@ async def get_payroll_batch(
 async def reject_payroll_batch(
     batch_id: uuid.UUID,
     session: Session,
+    user: CurrentTenantUser,
 ) -> PayrollBatchOut:
     from app.modules.credit.models import PayrollBatch  # noqa: PLC0415
     batch = await session.scalar(
@@ -607,7 +640,7 @@ async def reject_payroll_batch(
     if batch.status != "pending_review":
         raise HTTPException(status_code=409, detail=f"Batch status is '{batch.status}'")
     batch.status = "rejected"
-    batch.approved_by = uuid.uuid4()  # TODO SP12: replace with current_user.user_id
+    batch.approved_by = user.id
     return PayrollBatchOut.model_validate(batch)
 
 
@@ -618,6 +651,7 @@ async def reject_payroll_batch(
 async def get_loan_statement(
     loan_id: uuid.UUID,
     session: Session,
+    user: CurrentTenantUser,
     from_date: Annotated[date | None, Query()] = None,
     to_date: Annotated[date | None, Query()] = None,
 ) -> LoanStatementOut:
@@ -647,6 +681,7 @@ async def get_loan_statement(
 async def get_loan_statement_pdf(
     loan_id: uuid.UUID,
     session: Session,
+    user: CurrentTenantUser,
     from_date: Annotated[date | None, Query()] = None,
     to_date: Annotated[date | None, Query()] = None,
 ) -> Response:

@@ -22,8 +22,7 @@ from app.core.db import get_tenant_session
 from app.main import app, lifespan
 
 TEST_TENANT_SCHEMA = "tenant_test"
-ACTOR_ID = str(uuid.uuid4())
-HEADERS = {"X-Tenant-Slug": "test-tenant", "X-Actor-ID": ACTOR_ID}
+HEADERS = {"X-Tenant-Slug": "test-tenant"}
 
 
 async def _make_session_override(engine: AsyncEngine):
@@ -45,14 +44,50 @@ async def _make_session_override(engine: AsyncEngine):
 
 
 @pytest.fixture
-async def client(test_engine: AsyncEngine):
+async def client(test_engine: AsyncEngine, tenant_actor_id: uuid.UUID):
     override = await _make_session_override(test_engine)
     app.dependency_overrides[get_tenant_session] = override
     async with lifespan(app), AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as c:
+        c.headers["X-Tenant-Slug"] = "test-tenant"
+        c.headers["X-Tenant-Actor-ID"] = str(tenant_actor_id)
         yield c
     app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.fixture
+async def checker_id(test_engine: AsyncEngine) -> str:
+    """Seed a second tenant_users row so the maker-checker flow has a real
+    second actor. The default test caller (tenant_actor_id) acts as the maker;
+    helpers that approve / disburse use this fixture as the checker.
+    """
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with factory() as session:
+        await session.execute(
+            text(f"SET LOCAL search_path TO {TEST_TENANT_SCHEMA}, platform")
+        )
+        existing = (
+            await session.execute(
+                text(
+                    "SELECT id FROM tenant_users WHERE email = 'test-checker@example.com'"
+                )
+            )
+        ).scalar()
+        if existing is not None:
+            return str(existing)
+        new_id = uuid.uuid4()
+        await session.execute(
+            text(
+                "INSERT INTO tenant_users "
+                "(id, email, full_name, is_active, is_admin, created_at, updated_at) "
+                "VALUES (:id, 'test-checker@example.com', 'Test Checker', "
+                "true, true, now(), now())"
+            ),
+            {"id": new_id},
+        )
+        await session.commit()
+        return str(new_id)
 
 
 # ── Setup helpers ─────────────────────────────────────────────────────────────
@@ -165,20 +200,20 @@ async def _submit_application(client, ids: dict) -> str:
     return resp.json()["id"]
 
 
-async def _approve_application(client, application_id: str) -> None:
+async def _approve_application(client, application_id: str, checker: str) -> None:
     resp = await client.post(
         f"/credit/applications/{application_id}/approve",
         json={"approved_amount": "5000.0000", "approved_term_periods": 12},
-        headers=HEADERS,
+        headers={**HEADERS, "X-Tenant-Actor-ID": checker},
     )
     assert resp.status_code == 200, resp.text
 
 
-async def _disburse_loan(client, application_id: str) -> str:
+async def _disburse_loan(client, application_id: str, checker: str) -> str:
     resp = await client.post(
         f"/credit/loans/{application_id}/disburse",
         json={"idempotency_key": f"disb-{uuid.uuid4()}"},
-        headers=HEADERS,
+        headers={**HEADERS, "X-Tenant-Actor-ID": checker},
     )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
@@ -270,18 +305,18 @@ async def test_get_applications_200(client):
 
 
 @pytest.mark.asyncio
-async def test_approve_application_200(client):
+async def test_approve_application_200(client, checker_id):
     """POST /credit/applications/{id}/approve → 200, quorum=1 → status=approved."""
     ids = await _setup_gl_and_product(client)
     application_id = await _submit_application(client, ids)
-    await _approve_application(client, application_id)
+    await _approve_application(client, application_id, checker_id)
 
     resp = await client.get(f"/credit/applications/{application_id}", headers=HEADERS)
     assert resp.json()["status"] == "approved"
 
 
 @pytest.mark.asyncio
-async def test_reject_application_200(client):
+async def test_reject_application_200(client, checker_id):
     """POST /credit/applications/{id}/reject → 200, status=rejected."""
     ids = await _setup_gl_and_product(client)
     application_id = await _submit_application(client, ids)
@@ -289,7 +324,7 @@ async def test_reject_application_200(client):
     resp = await client.post(
         f"/credit/applications/{application_id}/reject",
         json={"rejection_reason": "Insufficient income"},
-        headers=HEADERS,
+        headers={**HEADERS, "X-Tenant-Actor-ID": checker_id},
     )
     assert resp.status_code == 200
 
@@ -314,11 +349,11 @@ async def test_withdraw_application_200(client):
 
 
 @pytest.mark.asyncio
-async def test_disburse_loan_201(client):
+async def test_disburse_loan_201(client, checker_id):
     """POST /credit/loans/{application_id}/disburse → 201, outstanding_principal set."""
     ids = await _setup_gl_and_product(client)
     application_id = await _submit_application(client, ids)
-    await _approve_application(client, application_id)
+    await _approve_application(client, application_id, checker_id)
 
     resp = await client.post(
         f"/credit/loans/{application_id}/disburse",
@@ -332,12 +367,12 @@ async def test_disburse_loan_201(client):
 
 
 @pytest.mark.asyncio
-async def test_list_loans_200(client):
+async def test_list_loans_200(client, checker_id):
     """GET /credit/loans → 200, list."""
     ids = await _setup_gl_and_product(client)
     application_id = await _submit_application(client, ids)
-    await _approve_application(client, application_id)
-    await _disburse_loan(client, application_id)
+    await _approve_application(client, application_id, checker_id)
+    await _disburse_loan(client, application_id, checker_id)
 
     resp = await client.get("/credit/loans", headers=HEADERS)
     assert resp.status_code == 200
@@ -346,12 +381,12 @@ async def test_list_loans_200(client):
 
 
 @pytest.mark.asyncio
-async def test_get_loan_200(client):
+async def test_get_loan_200(client, checker_id):
     """GET /credit/loans/{id} → 200, balance fields present."""
     ids = await _setup_gl_and_product(client)
     application_id = await _submit_application(client, ids)
-    await _approve_application(client, application_id)
-    loan_id = await _disburse_loan(client, application_id)
+    await _approve_application(client, application_id, checker_id)
+    loan_id = await _disburse_loan(client, application_id, checker_id)
 
     resp = await client.get(f"/credit/loans/{loan_id}", headers=HEADERS)
     assert resp.status_code == 200
@@ -369,12 +404,12 @@ async def test_get_loan_unknown_id_404(client):
 
 
 @pytest.mark.asyncio
-async def test_get_schedule_200(client):
+async def test_get_schedule_200(client, checker_id):
     """GET /credit/loans/{id}/schedule → 200, installment list, SUM(total_due) > 0."""
     ids = await _setup_gl_and_product(client)
     application_id = await _submit_application(client, ids)
-    await _approve_application(client, application_id)
-    loan_id = await _disburse_loan(client, application_id)
+    await _approve_application(client, application_id, checker_id)
+    loan_id = await _disburse_loan(client, application_id, checker_id)
 
     resp = await client.get(f"/credit/loans/{loan_id}/schedule", headers=HEADERS)
     assert resp.status_code == 200
@@ -385,12 +420,12 @@ async def test_get_schedule_200(client):
 
 
 @pytest.mark.asyncio
-async def test_post_repayment_201(client):
+async def test_post_repayment_201(client, checker_id):
     """POST /credit/loans/{id}/repayments → 201."""
     ids = await _setup_gl_and_product(client)
     application_id = await _submit_application(client, ids)
-    await _approve_application(client, application_id)
-    loan_id = await _disburse_loan(client, application_id)
+    await _approve_application(client, application_id, checker_id)
+    loan_id = await _disburse_loan(client, application_id, checker_id)
 
     resp = await client.post(
         f"/credit/loans/{loan_id}/repayments",
@@ -407,12 +442,12 @@ async def test_post_repayment_201(client):
 
 
 @pytest.mark.asyncio
-async def test_get_repayments_200(client):
+async def test_get_repayments_200(client, checker_id):
     """GET /credit/loans/{id}/repayments → 200, list."""
     ids = await _setup_gl_and_product(client)
     application_id = await _submit_application(client, ids)
-    await _approve_application(client, application_id)
-    loan_id = await _disburse_loan(client, application_id)
+    await _approve_application(client, application_id, checker_id)
+    loan_id = await _disburse_loan(client, application_id, checker_id)
 
     await client.post(
         f"/credit/loans/{loan_id}/repayments",
@@ -431,7 +466,7 @@ async def test_get_repayments_200(client):
 
 
 @pytest.mark.asyncio
-async def test_write_off_below_threshold_201(client):
+async def test_write_off_below_threshold_201(client, checker_id):
     """POST /credit/loans/{id}/write-off (below threshold) → 201, direct=true."""
     ids = await _setup_gl_and_product(client)
     resp = await client.patch(
@@ -442,8 +477,8 @@ async def test_write_off_below_threshold_201(client):
     assert resp.status_code == 200
 
     application_id = await _submit_application(client, ids)
-    await _approve_application(client, application_id)
-    loan_id = await _disburse_loan(client, application_id)
+    await _approve_application(client, application_id, checker_id)
+    loan_id = await _disburse_loan(client, application_id, checker_id)
 
     resp = await client.post(
         f"/credit/loans/{loan_id}/write-off",
