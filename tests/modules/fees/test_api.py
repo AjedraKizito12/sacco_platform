@@ -22,8 +22,7 @@ from app.modules.members.models import Member
 from app.modules.savings.models import SavingsAccount, SavingsProduct, SavingsTransaction
 
 TEST_TENANT_SCHEMA = "tenant_test"
-ACTOR_ID = str(uuid.uuid4())
-HEADERS = {"X-Tenant-Slug": "test-tenant", "X-Actor-ID": ACTOR_ID}
+HEADERS = {"X-Tenant-Slug": "test-tenant"}
 
 
 async def _make_session_override(engine: AsyncEngine):
@@ -45,12 +44,14 @@ async def _make_session_override(engine: AsyncEngine):
 
 
 @pytest.fixture
-async def client(test_engine: AsyncEngine):
+async def client(test_engine: AsyncEngine, tenant_actor_id: uuid.UUID):
     override = await _make_session_override(test_engine)
     app.dependency_overrides[get_tenant_session] = override
     async with lifespan(app), AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as c:
+        c.headers["X-Tenant-Slug"] = "test-tenant"
+        c.headers["X-Tenant-Actor-ID"] = str(tenant_actor_id)
         yield c
     app.dependency_overrides.pop(get_tenant_session, None)
 

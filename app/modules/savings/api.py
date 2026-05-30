@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
+from app.modules.iam.dependencies import CurrentTenantUser
 from app.modules.savings.schemas import (
     DepositIn,
     OpenAccountIn,
@@ -29,7 +30,9 @@ Session = Annotated[AsyncSession, Depends(get_tenant_session)]
 
 
 @router.post("/products", response_model=SavingsProductOut, status_code=201)
-async def create_product(body: SavingsProductIn, session: Session) -> SavingsProductOut:
+async def create_product(
+    body: SavingsProductIn, session: Session, user: CurrentTenantUser
+) -> SavingsProductOut:
     svc = SavingsService(session)
     try:
         product = await svc.create_product(
@@ -45,7 +48,7 @@ async def create_product(body: SavingsProductIn, session: Session) -> SavingsPro
 
 @router.get("/products", response_model=list[SavingsProductOut])
 async def list_products(
-    session: Session, include_inactive: bool = False
+    session: Session, user: CurrentTenantUser, include_inactive: bool = False
 ) -> list[SavingsProductOut]:
     svc = SavingsService(session)
     products = await svc.list_products(include_inactive=include_inactive)
@@ -54,7 +57,7 @@ async def list_products(
 
 @router.get("/products/{product_id}", response_model=SavingsProductOut)
 async def get_product(
-    product_id: uuid.UUID, session: Session
+    product_id: uuid.UUID, session: Session, user: CurrentTenantUser
 ) -> SavingsProductOut:
     svc = SavingsService(session)
     try:
@@ -68,7 +71,9 @@ async def get_product(
 
 
 @router.post("/accounts", response_model=SavingsAccountOut, status_code=201)
-async def open_account(body: OpenAccountIn, session: Session) -> SavingsAccountOut:
+async def open_account(
+    body: OpenAccountIn, session: Session, user: CurrentTenantUser
+) -> SavingsAccountOut:
     svc = SavingsService(session)
     try:
         account = await svc.open_account(
@@ -84,7 +89,7 @@ async def open_account(body: OpenAccountIn, session: Session) -> SavingsAccountO
 
 @router.get("/accounts/{account_id}", response_model=SavingsAccountWithBalanceOut)
 async def get_account(
-    account_id: uuid.UUID, session: Session
+    account_id: uuid.UUID, session: Session, user: CurrentTenantUser
 ) -> SavingsAccountWithBalanceOut:
     svc = SavingsService(session)
     try:
@@ -102,7 +107,7 @@ async def get_account(
     response_model=list[SavingsTransactionOut],
 )
 async def list_transactions(
-    account_id: uuid.UUID, session: Session
+    account_id: uuid.UUID, session: Session, user: CurrentTenantUser
 ) -> list[SavingsTransactionOut]:
     svc = SavingsService(session)
     try:
@@ -118,7 +123,10 @@ async def list_transactions(
     status_code=201,
 )
 async def deposit(
-    account_id: uuid.UUID, body: DepositIn, session: Session
+    account_id: uuid.UUID,
+    body: DepositIn,
+    session: Session,
+    user: CurrentTenantUser,
 ) -> SavingsTransactionOut:
     svc = SavingsService(session)
     try:
@@ -126,7 +134,7 @@ async def deposit(
             savings_account_id=account_id,
             amount=body.amount,
             payment_account_id=body.payment_account_id,
-            posted_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser actor
+            posted_by=user.id,
             idempotency_key=body.idempotency_key,
             narration=body.narration,
         )
@@ -143,7 +151,10 @@ async def deposit(
     status_code=202,
 )
 async def submit_withdrawal(
-    account_id: uuid.UUID, body: WithdrawIn, session: Session
+    account_id: uuid.UUID,
+    body: WithdrawIn,
+    session: Session,
+    user: CurrentTenantUser,
 ) -> WithdrawalOut:
     svc = SavingsService(session)
     try:
@@ -151,7 +162,7 @@ async def submit_withdrawal(
             savings_account_id=account_id,
             amount=body.amount,
             payment_account_id=body.payment_account_id,
-            submitted_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser actor
+            submitted_by=user.id,
             idempotency_key=body.idempotency_key,
             narration=body.narration,
         )

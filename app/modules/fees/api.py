@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
 from app.modules.fees.models import FeeAssessment, FeeCollection, FeeType
+from app.modules.iam.dependencies import CurrentTenantUser
 from app.modules.fees.schemas import (
     FeeAssessmentCreateIn,
     FeeAssessmentDetailOut,
@@ -31,6 +32,7 @@ Session = Annotated[AsyncSession, Depends(get_tenant_session)]
 @router.get("/types", response_model=list[FeeTypeOut])
 async def list_fee_types(
     session: Session,
+    user: CurrentTenantUser,
     include_inactive: bool = False,
 ) -> list[FeeTypeOut]:
     q = select(FeeType).order_by(FeeType.name)
@@ -41,7 +43,9 @@ async def list_fee_types(
 
 
 @router.get("/types/{fee_type_id}", response_model=FeeTypeOut)
-async def get_fee_type(fee_type_id: uuid.UUID, session: Session) -> FeeTypeOut:
+async def get_fee_type(
+    fee_type_id: uuid.UUID, session: Session, user: CurrentTenantUser
+) -> FeeTypeOut:
     ft = await session.get(FeeType, fee_type_id)
     if ft is None:
         raise HTTPException(status_code=404, detail=f"FeeType '{fee_type_id}' not found")
@@ -49,7 +53,9 @@ async def get_fee_type(fee_type_id: uuid.UUID, session: Session) -> FeeTypeOut:
 
 
 @router.post("/types", response_model=FeeTypeOut, status_code=201)
-async def create_fee_type(body: FeeTypeCreateIn, session: Session) -> FeeTypeOut:
+async def create_fee_type(
+    body: FeeTypeCreateIn, session: Session, user: CurrentTenantUser
+) -> FeeTypeOut:
     existing = await session.scalar(select(FeeType).where(FeeType.code == body.code))
     if existing is not None:
         raise HTTPException(status_code=409, detail=f"FeeType with code '{body.code}' already exists")
@@ -75,7 +81,12 @@ async def create_fee_type(body: FeeTypeCreateIn, session: Session) -> FeeTypeOut
 
 
 @router.patch("/types/{fee_type_id}", response_model=FeeTypeOut)
-async def patch_fee_type(fee_type_id: uuid.UUID, body: FeeTypePatchIn, session: Session) -> FeeTypeOut:
+async def patch_fee_type(
+    fee_type_id: uuid.UUID,
+    body: FeeTypePatchIn,
+    session: Session,
+    user: CurrentTenantUser,
+) -> FeeTypeOut:
     ft = await session.get(FeeType, fee_type_id)
     if ft is None:
         raise HTTPException(status_code=404, detail=f"FeeType '{fee_type_id}' not found")
@@ -99,6 +110,7 @@ async def patch_fee_type(fee_type_id: uuid.UUID, body: FeeTypePatchIn, session: 
 @router.get("/assessments", response_model=list[FeeAssessmentOut])
 async def list_assessments(
     session: Session,
+    user: CurrentTenantUser,
     status: str | None = Query(default=None),
     member_id: uuid.UUID | None = Query(default=None),
     fee_type_code: str | None = Query(default=None),
@@ -114,7 +126,9 @@ async def list_assessments(
 
 
 @router.get("/assessments/{assessment_id}", response_model=FeeAssessmentDetailOut)
-async def get_assessment(assessment_id: uuid.UUID, session: Session) -> FeeAssessmentDetailOut:
+async def get_assessment(
+    assessment_id: uuid.UUID, session: Session, user: CurrentTenantUser
+) -> FeeAssessmentDetailOut:
     try:
         svc = FeeAssessmentService(session)
         assessment = await svc.get_assessment(assessment_id)
@@ -128,7 +142,9 @@ async def get_assessment(assessment_id: uuid.UUID, session: Session) -> FeeAsses
 
 
 @router.post("/assessments", response_model=FeeAssessmentOut, status_code=201)
-async def create_assessment(body: FeeAssessmentCreateIn, session: Session) -> FeeAssessmentOut:
+async def create_assessment(
+    body: FeeAssessmentCreateIn, session: Session, user: CurrentTenantUser
+) -> FeeAssessmentOut:
     ft = await session.get(FeeType, body.fee_type_id)
     if ft is None:
         raise HTTPException(status_code=404, detail=f"FeeType '{body.fee_type_id}' not found")
@@ -141,7 +157,7 @@ async def create_assessment(body: FeeAssessmentCreateIn, session: Session) -> Fe
             period_start=body.period_start,
             period_end=body.period_end,
             triggered_by_event_id=None,
-            actor=uuid.uuid4(),  # TODO: replace with CurrentTenantUser in later task
+            actor=user.id,
             idempotency_key=f"manual-{body.fee_type_id}-{body.target_id}-{body.period_start}",
         )
     except ValueError as exc:
@@ -153,7 +169,9 @@ async def create_assessment(body: FeeAssessmentCreateIn, session: Session) -> Fe
 
 
 @router.post("/collections", response_model=FeeCollectionOut, status_code=201)
-async def create_collection(body: FeeCollectionCreateIn, session: Session) -> FeeCollectionOut:
+async def create_collection(
+    body: FeeCollectionCreateIn, session: Session, user: CurrentTenantUser
+) -> FeeCollectionOut:
     if body.method not in ("cash", "journal_voucher"):
         raise HTTPException(
             status_code=400,
@@ -165,7 +183,7 @@ async def create_collection(body: FeeCollectionCreateIn, session: Session) -> Fe
             assessment_id=body.fee_assessment_id,
             amount=body.amount,
             method=body.method,
-            collected_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser in later task
+            collected_by=user.id,
             idempotency_key=body.idempotency_key,
             contra_account_id=body.contra_account_id,
         )

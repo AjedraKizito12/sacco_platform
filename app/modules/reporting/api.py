@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
+from app.modules.iam.dependencies import CurrentTenantUser
 from app.modules.reporting.models import (
     ReportFeeCollectionRow,
     ReportIncomeStatementLine,
@@ -82,6 +83,7 @@ async def _latest_run(session: AsyncSession, report_type: str, as_of: date | Non
 @router.get("/trial-balance", response_model=None)
 async def get_trial_balance(
     session: Session,
+    user: CurrentTenantUser,
     as_of: date | None = Query(default=None),
     format: str = Query(default="json", pattern="^(json|pdf|csv)$"),
 ) -> TrialBalanceOut | Response:
@@ -146,6 +148,7 @@ async def get_trial_balance(
 @router.get("/loan-portfolio", response_model=None)
 async def get_loan_portfolio(
     session: Session,
+    user: CurrentTenantUser,
     as_of: date | None = Query(default=None),
     status: str = Query(default="all", pattern="^(all|disbursed|in_arrears|written_off)$"),
     format: str = Query(default="json", pattern="^(json|pdf|csv)$"),
@@ -210,6 +213,7 @@ async def get_loan_portfolio(
 @router.get("/income-statement", response_model=None)
 async def get_income_statement(
     session: Session,
+    user: CurrentTenantUser,
     from_date: date = Query(...),
     to_date: date = Query(...),
     format: str = Query(default="json", pattern="^(json|pdf|csv)$"),
@@ -306,6 +310,7 @@ async def get_income_statement(
 @router.get("/savings-statement", response_model=None)
 async def get_savings_statement(
     session: Session,
+    user: CurrentTenantUser,
     member_id: uuid.UUID = Query(...),
     from_date: date | None = Query(default=None),
     to_date: date | None = Query(default=None),
@@ -393,6 +398,7 @@ async def get_savings_statement(
 @router.get("/fee-collection", response_model=None)
 async def get_fee_collection(
     session: Session,
+    user: CurrentTenantUser,
     from_date: date = Query(...),
     to_date: date = Query(...),
     fee_type_id: uuid.UUID | None = Query(default=None),
@@ -487,6 +493,7 @@ async def get_fee_collection(
 @router.get("/runs", response_model=list[ReportRunOut])
 async def list_report_runs(
     session: Session,
+    user: CurrentTenantUser,
     report_type: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=200),
 ) -> list[ReportRunOut]:

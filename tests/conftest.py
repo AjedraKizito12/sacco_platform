@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
+    async_sessionmaker,
     create_async_engine,
 )
 from sqlalchemy.pool import NullPool
@@ -150,3 +151,42 @@ async def tenant_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSessio
         finally:
             await session.close()
             await conn.rollback()
+
+
+@pytest.fixture
+async def tenant_actor_id(test_engine: AsyncEngine) -> "uuid.UUID":
+    """Insert a tenant_users row (idempotent) and return its id.
+
+    Required because CurrentTenantUser (used by every protected route) in
+    stub mode validates the X-Tenant-Actor-ID header against this table.
+    Module integration-test fixtures should depend on this fixture and pass
+    its value as the X-Tenant-Actor-ID header.
+    """
+    import uuid as _uuid
+
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with factory() as session:
+        await session.execute(
+            text(f"SET LOCAL search_path TO {TEST_TENANT_SCHEMA}, platform")
+        )
+        existing = (
+            await session.execute(
+                text(
+                    "SELECT id FROM tenant_users WHERE email = 'test-actor@example.com'"
+                )
+            )
+        ).scalar()
+        if existing is not None:
+            return existing
+        new_id = _uuid.uuid4()
+        await session.execute(
+            text(
+                "INSERT INTO tenant_users "
+                "(id, email, full_name, is_active, is_admin, created_at, updated_at) "
+                "VALUES (:id, 'test-actor@example.com', 'Test Actor', "
+                "true, true, now(), now())"
+            ),
+            {"id": new_id},
+        )
+        await session.commit()
+        return new_id

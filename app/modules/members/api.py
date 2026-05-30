@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
+from app.modules.iam.dependencies import CurrentTenantUser
 from app.modules.members.schemas import MemberIn, MemberOut, StatusChangeIn, StatusChangeOut
 from app.modules.members.service import MemberService
 
@@ -16,14 +17,16 @@ Session = Annotated[AsyncSession, Depends(get_tenant_session)]
 
 
 @router.post("", response_model=MemberOut, status_code=201)
-async def register_member(body: MemberIn, session: Session) -> MemberOut:
+async def register_member(
+    body: MemberIn, session: Session, user: CurrentTenantUser
+) -> MemberOut:
     svc = MemberService(session)
     try:
         member = await svc.register_member(
             full_name=body.full_name,
             date_of_birth=body.date_of_birth,
             gender=body.gender,
-            created_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser actor
+            created_by=user.id,
             phone=body.phone,
             email=body.email,
             physical_address=body.physical_address,
@@ -41,14 +44,18 @@ async def register_member(body: MemberIn, session: Session) -> MemberOut:
 
 
 @router.get("", response_model=list[MemberOut])
-async def list_members(session: Session, status: str | None = None) -> list[MemberOut]:
+async def list_members(
+    session: Session, user: CurrentTenantUser, status: str | None = None
+) -> list[MemberOut]:
     svc = MemberService(session)
     members = await svc.list_members(status=status)
     return [MemberOut.model_validate(m) for m in members]
 
 
 @router.get("/{member_id}", response_model=MemberOut)
-async def get_member(member_id: uuid.UUID, session: Session) -> MemberOut:
+async def get_member(
+    member_id: uuid.UUID, session: Session, user: CurrentTenantUser
+) -> MemberOut:
     svc = MemberService(session)
     try:
         member = await svc.get_member(member_id)
@@ -59,14 +66,17 @@ async def get_member(member_id: uuid.UUID, session: Session) -> MemberOut:
 
 @router.post("/{member_id}/status-change", response_model=StatusChangeOut, status_code=202)
 async def submit_status_change(
-    member_id: uuid.UUID, body: StatusChangeIn, session: Session
+    member_id: uuid.UUID,
+    body: StatusChangeIn,
+    session: Session,
+    user: CurrentTenantUser,
 ) -> StatusChangeOut:
     svc = MemberService(session)
     try:
         approval_id = await svc.submit_status_change(
             member_id=member_id,
             new_status=body.new_status,
-            submitted_by=uuid.uuid4(),  # TODO: replace with CurrentTenantUser actor
+            submitted_by=user.id,
             reason=body.reason,
             idempotency_key=body.idempotency_key,
         )
