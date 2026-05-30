@@ -76,10 +76,11 @@ class SavingsStatementService:
             for txn, member_id in txn_rows:
                 acct_id = txn.savings_account_id
                 balance = running_balances.get(acct_id, Decimal("0"))
-                if txn.transaction_type in _CREDIT_TYPES:
-                    balance = balance + txn.amount
-                else:
-                    balance = balance - txn.amount
+                balance = (
+                    balance + txn.amount
+                    if txn.transaction_type in _CREDIT_TYPES
+                    else balance - txn.amount
+                )
                 running_balances[acct_id] = balance
 
                 lines.append(

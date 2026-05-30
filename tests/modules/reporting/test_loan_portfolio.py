@@ -131,7 +131,7 @@ async def _cleanup(session: AsyncSession) -> None:
 @pytest.mark.anyio
 async def test_materialize_disbursed_loan_is_current(test_engine: AsyncEngine):
     async with _new_session(test_engine) as session:
-        loan = await _make_loan(session, status="disbursed")
+        await _make_loan(session, status="disbursed")
         await session.commit()
 
     as_of = date.today()

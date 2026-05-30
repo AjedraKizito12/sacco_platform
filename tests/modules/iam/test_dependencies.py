@@ -169,13 +169,15 @@ async def test_platform_jwt_dep_raises_401_for_garbage_token(rsa_keypair):
     mock_db_session = AsyncMock()
     mock_key_service = _make_mock_key_service(public_pem, "platform")
 
-    with patch("app.modules.iam.dependencies.KeyService", return_value=mock_key_service):
-        with pytest.raises(HTTPException) as exc_info:
-            await get_current_platform_user_jwt(
-                credentials=_credentials("not.a.jwt"),
-                session=mock_db_session,
-                request=_mock_request(),
-            )
+    with (
+        patch("app.modules.iam.dependencies.KeyService", return_value=mock_key_service),
+        pytest.raises(HTTPException) as exc_info,
+    ):
+        await get_current_platform_user_jwt(
+            credentials=_credentials("not.a.jwt"),
+            session=mock_db_session,
+            request=_mock_request(),
+        )
     assert exc_info.value.status_code == 401
 
 
@@ -259,13 +261,15 @@ async def test_tenant_jwt_dep_raises_401_for_wrong_audience(rsa_keypair):
     mock_tenant_db = AsyncMock()
     mock_platform_db = AsyncMock()
 
-    with patch("app.modules.iam.dependencies.KeyService", return_value=mock_key_service):
-        with pytest.raises(HTTPException) as exc_info:
-            await get_current_tenant_user_jwt(
-                credentials=_credentials(token),
-                tenant_db=mock_tenant_db,
-                platform_db=mock_platform_db,
-                # Request is for "tenant-b" — audience mismatch
-                request=_mock_request("tenant-b"),
-            )
+    with (
+        patch("app.modules.iam.dependencies.KeyService", return_value=mock_key_service),
+        pytest.raises(HTTPException) as exc_info,
+    ):
+        await get_current_tenant_user_jwt(
+            credentials=_credentials(token),
+            tenant_db=mock_tenant_db,
+            platform_db=mock_platform_db,
+            # Request is for "tenant-b" — audience mismatch
+            request=_mock_request("tenant-b"),
+        )
     assert exc_info.value.status_code == 401

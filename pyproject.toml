@@ -49,14 +49,28 @@ asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "UP", "SIM", "TCH", "S"]
+# TCH (TC001/TC002/TC003) intentionally omitted: SQLAlchemy `Mapped[...]`,
+# Pydantic v2, and FastAPI `Depends` all resolve annotations at runtime,
+# so moving those imports into `if TYPE_CHECKING:` blocks breaks the app
+# at import time. The repo's existing `# noqa: TC003` patterns predate
+# this decision.
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "S"]
+# B008 — `Query(...)` / `Depends(...)` defaults are FastAPI's idiomatic
+# pattern and used pervasively across every router. Tolerating it
+# repo-wide rather than peppering every endpoint with noqa.
+ignore = ["B008"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106"]
+# Tests:
+#   S101/S105/S106 — assert/hardcoded passwords are normal in tests.
+#   E501 — long raw SQL strings / long table+schema interpolations.
+#   E741 — single-letter names like `l` for "loan" / "line" in
+#   list comprehensions.
+"tests/**" = ["S101", "S105", "S106", "E501", "E741"]
 "alembic/**" = ["E501"]
 
 [tool.mypy]

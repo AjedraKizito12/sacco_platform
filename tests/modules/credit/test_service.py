@@ -859,7 +859,7 @@ async def test_list_applications_filter_by_member(test_engine):
             submitted_by=member_a,
             idempotency_key=f"list-a-{uuid.uuid4()}",
         )
-        app_b = await svc.submit(
+        await svc.submit(
             loan_product_id=product.id,
             member_id=member_b,
             requested_amount=Decimal("150000"),
@@ -1518,7 +1518,6 @@ async def test_repayment_gl_balanced(test_engine):
             idempotency_key=f"rpy-{uuid.uuid4()}",
         )
         await session.commit()
-        repayment_id = repayment.id
         journal_entry_id = repayment.journal_entry_id
     finally:
         await session.close()
@@ -1780,7 +1779,7 @@ async def test_consumer_fee_assessment_increments_accrued_penalties(test_engine)
 
     assessment_id = uuid.uuid4()
     penalty_amount = Decimal("500.00")
-    event_id = await _insert_outbox_event(
+    await _insert_outbox_event(
         test_engine,
         "FeeAssessmentCreated",
         {
@@ -1810,7 +1809,7 @@ async def test_consumer_fee_assessment_idempotent(test_engine):
     loan = await _make_disbursed_loan(test_engine, accounts, "reducing_balance")
 
     penalty_amount = Decimal("300.00")
-    event_id = await _insert_outbox_event(
+    await _insert_outbox_event(
         test_engine,
         "FeeAssessmentCreated",
         {
@@ -2381,7 +2380,6 @@ async def test_reconciliation_does_not_modify_loan(test_engine):
     """Reconciliation task is read-only — does not update outstanding_principal."""
     accounts = await _setup_disbursement_accounts(test_engine)
     loan = await _make_disbursed_loan(test_engine, accounts, "flat")
-    original_principal = loan.outstanding_principal
 
     session = await _new_session(test_engine)
     try:

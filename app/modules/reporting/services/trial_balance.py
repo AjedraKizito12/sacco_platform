@@ -67,8 +67,19 @@ class TrialBalanceService:
                     )
                     .join(JournalLine, JournalLine.account_id == ChartOfAccount.id)
                     .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-                    .where(JournalEntry.posted_at < datetime(as_of_date.year, as_of_date.month, as_of_date.day, tzinfo=UTC) + timedelta(days=1))
-                    .group_by(ChartOfAccount.id, ChartOfAccount.code, ChartOfAccount.name, ChartOfAccount.account_type)
+                    .where(
+                        JournalEntry.posted_at
+                        < datetime(
+                            as_of_date.year, as_of_date.month, as_of_date.day, tzinfo=UTC,
+                        )
+                        + timedelta(days=1)
+                    )
+                    .group_by(
+                        ChartOfAccount.id,
+                        ChartOfAccount.code,
+                        ChartOfAccount.name,
+                        ChartOfAccount.account_type,
+                    )
                     .order_by(ChartOfAccount.code)
                 )
             ).all()
@@ -108,7 +119,9 @@ class TrialBalanceService:
             await self._session.flush()
             raise
 
-    async def get_trial_balance(self, *, as_of_date: date | None = None) -> tuple[ReportRun | None, list[ReportTrialBalanceLine]]:
+    async def get_trial_balance(
+        self, *, as_of_date: date | None = None
+    ) -> tuple[ReportRun | None, list[ReportTrialBalanceLine]]:
         """Return (run, lines) for the latest successful trial balance run.
 
         If as_of_date is provided, returns the run for that date.

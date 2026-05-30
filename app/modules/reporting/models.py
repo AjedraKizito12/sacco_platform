@@ -45,7 +45,8 @@ class ReportRun(Base):
     __table_args__ = (
         CheckConstraint("status IN ('running', 'done', 'failed')", name="ck_rr_status"),
         CheckConstraint(
-            "report_type IN ('trial_balance', 'loan_portfolio', 'income_statement', 'savings_statement', 'fee_collection')",
+            "report_type IN ('trial_balance', 'loan_portfolio', 'income_statement', "
+            "'savings_statement', 'fee_collection')",
             name="ck_rr_report_type",
         ),
         Index("ix_rr_type_date", "report_type", text("as_of_date DESC")),

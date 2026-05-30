@@ -147,7 +147,7 @@ async def test_execute_term_extension_supersedes_unpaid(test_engine: AsyncEngine
 
     async with factory() as session:
         await session.execute(text(f"SET LOCAL search_path TO {TEST_TENANT_SCHEMA}, platform"))
-        loan_obj = await session.get(Loan, loan.id)
+        await session.get(Loan, loan.id)  # ensure loan is in session cache
 
         from app.modules.credit.services.restructuring import LoanRestructuringService
 

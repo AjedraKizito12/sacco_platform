@@ -362,7 +362,7 @@ async def test_revoke_all_for_user_skips_already_revoked_sessions(test_engine: A
             await svc.revoke(s1.id)
             await session.commit()
 
-            s2 = await svc.create(
+            await svc.create(
                 user_id=user_id, jti="jti-bulk-skip-002",
                 user_agent=None, ip_address=None, refresh_ttl_seconds=3600,
             )

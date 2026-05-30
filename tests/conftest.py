@@ -1,5 +1,6 @@
 import base64
 import os
+import uuid
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -154,7 +155,7 @@ async def tenant_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSessio
 
 
 @pytest.fixture
-async def tenant_actor_id(test_engine: AsyncEngine) -> "uuid.UUID":
+async def tenant_actor_id(test_engine: AsyncEngine) -> uuid.UUID:
     """Insert a tenant_users row (idempotent) and return its id.
 
     Required because CurrentTenantUser (used by every protected route) in
@@ -162,8 +163,6 @@ async def tenant_actor_id(test_engine: AsyncEngine) -> "uuid.UUID":
     Module integration-test fixtures should depend on this fixture and pass
     its value as the X-Tenant-Actor-ID header.
     """
-    import uuid as _uuid
-
     factory = async_sessionmaker(test_engine, expire_on_commit=False)
     async with factory() as session:
         await session.execute(
@@ -178,7 +177,7 @@ async def tenant_actor_id(test_engine: AsyncEngine) -> "uuid.UUID":
         ).scalar()
         if existing is not None:
             return existing
-        new_id = _uuid.uuid4()
+        new_id = uuid.uuid4()
         await session.execute(
             text(
                 "INSERT INTO tenant_users "

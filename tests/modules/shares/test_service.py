@@ -419,7 +419,7 @@ async def test_purchase_shares_posts_balanced_gl_entry(test_engine):
     session = await _new_session(test_engine)
     try:
         svc = ShareService(session)
-        txn = await svc.purchase_shares(
+        await svc.purchase_shares(
             share_account_id=account_id,
             quantity=2,
             payment_account_id=cash_id,

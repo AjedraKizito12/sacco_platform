@@ -127,7 +127,7 @@ async def test_materialize_idempotent(test_engine: AsyncEngine):
 
     async with _new_session(test_engine) as session:
         svc = TrialBalanceService(session)
-        run2 = await svc.materialize(as_of_date=as_of)
+        await svc.materialize(as_of_date=as_of)
         await session.commit()
 
     async with _new_session(test_engine) as session:

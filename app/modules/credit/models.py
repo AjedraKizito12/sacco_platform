@@ -114,7 +114,8 @@ class LoanApplication(AuditableMixin, Base):
     __table_args__ = (
         UniqueConstraint("idempotency_key", name="uq_la_idempotency_key"),
         CheckConstraint(
-            "status IN ('draft', 'submitted', 'under_review', 'approved', 'rejected', 'withdrawn', 'cancelled', 'disbursed')",
+            "status IN ('draft', 'submitted', 'under_review', 'approved', 'rejected', "
+            "'withdrawn', 'cancelled', 'disbursed')",
             name="ck_la_status",
         ),
         CheckConstraint(
@@ -342,7 +343,12 @@ class LoanGuarantorLien(Base):
         CheckConstraint("original_lien > 0", name="ck_lgl_original_lien"),
         CheckConstraint("current_lien >= 0", name="ck_lgl_current_lien"),
         Index("ix_lgl_loan_guarantor_id", "loan_guarantor_id"),
-        Index("ix_lgl_savings_account_active", "savings_account_id", "is_active", postgresql_where=text("is_active = true")),
+        Index(
+            "ix_lgl_savings_account_active",
+            "savings_account_id",
+            "is_active",
+            postgresql_where=text("is_active = true"),
+        ),
     )
 
 

@@ -61,7 +61,6 @@ async def _assess_scheduled_for_tenant(schema_name: str, engine) -> int:
                 continue  # Other target types deferred to future modules.
 
             config = ft.schedule_config or {}
-            recurrence = config.get("recurrence", "yearly")
             month = int(config.get("month", 1))
             day = int(config.get("day", 1))
 
