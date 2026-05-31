@@ -26,3 +26,22 @@ class InvalidTransition(BillingError):
         super().__init__(f"cannot transition from {from_status!r} to {to_status!r}")
         self.from_status = from_status
         self.to_status = to_status
+
+
+class InvoiceConflict(BillingError):
+    """Raised when an invoice operation conflicts with current state
+    (e.g., voiding a partially-paid invoice, or generating an invoice for
+    a billing period that already has one).
+    """
+
+
+class PaymentConflict(BillingError):
+    """Raised when a payment operation conflicts with current state
+    (e.g., confirming an already-confirmed payment).
+    """
+
+
+class OverpaymentRejected(BillingError):
+    """Raised when a payment confirmation would push amount_paid past
+    amount_total. Use partial-then-final flow instead.
+    """
