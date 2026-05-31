@@ -21,6 +21,11 @@ class Tenant(Base):
             "'failed','deprovisioning','archived')",
             name="ck_tenants_status",
         ),
+        CheckConstraint(
+            "subscription_status IN ("
+            "'pending','trialing','active','past_due','suspended','cancelled')",
+            name="ck_tenants_subscription_status",
+        ),
         Index("ix_platform_tenants_slug", "slug"),
         Index("ix_platform_tenants_status", "status"),
         {"schema": "platform"},
