@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime  # noqa: TC003
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
-    TIMESTAMP,
     CheckConstraint,
     Date,
     ForeignKey,
@@ -18,7 +17,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.audit.mixin import AuditableMixin
