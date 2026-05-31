@@ -26,7 +26,6 @@ from app.platform_.billing.models import (
     SubscriptionPlan,
 )
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -96,7 +95,6 @@ async def _make_platform_user(factory: async_sessionmaker[AsyncSession]):
 
 async def _cleanup_billing(factory: async_sessionmaker[AsyncSession]) -> None:
     """Delete all billing rows in dependency order."""
-    from app.platform_.models import Tenant
 
     async with factory() as s:
         await s.execute(text("SET search_path TO platform"))
