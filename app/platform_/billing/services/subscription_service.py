@@ -258,6 +258,74 @@ class SubscriptionService:
         )
         return sub
 
+    async def transition_to_past_due(
+        self, *, subscription_id: uuid.UUID
+    ) -> Subscription:
+        """active|trialing → past_due. Called by the nightly beat job
+        when current_period_end has passed without payment.
+
+        Sets grace_period_ends_at = today + plan.grace_period_days. Also
+        updates tenants.subscription_status.
+
+        Raises:
+            ValueError: subscription or plan not found.
+            InvalidTransition: subscription not in {'active', 'trialing'}.
+        """
+        sub = await self.get(subscription_id)
+        if sub is None:
+            raise ValueError(f"Subscription {subscription_id} not found")
+        if sub.status not in {"active", "trialing"}:
+            raise InvalidTransition(from_status=sub.status, to_status="past_due")
+
+        plan = cast(
+            SubscriptionPlan | None,
+            await self._s.scalar(
+                select(SubscriptionPlan).where(SubscriptionPlan.id == sub.plan_id)
+            ),
+        )
+        if plan is None:
+            raise ValueError(f"SubscriptionPlan {sub.plan_id} not found")
+
+        sub.status = "past_due"
+        sub.grace_period_ends_at = date.today() + timedelta(days=plan.grace_period_days)
+        await self._sync_tenant_status(sub.tenant_id, "past_due", sub.id)
+        await self._s.flush()
+
+        _log.info(
+            "subscription.past_due",
+            subscription_id=str(sub.id),
+            tenant_id=str(sub.tenant_id),
+            grace_period_ends_at=sub.grace_period_ends_at.isoformat(),
+        )
+        return sub
+
+    async def transition_to_suspended(
+        self, *, subscription_id: uuid.UUID
+    ) -> Subscription:
+        """past_due → suspended. Called by the nightly beat job when
+        grace_period_ends_at has passed.
+
+        Raises:
+            ValueError: subscription not found.
+            InvalidTransition: subscription is not 'past_due'.
+        """
+        sub = await self.get(subscription_id)
+        if sub is None:
+            raise ValueError(f"Subscription {subscription_id} not found")
+        if sub.status != "past_due":
+            raise InvalidTransition(from_status=sub.status, to_status="suspended")
+
+        sub.status = "suspended"
+        await self._sync_tenant_status(sub.tenant_id, "suspended", sub.id)
+        await self._s.flush()
+
+        _log.info(
+            "subscription.suspended",
+            subscription_id=str(sub.id),
+            tenant_id=str(sub.tenant_id),
+        )
+        return sub
+
     # ── Internals ──────────────────────────────────────────────────────────
 
     async def _sync_tenant_status(
