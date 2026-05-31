@@ -28,11 +28,14 @@ class SubscriptionPlanIn(BaseModel):
 
 
 class SubscriptionPlanPatch(BaseModel):
+    code: str | None = Field(default=None, min_length=2, max_length=64)
     name: str | None = None
     description: str | None = None
+    currency: str | None = None
     base_price: Decimal | None = Field(default=None, ge=Decimal("0"))
     per_user_price: Decimal | None = Field(default=None, ge=Decimal("0"))
     per_member_price: Decimal | None = Field(default=None, ge=Decimal("0"))
+    billing_period: str | None = Field(default=None, pattern="^(monthly|quarterly|annual)$")
     member_limit: int | None = Field(default=None, ge=0)
     user_limit: int | None = Field(default=None, ge=0)
     features: dict[str, Any] | None = None
@@ -103,6 +106,7 @@ class InvoiceLineItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    invoice_id: uuid.UUID
     description: str
     quantity: int
     unit_price: Decimal
@@ -130,6 +134,7 @@ class InvoiceOut(BaseModel):
     paid_at: datetime | None
     voided_at: datetime | None
     void_reason: str | None
+    pdf_storage_key: str | None
     created_at: datetime
     updated_at: datetime
 
