@@ -316,14 +316,27 @@ async def get_savings_statement(
     to_date: date | None = Query(default=None),
     format: str = Query(default="json", pattern="^(json|pdf|csv)$"),
 ) -> SavingsStatementOut | Response:
-    """Savings statement for a member. member_id is required."""
-    # Latest run that covers the period.
-    run = await session.scalar(
+    """Savings statement for a member. member_id is required.
+
+    When to_date is provided, picks the oldest successful run with
+    as_of_date >= to_date — that run's window is the one that actually
+    covers the requested data range. When to_date is None, the absolute
+    latest run wins. Rows are ordered (savings_account_id, posted_at) to
+    keep multi-account members grouped per account.
+    """
+    run_q = (
         select(ReportRun)
         .where(ReportRun.report_type == "savings_statement", ReportRun.status == "done")
-        .order_by(ReportRun.as_of_date.desc())
-        .limit(1)
     )
+    if to_date is not None:
+        run_q = (
+            run_q.where(ReportRun.as_of_date >= to_date)
+            .order_by(ReportRun.as_of_date.asc())
+            .limit(1)
+        )
+    else:
+        run_q = run_q.order_by(ReportRun.as_of_date.desc()).limit(1)
+    run = await session.scalar(run_q)
     if run is None:
         raise HTTPException(
             status_code=404,
@@ -339,7 +352,10 @@ async def get_savings_statement(
             ReportSavingsStatementLine.report_run_id == run.id,
             ReportSavingsStatementLine.member_id == member_id,
         )
-        .order_by(ReportSavingsStatementLine.posted_at)
+        .order_by(
+            ReportSavingsStatementLine.savings_account_id,
+            ReportSavingsStatementLine.posted_at,
+        )
     )
     if from_date is not None:
         q = q.where(ReportSavingsStatementLine.period_start >= from_date)

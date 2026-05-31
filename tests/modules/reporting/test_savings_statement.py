@@ -205,3 +205,167 @@ async def test_beat_task_creates_done_run(test_engine: AsyncEngine):
         )).scalar()
         assert status == "done"
         await _cleanup(session)
+
+
+@pytest.mark.anyio
+async def test_get_savings_statement_groups_by_savings_account(test_engine: AsyncEngine):
+    """Multi-account members get rows ordered by (savings_account_id, posted_at)
+    so the statement is grouped per account rather than interleaved."""
+    async with _new_session(test_engine) as session:
+        member_id, account_a_id = await _seed_savings(session)
+
+        # Add a second account for the same member with one transaction.
+        product = SavingsProduct(
+            name="Second Savings",
+            interest_rate=Decimal("3.00"),
+            minimum_balance=Decimal("0"),
+            liability_account_id=uuid.uuid4(),
+            is_active=True,
+        )
+        session.add(product)
+        await session.flush()
+        account_b = SavingsAccount(
+            member_id=member_id,
+            savings_product_id=product.id,
+            product_name="Second Savings",
+            interest_rate=Decimal("3.00"),
+            minimum_balance=Decimal("0"),
+            liability_account_id=product.liability_account_id,
+        )
+        session.add(account_b)
+        await session.flush()
+        je = JournalEntry(
+            reference="SAV-TXN-201",
+            description="Second account deposit",
+            posted_by=str(_SYSTEM),
+            # Posted mid-stream so the broken-ordering path would interleave it.
+            posted_at=datetime(2026, 1, 11, tzinfo=UTC),
+            idempotency_key=f"sav-je-{uuid.uuid4()}",
+        )
+        session.add(je)
+        await session.flush()
+        session.add(SavingsTransaction(
+            savings_account_id=account_b.id,
+            transaction_type="deposit",
+            amount=Decimal("300"),
+            narration="Second account opener",
+            journal_entry_id=je.id,
+            posted_by=_SYSTEM,
+            posted_at=je.posted_at,
+            idempotency_key=f"sav-txn-{uuid.uuid4()}",
+        ))
+        await session.commit()
+
+    period_end = date(2026, 1, 31)
+    async with _new_session(test_engine) as session:
+        svc = SavingsStatementService(session)
+        await svc.materialize(period_start=date(2026, 1, 1), period_end=period_end)
+        await session.commit()
+
+    async with _new_session(test_engine) as session:
+        svc = SavingsStatementService(session)
+        _, lines = await svc.get_savings_statement(member_id=member_id)
+
+        # 3 lines for account A + 1 for account B = 4.
+        assert len(lines) == 4
+        # All lines for a given account must be contiguous (grouped).
+        account_ids_in_order = [ln.savings_account_id for ln in lines]
+        # The block for account A is contiguous and so is the block for B.
+        # Equivalent: the run-length-compressed sequence has length 2.
+        compressed = [account_ids_in_order[0]]
+        for aid in account_ids_in_order[1:]:
+            if aid != compressed[-1]:
+                compressed.append(aid)
+        assert len(compressed) == 2, (
+            f"Lines are interleaved between accounts: {account_ids_in_order}"
+        )
+
+        # Within each account, posted_at is ascending.
+        from itertools import groupby
+        for _, group in groupby(lines, key=lambda ln: ln.savings_account_id):
+            timestamps = [ln.posted_at for ln in group]
+            assert timestamps == sorted(timestamps)
+
+        await _cleanup(session)
+        await session.execute(text("DELETE FROM savings_products WHERE name = 'Second Savings'"))
+        await session.commit()
+
+
+@pytest.mark.anyio
+async def test_get_savings_statement_respects_to_date_for_run_selection(
+    test_engine: AsyncEngine,
+):
+    """If multiple runs exist, the picked run must cover the caller's to_date.
+
+    Seeds two runs (as_of_date Jan 31 and Feb 28). A request with to_date=Jan 31
+    must pick the Jan 31 run, not the latest one — because the latest run's
+    materialized period may not contain the data the caller is asking about.
+    """
+    from app.modules.reporting.models import ReportRun, ReportSavingsStatementLine
+
+    async with _new_session(test_engine) as session:
+        member_id, account_id = await _seed_savings(session)
+
+        # Insert two completed runs by hand.
+        run_jan = ReportRun(
+            report_type="savings_statement",
+            as_of_date=date(2026, 1, 31),
+            status="done",
+            started_at=datetime.now(tz=UTC),
+            completed_at=datetime.now(tz=UTC),
+        )
+        session.add(run_jan)
+        await session.flush()
+        session.add(ReportSavingsStatementLine(
+            report_run_id=run_jan.id,
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+            savings_account_id=account_id,
+            member_id=member_id,
+            posted_at=datetime(2026, 1, 10, tzinfo=UTC),
+            transaction_type="deposit",
+            narration="January line",
+            amount=Decimal("100"),
+            running_balance=Decimal("100"),
+        ))
+
+        run_feb = ReportRun(
+            report_type="savings_statement",
+            as_of_date=date(2026, 2, 28),
+            status="done",
+            started_at=datetime.now(tz=UTC),
+            completed_at=datetime.now(tz=UTC),
+        )
+        session.add(run_feb)
+        await session.flush()
+        session.add(ReportSavingsStatementLine(
+            report_run_id=run_feb.id,
+            period_start=date(2026, 2, 1),
+            period_end=date(2026, 2, 28),
+            savings_account_id=account_id,
+            member_id=member_id,
+            posted_at=datetime(2026, 2, 14, tzinfo=UTC),
+            transaction_type="deposit",
+            narration="February line",
+            amount=Decimal("200"),
+            running_balance=Decimal("300"),
+        ))
+        await session.commit()
+
+    async with _new_session(test_engine) as session:
+        svc = SavingsStatementService(session)
+        # Caller asks for data up to Jan 31 — the Jan 31 run is the smallest
+        # run whose as_of_date >= to_date and must be selected.
+        run, lines = await svc.get_savings_statement(
+            member_id=member_id, to_date=date(2026, 1, 31),
+        )
+        assert run is not None
+        assert run.as_of_date == date(2026, 1, 31), (
+            f"Expected the Jan 31 run, got {run.as_of_date}"
+        )
+        # Only the January line is in that run (since the Feb line lives in
+        # the Feb run).
+        narrations = [ln.narration for ln in lines]
+        assert narrations == ["January line"]
+
+        await _cleanup(session)

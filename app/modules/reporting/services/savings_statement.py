@@ -127,13 +127,32 @@ class SavingsStatementService:
         from_date: date | None = None,
         to_date: date | None = None,
     ) -> tuple[ReportRun | None, list[ReportSavingsStatementLine]]:
-        """Return (run, lines) for the latest savings statement run, filtered by member_id."""
-        run = await self._session.scalar(
+        """Return (run, lines) for the latest savings statement run, filtered by member_id.
+
+        Run selection: when *to_date* is provided, the *oldest* run whose
+        as_of_date is at or after *to_date* is returned. Each materialization
+        is window-scoped (period_start <= posted_at < period_end), so an
+        older qualifying run lines up with the caller's range more precisely
+        than a newer (and possibly later-windowed) run that may have
+        materialized zero transactions in the requested period. When
+        *to_date* is None, the absolute latest run wins.
+
+        Line ordering: ``(savings_account_id, posted_at)`` so multi-account
+        members get rows grouped per account rather than interleaved.
+        """
+        run_q = (
             select(ReportRun)
             .where(ReportRun.report_type == "savings_statement", ReportRun.status == "done")
-            .order_by(ReportRun.as_of_date.desc())
-            .limit(1)
         )
+        if to_date is not None:
+            run_q = (
+                run_q.where(ReportRun.as_of_date >= to_date)
+                .order_by(ReportRun.as_of_date.asc())
+                .limit(1)
+            )
+        else:
+            run_q = run_q.order_by(ReportRun.as_of_date.desc()).limit(1)
+        run = await self._session.scalar(run_q)
         if run is None:
             return None, []
 
@@ -143,7 +162,10 @@ class SavingsStatementService:
                 ReportSavingsStatementLine.report_run_id == run.id,
                 ReportSavingsStatementLine.member_id == member_id,
             )
-            .order_by(ReportSavingsStatementLine.posted_at)
+            .order_by(
+                ReportSavingsStatementLine.savings_account_id,
+                ReportSavingsStatementLine.posted_at,
+            )
         )
         if from_date is not None:
             q = q.where(ReportSavingsStatementLine.period_start >= from_date)

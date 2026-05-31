@@ -11,23 +11,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 
-from app.modules.credit import executors as _credit_executors  # noqa: F401
-from app.modules.ledger import executors as _ledger_executors  # noqa: F401
-from app.modules.members import executors as _members_executors  # noqa: F401
-from app.modules.savings import executors as _savings_executors  # noqa: F401
-from app.modules.shares import executors as _shares_executors  # noqa: F401
 from app.core.config import get_settings
 from app.core.db import engine
+from app.modules.credit import executors as _credit_executors  # noqa: F401
 from app.modules.credit.api import router as credit_router
 from app.modules.fees.api import router as fees_router
 from app.modules.iam.keys.api import jwks_router, key_mgmt_router
 from app.modules.iam.platform_auth.api import router as platform_auth_router
 from app.modules.iam.tenant_auth.api import router as tenant_auth_router
+from app.modules.ledger import executors as _ledger_executors  # noqa: F401
 from app.modules.ledger.api import router as ledger_router
 from app.modules.maker_checker.api import router as maker_checker_router
+from app.modules.members import executors as _members_executors  # noqa: F401
 from app.modules.members.api import router as members_router
 from app.modules.reporting.api import router as reporting_router
+from app.modules.savings import executors as _savings_executors  # noqa: F401
 from app.modules.savings.api import router as savings_router
+from app.modules.shares import executors as _shares_executors  # noqa: F401
 from app.modules.shares.api import router as shares_router
 from app.platform_.auth import get_current_superuser
 from app.platform_.tenants.api import router as platform_tenants_router
