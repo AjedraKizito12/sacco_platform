@@ -140,3 +140,41 @@ Schema-per-tenant on PostgreSQL. Each tenant SACCO gets its own schema.
 - Write-off recovery does not require maker-checker. The cash receipt is the authorizing event.
 - WeasyPrint is the only permitted PDF renderer in this module. Do not add alternative
   PDF libraries.
+
+## Billing module contracts (do not violate)
+
+- All billing tables live in the `platform` schema. The tenant schema never
+  sees billing state. The only tenant-schema impact is *behaviour* (the
+  subscription gate middleware in `get_tenant_session` — SP04 — rejects
+  requests against suspended/cancelled tenants).
+- `platform.subscriptions.status` is the authoritative subscription state.
+  `platform.tenants.subscription_status` is a **denormalised** copy read by
+  the request-time middleware. Every `SubscriptionService` transition writes
+  BOTH rows in the same DB transaction. No other code path may update either
+  column directly. CI should enforce that no service or executor outside
+  `app/platform_/billing/services/` mutates `subscriptions.status` or
+  `tenants.subscription_status`.
+- `SubscriptionService.assign()`, `cancel()`, `reactivate()`,
+  `transition_to_past_due()`, `transition_to_suspended()` are the only
+  permitted state-transition methods. Direct `UPDATE platform.subscriptions
+  SET status = ...` is forbidden.
+- Money is `Numeric(19, 4)`. UGX-only in v1; the `currency` columns exist
+  for forward compatibility but no code may key off them yet.
+- `PaymentProcessor` interface lives in `app/platform_/billing/processors/base.py`.
+  `OfflineProcessor` is the only concrete implementation in v1.
+  `FlutterwaveProcessor`, `StripeProcessor`, `MobileMoneyProcessor` are
+  intentional stubs — instantiating them raises `NotImplementedError`. Do not
+  remove them; the module graph is part of the contract.
+- `OfflineProcessor.initiate()` is a pure function — it never writes to the
+  database. All DB writes for a payment happen in `PaymentService` (SP03),
+  invoked via the maker-checker executor in SP04.
+- Plan term snapshotting is intentionally NOT implemented in v1. Subscriptions
+  reference plans by FK. If plan pricing changes, historical subscriptions
+  reflect the new pricing on read. CLAUDE.md rule 10 (snapshotting product
+  terms) applies to loans/savings; billing plans are explicitly out of scope.
+  Add snapshot columns to `subscriptions` if regulatory audit later requires it.
+- Maker-checker for `billing.record_payment`, `billing.void_invoice`,
+  `billing.cancel_subscription` is wired in SP04 via `@approval_executor`.
+  Direct calls to `PaymentService.confirm` / `InvoiceService.void` /
+  `SubscriptionService.cancel(cancel_at_period_end=False)` are only allowed
+  from the maker-checker executor module, never from HTTP route handlers.
