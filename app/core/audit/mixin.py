@@ -6,8 +6,8 @@ from decimal import Decimal
 from typing import Any
 
 import structlog
-from sqlalchemy import event
-from sqlalchemy.orm import Session, attributes
+from sqlalchemy import event, insert
+from sqlalchemy.orm import attributes
 
 
 def _serialize(val: Any) -> Any:
@@ -75,17 +75,24 @@ def _get_record_id(mapper: Any, target: Any) -> uuid.UUID | None:
 
 
 def _write_audit(
+    connection: Any,
     mapper: Any,
     target: Any,
     operation: str,
     before_state: dict[str, Any] | None,
     after_state: dict[str, Any] | None,
 ) -> None:
-    from app.core.audit.models import PlatformAuditLog, TenantAuditLog
+    """Insert an audit_log row using the *connection* of the in-flight flush.
 
-    session = Session.object_session(target)
-    if session is None:
-        return
+    Insert is issued via Core-level ``connection.execute(insert(...))`` rather
+    than ``session.add(...)``. The Session.add() path used to run inside
+    after_insert / after_update / after_delete, which SQLAlchemy warns is
+    'not currently supported within the execution stage of the flush
+    process' and may produce inconsistent results. Going through the
+    connection writes the row in the same transaction as the original
+    change without re-entering the Session's flush state machine.
+    """
+    from app.core.audit.models import PlatformAuditLog, TenantAuditLog
 
     ctx = _actor_context()
     table_args = getattr(target.__class__, "__table_args__", None)
@@ -99,16 +106,18 @@ def _write_audit(
     record_id = _get_record_id(mapper, target)
 
     model_cls = PlatformAuditLog if is_platform else TenantAuditLog
-    row = model_cls(
-        table_name=target.__tablename__,
-        record_id=record_id,
-        operation=operation,
-        before_state=before_state,
-        after_state=after_state,
-        occurred_at=datetime.now(UTC),
-        **ctx,
+    connection.execute(
+        insert(model_cls).values(
+            id=uuid.uuid4(),
+            table_name=target.__tablename__,
+            record_id=record_id,
+            operation=operation,
+            before_state=before_state,
+            after_state=after_state,
+            occurred_at=datetime.now(UTC),
+            **ctx,
+        )
     )
-    session.add(row)
 
 
 class AuditableMixin:
@@ -120,14 +129,18 @@ class AuditableMixin:
 
         @event.listens_for(cls, "after_insert")
         def after_insert(mapper: Any, connection: Any, target: Any) -> None:
-            _write_audit(mapper, target, "insert", None, _snapshot(mapper, target))
+            _write_audit(
+                connection, mapper, target, "insert", None, _snapshot(mapper, target),
+            )
 
         @event.listens_for(cls, "after_update")
         def after_update(mapper: Any, connection: Any, target: Any) -> None:
             before = _before_snapshot(mapper, target)
             after = _snapshot(mapper, target)
-            _write_audit(mapper, target, "update", before, after)
+            _write_audit(connection, mapper, target, "update", before, after)
 
         @event.listens_for(cls, "after_delete")
         def after_delete(mapper: Any, connection: Any, target: Any) -> None:
-            _write_audit(mapper, target, "delete", _snapshot(mapper, target), None)
+            _write_audit(
+                connection, mapper, target, "delete", _snapshot(mapper, target), None,
+            )
