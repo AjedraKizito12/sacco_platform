@@ -394,6 +394,7 @@ async def test_payment_invalid_method_rejected(test_engine: AsyncEngine):
                     amount=Decimal("50000"),
                     payment_method="paypal",  # not in CHECK constraint
                     recorded_by=user.id,
+                    idempotency_key=f"idem-{uuid.uuid4().hex}",
                 )
                 s.add(pmt)
                 await s.commit()

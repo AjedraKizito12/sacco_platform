@@ -241,6 +241,7 @@ class Payment(Base):
             "status IN ('pending', 'confirmed', 'rejected')",
             name="ck_payments_status",
         ),
+        UniqueConstraint("idempotency_key", name="uq_payments_idempotency_key"),
         Index("ix_payments_invoice", "invoice_id"),
         {"schema": "platform"},
     )
@@ -258,6 +259,7 @@ class Payment(Base):
     payment_method: Mapped[str] = mapped_column(Text, nullable=False)
     external_reference: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
     recorded_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey(
