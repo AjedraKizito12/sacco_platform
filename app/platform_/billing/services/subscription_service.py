@@ -26,6 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.platform_.billing.exceptions import (
+    InvalidTransition,
     PlanInactive,
     SubscriptionConflict,
 )
@@ -156,3 +157,121 @@ class SubscriptionService:
             initial_status=initial_status,
         )
         return sub
+
+    async def cancel(
+        self,
+        *,
+        subscription_id: uuid.UUID,
+        reason: str,
+        cancel_at_period_end: bool = True,
+    ) -> Subscription:
+        """Cancel a subscription.
+
+        cancel_at_period_end=True (default):
+            Sets cancelled_at + cancellation_reason but leaves status as-is.
+            The beat job at period end transitions to 'cancelled'.
+            tenant.subscription_status is NOT changed.
+
+        cancel_at_period_end=False:
+            Immediately transitions to 'cancelled' and updates
+            tenants.subscription_status. Hard cancel.
+
+        Raises:
+            ValueError: subscription not found.
+            InvalidTransition: subscription is already cancelled.
+        """
+        sub = await self.get(subscription_id)
+        if sub is None:
+            raise ValueError(f"Subscription {subscription_id} not found")
+        if sub.status == "cancelled":
+            raise InvalidTransition(from_status=sub.status, to_status="cancelled")
+
+        now = datetime.now(UTC)
+        sub.cancelled_at = now
+        sub.cancellation_reason = reason
+
+        if not cancel_at_period_end:
+            old_status = sub.status
+            sub.status = "cancelled"
+            await self._sync_tenant_status(sub.tenant_id, "cancelled", sub.id)
+            _log.info(
+                "subscription.cancelled_immediately",
+                subscription_id=str(sub.id),
+                tenant_id=str(sub.tenant_id),
+                from_status=old_status,
+                reason=reason,
+            )
+        else:
+            _log.info(
+                "subscription.cancel_scheduled",
+                subscription_id=str(sub.id),
+                tenant_id=str(sub.tenant_id),
+                current_status=sub.status,
+                effective_at=sub.current_period_end.isoformat(),
+                reason=reason,
+            )
+
+        await self._s.flush()
+        return sub
+
+    async def reactivate(self, *, subscription_id: uuid.UUID) -> Subscription:
+        """Move past_due or suspended → active.
+
+        Recomputes current_period_end from now() + plan period and clears
+        grace_period_ends_at. Also updates tenant.subscription_status.
+
+        Raises:
+            ValueError: subscription or plan not found.
+            InvalidTransition: subscription is not in {'past_due', 'suspended'}.
+        """
+        sub = await self.get(subscription_id)
+        if sub is None:
+            raise ValueError(f"Subscription {subscription_id} not found")
+        if sub.status not in {"past_due", "suspended"}:
+            raise InvalidTransition(from_status=sub.status, to_status="active")
+
+        plan = cast(
+            SubscriptionPlan | None,
+            await self._s.scalar(
+                select(SubscriptionPlan).where(SubscriptionPlan.id == sub.plan_id)
+            ),
+        )
+        if plan is None:
+            raise ValueError(f"SubscriptionPlan {sub.plan_id} not found")
+
+        today = date.today()
+        sub.status = "active"
+        sub.current_period_start = today
+        sub.current_period_end = today + timedelta(
+            days=_BILLING_PERIOD_DAYS[plan.billing_period]
+        )
+        sub.next_billing_date = sub.current_period_end
+        sub.grace_period_ends_at = None
+
+        await self._sync_tenant_status(sub.tenant_id, "active", sub.id)
+        await self._s.flush()
+
+        _log.info(
+            "subscription.reactivated",
+            subscription_id=str(sub.id),
+            tenant_id=str(sub.tenant_id),
+        )
+        return sub
+
+    # ── Internals ──────────────────────────────────────────────────────────
+
+    async def _sync_tenant_status(
+        self,
+        tenant_id: uuid.UUID,
+        new_status: str,
+        current_subscription_id: uuid.UUID,
+    ) -> None:
+        """Write the denormalised status onto the tenant row."""
+        tenant = cast(
+            Tenant | None,
+            await self._s.scalar(select(Tenant).where(Tenant.id == tenant_id)),
+        )
+        if tenant is None:  # pragma: no cover — FK guarantees existence
+            raise ValueError(f"Tenant {tenant_id} not found")
+        tenant.subscription_status = new_status
+        tenant.current_subscription_id = current_subscription_id
