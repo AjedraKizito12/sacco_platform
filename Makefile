@@ -42,11 +42,14 @@ down: ## Stop all containers (keeps volumes)
 api: ## Run uvicorn (API_PORT=$(API_PORT))
 	$(PY) -m uvicorn app.main:app --host $(API_HOST) --port $(API_PORT) --reload
 
-worker: ## Run a Celery worker (registers all beat/consumer tasks)
+worker: ## Run a Celery worker only (no scheduler — pair with 'make beat')
 	$(PY) -m celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
 
-beat: ## Run Celery beat (the scheduler)
+beat: ## Run Celery beat scheduler (dispatches the @celery_app.task periodics)
 	$(PY) -m celery -A app.workers.celery_app beat --loglevel=info
+
+dev-worker: ## Worker + embedded beat for local dev (don't use in production)
+	$(PY) -m celery -A app.workers.celery_app worker -B --loglevel=info --concurrency=2
 
 # ── Migrations & seeds ────────────────────────────────────────────────────────
 

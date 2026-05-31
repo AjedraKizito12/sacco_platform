@@ -42,8 +42,16 @@ A `Makefile` surfaces the common ops. From the repo root:
 make up                # docker compose up -d postgres redis rabbitmq elasticsearch postgres-test
 make migrate           # run platform alembic migrations against the dev DB
 make api               # uvicorn on http://127.0.0.1:8001
-make worker            # Celery worker (registers every @celery_app.task)
+make dev-worker        # Celery worker with embedded beat scheduler (-B)
 ```
+
+For a production-shaped layout, run `make worker` and `make beat` in
+separate terminals. The worker alone won't fire the periodic tasks
+(outbox relay, JWT key rotation, fee assessment, reporting
+materialization, etc.) — a scheduler has to dispatch them, and that
+scheduler is `make beat`. `make dev-worker` embeds the scheduler in
+the worker process via Celery's `-B` flag, which is convenient for a
+single-node dev box but not appropriate for any multi-worker setup.
 
 Then in another terminal:
 
