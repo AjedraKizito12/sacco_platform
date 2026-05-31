@@ -57,7 +57,7 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), server_default=sa.text("gen_random_uuid()"), primary_key=True),
         sa.Column("tenant_id", sa.UUID(), nullable=False),
         sa.Column("plan_id", sa.UUID(), nullable=False),
-        sa.Column("status", sa.Text(), nullable=False),
+        sa.Column("status", sa.Text(), nullable=False, server_default="trialing"),
         sa.Column("started_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("current_period_start", sa.Date(), nullable=False),
         sa.Column("current_period_end", sa.Date(), nullable=False),
@@ -269,8 +269,21 @@ def downgrade() -> None:
     )
     op.drop_column("tenants", "current_subscription_id", schema="platform")
     op.drop_column("tenants", "subscription_status", schema="platform")
+
+    op.drop_index("ix_payments_invoice", table_name="payments", schema="platform")
     op.drop_table("payments", schema="platform")
+
+    op.drop_index("ix_invoice_line_items_invoice", table_name="invoice_line_items", schema="platform")
     op.drop_table("invoice_line_items", schema="platform")
+
+    op.drop_index("ix_invoices_due", table_name="invoices", schema="platform")
+    op.drop_index("ix_invoices_tenant_status", table_name="invoices", schema="platform")
     op.drop_table("invoices", schema="platform")
+
+    op.drop_index("uq_subscriptions_live_tenant", table_name="subscriptions", schema="platform")
+    op.drop_index("ix_subscriptions_period_end", table_name="subscriptions", schema="platform")
+    op.drop_index("ix_subscriptions_tenant_status", table_name="subscriptions", schema="platform")
     op.drop_table("subscriptions", schema="platform")
+
+    op.drop_index("ix_sub_plans_is_active", table_name="subscription_plans", schema="platform")
     op.drop_table("subscription_plans", schema="platform")
