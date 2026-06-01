@@ -178,3 +178,34 @@ Schema-per-tenant on PostgreSQL. Each tenant SACCO gets its own schema.
   Direct calls to `PaymentService.confirm` / `InvoiceService.void` /
   `SubscriptionService.cancel(cancel_at_period_end=False)` are only allowed
   from the maker-checker executor module, never from HTTP route handlers.
+- Invoice numbers are issued via per-year Postgres SEQUENCE named
+  `platform.invoice_seq_YYYY`. Format: `INV-YYYY-NNNNNN` (6-digit
+  zero-padded). The InvoiceService creates new yearly sequences lazily
+  via `CREATE SEQUENCE IF NOT EXISTS`; do not hand-roll numbers.
+- `InvoiceService.generate_for_subscription()` is the only path to
+  creating an Invoice row. Direct `Invoice(...)` instantiation outside
+  the service is forbidden. The function is idempotent on
+  `(subscription_id, billing_period_start)`.
+- v1 invoice line generation is **base price only** — one
+  `InvoiceLineItem` per invoice with `quantity=1`, `unit_price =
+  plan.base_price`. Per-user and per-member billing lines are
+  intentionally out of scope; they would be zero-amount rows anyway
+  because all v1 plans default both prices to 0. Implementations may
+  add multi-line generation when a real-world plan requires it.
+- `InvoiceService.void()` only voids invoices with `amount_paid = 0`.
+  Voiding a partial/paid invoice is forbidden in v1; the caller must
+  reverse payments first (payment reversal is post-launch work).
+- `PaymentService.record()` is the only path to creating a Payment row.
+  The function is idempotent on `idempotency_key` (DB-enforced via
+  `uq_payments_idempotency_key`). Callers must supply a key ≥ 8 chars
+  long (validated by `PaymentRecordIn`).
+- `PaymentService.confirm()` is the only path to flipping a pending
+  Payment to `confirmed` and applying the amount to the parent invoice.
+  Self-approval (maker == checker) is rejected at the service level.
+- `PaymentService.reject()` is the only path to flipping pending →
+  rejected. Rejection reason is captured in the audit log (SP04
+  executors write the entry), not on the Payment row.
+- Overpayment is rejected: `confirm()` raises `OverpaymentRejected`
+  if `amount_paid + new_amount > amount_total`. Partial payments are
+  supported; the invoice transitions to `partial` until cumulative
+  payments equal the total.
