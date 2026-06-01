@@ -1,5 +1,7 @@
 import re
 from collections.abc import AsyncGenerator
+from datetime import date
+from typing import cast
 
 import structlog
 from fastapi import HTTPException, Request
@@ -65,6 +67,63 @@ async def _resolve_tenant_schema(slug: str, redis_client: Redis) -> str:
     return schema_name
 
 
+async def _check_subscription_gate(slug: str) -> None:
+    """Reject requests for tenants whose subscription has lapsed.
+
+    Reads platform.tenants.subscription_status and (for past_due) the
+    grace_period_ends_at on the current subscription, then maps to:
+        pending / trialing / active → allow
+        past_due within grace        → allow
+        past_due past grace          → 402 Payment Required
+        suspended                    → 403 Forbidden
+        cancelled                    → 403 Forbidden
+
+    Raises:
+        HTTPException(402): past_due, grace_period_ends_at < today
+        HTTPException(403): suspended or cancelled
+    """
+    async with engine.connect() as conn:
+        result = await conn.execute(
+            text(
+                "SELECT t.subscription_status, s.grace_period_ends_at "
+                "FROM platform.tenants t "
+                "LEFT JOIN platform.subscriptions s "
+                "  ON t.current_subscription_id = s.id "
+                "WHERE t.slug = :slug AND t.is_active = true"
+            ),
+            {"slug": slug},
+        )
+        row = result.fetchone()
+    if row is None:
+        # Defensive — should be unreachable because _resolve_tenant_schema
+        # already raised 404 for missing tenants.
+        return
+
+    status: str = row[0]
+    grace_end: date | None = cast("date | None", row[1])
+
+    if status in {"pending", "trialing", "active"}:
+        return
+    if status == "past_due":
+        if grace_end is None or grace_end >= date.today():
+            return
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                "Subscription past due and grace period has expired. "
+                "Please settle the outstanding invoice to restore access."
+            ),
+        )
+    if status in {"suspended", "cancelled"}:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Subscription status is '{status}'; access denied.",
+        )
+    # Defensive — any unexpected status is treated as a fail-closed error.
+    _log.error("subscription_gate.unknown_status", slug=slug, status=status)
+    raise HTTPException(status_code=403, detail="Subscription state invalid")
+
+
 async def get_tenant_session(
     request: Request,
 ) -> AsyncGenerator[AsyncSession, None]:
@@ -90,6 +149,9 @@ async def get_tenant_session(
 
     redis_client: Redis = request.app.state.redis
     schema_name = await _resolve_tenant_schema(slug, redis_client)
+
+    # Subscription gate — runs on every tenant-scoped request.
+    await _check_subscription_gate(slug)
 
     # Defense in depth: validate the schema_name we got from our own DB.
     if not _SCHEMA_RE.match(schema_name):
