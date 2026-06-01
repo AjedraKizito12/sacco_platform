@@ -32,12 +32,13 @@ async def execute_confirm_payment(
 ) -> dict[str, Any]:
     """Executor: runs when a payment-recording request reaches quorum.
 
+    The maker/checker check is enforced by ApprovalService.approve()
+    before this executor runs, so we don't re-check here.
+
     payload keys:
         payment_id: str (UUID) — the pending Payment row created by the maker
-        confirmed_by: str (UUID) — the checker (this must NOT be the maker)
     """
     payment_id = uuid.UUID(payload["payment_id"])
-    confirmed_by = uuid.UUID(payload["confirmed_by"])
 
     svc = PaymentService(session)
     # Idempotency: if the payment is already confirmed, return success.
@@ -49,7 +50,7 @@ async def execute_confirm_payment(
             "idempotent": True,
         }
 
-    pmt = await svc.confirm(payment_id=payment_id, confirmed_by=confirmed_by)
+    pmt = await svc.confirm(payment_id=payment_id, confirmed_by=None)
     return {
         "payment_id": str(pmt.id),
         "invoice_id": str(pmt.invoice_id),

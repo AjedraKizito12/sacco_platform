@@ -153,17 +153,13 @@ async def test_confirm_payment_executor_marks_invoice_paid(factory) -> None:
     plan = await _make_plan(factory)
     tenant = await _make_tenant(factory)
     maker = await _make_platform_user(factory)
-    checker = await _make_platform_user(factory)
     payment_id = await _setup_pending_payment(factory, plan, tenant, maker)
     try:
         async with factory() as s:
             await _set_platform(s)
             result = await execute_confirm_payment(
                 s,
-                {
-                    "payment_id": str(payment_id),
-                    "confirmed_by": str(checker.id),
-                },
+                {"payment_id": str(payment_id)},
             )
             await s.commit()
             assert result["status"] == "confirmed"
@@ -188,13 +184,9 @@ async def test_confirm_payment_executor_is_idempotent(factory) -> None:
     plan = await _make_plan(factory)
     tenant = await _make_tenant(factory)
     maker = await _make_platform_user(factory)
-    checker = await _make_platform_user(factory)
     payment_id = await _setup_pending_payment(factory, plan, tenant, maker)
     try:
-        payload = {
-            "payment_id": str(payment_id),
-            "confirmed_by": str(checker.id),
-        }
+        payload = {"payment_id": str(payment_id)}
         async with factory() as s:
             await _set_platform(s)
             await execute_confirm_payment(s, payload)

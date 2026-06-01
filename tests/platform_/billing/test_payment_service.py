@@ -417,3 +417,36 @@ async def test_reject_moves_to_rejected_without_touching_invoice(factory) -> Non
             assert inv.amount_paid == Decimal("0")
     finally:
         await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_confirm_with_none_confirmed_by_skips_maker_check(factory) -> None:
+    """When confirmed_by=None (executor path), maker/checker check is skipped."""
+    plan = await _make_plan(factory)
+    tenant = await _make_tenant(factory)
+    maker = await _make_platform_user(factory)
+    invoice_id = await _make_invoice(factory, plan, tenant)
+    try:
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            pmt = await svc.record(
+                invoice_id=invoice_id,
+                amount=Decimal("50000"),
+                currency="UGX",
+                payment_method="cash",
+                recorded_by=maker.id,
+                idempotency_key="key-confirm-bypass-001",
+            )
+            await s.commit()
+            pmt_id = pmt.id
+
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            # confirmed_by=None bypasses the maker/checker check.
+            confirmed = await svc.confirm(payment_id=pmt_id, confirmed_by=None)
+            await s.commit()
+            assert confirmed.status == "confirmed"
+    finally:
+        await _cleanup(factory)

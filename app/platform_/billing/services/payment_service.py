@@ -124,9 +124,16 @@ class PaymentService:
         self,
         *,
         payment_id: uuid.UUID,
-        confirmed_by: uuid.UUID,
+        confirmed_by: uuid.UUID | None = None,
     ) -> Payment:
         """Confirm a pending payment. Applies amount to the parent invoice.
+
+        Args:
+            payment_id: target payment.
+            confirmed_by: the checker's user_id. When None, the maker/checker
+                check is skipped — this is the path used by the
+                `billing.confirm_payment` approval executor, since
+                `ApprovalService.approve()` has already enforced maker != checker.
 
         Transitions:
             payment.status: pending → confirmed
@@ -138,7 +145,8 @@ class PaymentService:
 
         Raises:
             ValueError: payment not found.
-            PaymentConflict: payment not pending, or self-approval attempt.
+            PaymentConflict: payment not pending, or self-approval attempt
+                            (only when confirmed_by is provided).
             OverpaymentRejected: confirmation would push amount_paid past total.
         """
         pmt = await self.get(payment_id)
@@ -148,7 +156,7 @@ class PaymentService:
             raise PaymentConflict(
                 f"Cannot confirm payment in status {pmt.status!r}"
             )
-        if pmt.recorded_by == confirmed_by:
+        if confirmed_by is not None and pmt.recorded_by == confirmed_by:
             raise PaymentConflict(
                 "Maker cannot be checker (payment.recorded_by == confirmed_by)"
             )
