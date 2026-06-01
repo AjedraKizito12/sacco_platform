@@ -9,12 +9,15 @@ import uuid
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import get_platform_session
+from app.modules.iam.dependencies import CurrentTenantUser, get_current_tenant_user
 from app.modules.maker_checker.service import ApprovalService
 from app.platform_.auth import CurrentPlatformUser, get_current_platform_user
 from app.platform_.billing.exceptions import (
@@ -43,7 +46,7 @@ from app.platform_.billing.services import (
     PlanService,
     SubscriptionService,
 )
-from app.platform_.models import PlatformUser
+from app.platform_.models import PlatformUser, Tenant
 
 
 class PaymentRejectIn(BaseModel):
@@ -516,3 +519,140 @@ async def list_pending_payments(
     )
     result = await session.execute(q)
     return [PaymentOut.model_validate(p) for p in result.scalars().all()]
+
+
+# ── Tenant-facing /billing/me endpoints ───────────────────────────────────────
+
+
+async def _get_tenant_id_from_slug(
+    request: Request,
+    platform_session: Annotated[AsyncSession, Depends(get_platform_session)],
+) -> uuid.UUID:
+    """Resolve the tenant UUID from the X-Tenant-Slug header.
+
+    Billing data is stored in platform.* and keyed by tenant.id (UUID).
+    The tenant schema context gives us the slug; we join to platform.tenants
+    to get the stable primary key for billing lookups.
+    """
+    settings = get_settings()
+    slug: str | None = request.headers.get(settings.tenant_header)
+    if not slug:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required header: {settings.tenant_header}",
+        )
+    tenant = await platform_session.scalar(
+        select(Tenant).where(Tenant.slug == slug, Tenant.is_active.is_(True))
+    )
+    if tenant is None:
+        raise HTTPException(status_code=404, detail=f"Tenant '{slug}' not found")
+    return tenant.id
+
+
+# NOTE: /invoices/{invoice_id}.pdf MUST be registered BEFORE /invoices/{invoice_id}
+# so that Starlette matches the literal ".pdf" suffix before the UUID catch-all.
+
+
+@tenant_router.get(
+    "/invoices/{invoice_id}.pdf",
+    response_class=Response,
+)
+async def get_my_invoice_pdf(
+    invoice_id: uuid.UUID,
+    _user: Annotated[CurrentTenantUser, Depends(get_current_tenant_user)],
+    session: Annotated[AsyncSession, Depends(get_platform_session)],
+    tenant_id: Annotated[uuid.UUID, Depends(_get_tenant_id_from_slug)],
+) -> Response:
+    from sqlalchemy import select
+
+    from app.platform_.billing.models import InvoiceLineItem
+    from app.platform_.billing.pdf import render_invoice_pdf
+
+    invoice = await InvoiceService(session).get(invoice_id)
+    # Cross-tenant access: 404 (not 403) to avoid leaking existence.
+    if invoice is None or invoice.tenant_id != tenant_id:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    line_result = await session.execute(
+        select(InvoiceLineItem)
+        .where(InvoiceLineItem.invoice_id == invoice_id)
+        .order_by(InvoiceLineItem.line_order)
+    )
+    lines = list(line_result.scalars().all())
+    pdf_bytes = render_invoice_pdf(invoice, lines)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'inline; filename="{invoice.invoice_number}.pdf"'
+            ),
+        },
+    )
+
+
+@tenant_router.get("/subscription", response_model=SubscriptionOut)
+async def get_my_subscription(
+    _user: Annotated[CurrentTenantUser, Depends(get_current_tenant_user)],
+    session: Annotated[AsyncSession, Depends(get_platform_session)],
+    tenant_id: Annotated[uuid.UUID, Depends(_get_tenant_id_from_slug)],
+) -> SubscriptionOut:
+    sub = await SubscriptionService(session).get_live_for_tenant(tenant_id)
+    if sub is None:
+        raise HTTPException(status_code=404, detail="No active subscription")
+    return SubscriptionOut.model_validate(sub)
+
+
+@tenant_router.get("/invoices", response_model=list[InvoiceOut])
+async def list_my_invoices(
+    _user: Annotated[CurrentTenantUser, Depends(get_current_tenant_user)],
+    session: Annotated[AsyncSession, Depends(get_platform_session)],
+    tenant_id: Annotated[uuid.UUID, Depends(_get_tenant_id_from_slug)],
+) -> list[InvoiceOut]:
+    from sqlalchemy import select
+
+    from app.platform_.billing.models import Invoice
+
+    q = (
+        select(Invoice)
+        .where(Invoice.tenant_id == tenant_id)
+        .order_by(Invoice.created_at.desc())
+    )
+    result = await session.execute(q)
+    return [InvoiceOut.model_validate(inv) for inv in result.scalars().all()]
+
+
+@tenant_router.get("/invoices/{invoice_id}", response_model=InvoiceDetailOut)
+async def get_my_invoice(
+    invoice_id: uuid.UUID,
+    _user: Annotated[CurrentTenantUser, Depends(get_current_tenant_user)],
+    session: Annotated[AsyncSession, Depends(get_platform_session)],
+    tenant_id: Annotated[uuid.UUID, Depends(_get_tenant_id_from_slug)],
+) -> InvoiceDetailOut:
+    from sqlalchemy import select
+
+    from app.platform_.billing.models import InvoiceLineItem
+
+    invoice = await InvoiceService(session).get(invoice_id)
+    # Cross-tenant access: 404 (not 403) to avoid leaking existence.
+    if invoice is None or invoice.tenant_id != tenant_id:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    line_result = await session.execute(
+        select(InvoiceLineItem)
+        .where(InvoiceLineItem.invoice_id == invoice_id)
+        .order_by(InvoiceLineItem.line_order)
+    )
+    lines = list(line_result.scalars().all())
+    inv_dict = InvoiceOut.model_validate(invoice).model_dump()
+    inv_dict["line_items"] = [
+        {
+            "id": line.id,
+            "invoice_id": line.invoice_id,
+            "description": line.description,
+            "quantity": line.quantity,
+            "unit_price": line.unit_price,
+            "amount": line.amount,
+            "line_order": line.line_order,
+        }
+        for line in lines
+    ]
+    return InvoiceDetailOut.model_validate(inv_dict)

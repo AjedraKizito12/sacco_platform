@@ -243,3 +243,32 @@ Schema-per-tenant on PostgreSQL. Each tenant SACCO gets its own schema.
   is only callable from the `billing.cancel_subscription` executor.
   Direct calls from HTTP handlers are forbidden. Soft cancellation
   (`cancel_at_period_end=True`) does not require maker-checker.
+- HTTP API surface lives in `app/platform_/billing/api.py`, exposing two
+  routers: `platform_router` at `/platform/billing/*` and `tenant_router`
+  at `/billing/me/*`. Both are mounted from `app/main.py`. Do not add
+  billing endpoints outside this file.
+- `POST /platform/billing/invoices/{id}/payments` creates `Payment(pending)`
+  and the matching `ApprovalRequest(operation_type='billing.confirm_payment')`
+  in one DB transaction. The maker calls this; the checker approves via
+  the generic `/maker-checker/approval-requests/{id}/approve` endpoint or
+  rejects via `/platform/billing/payments/{id}/reject` (paired rejection).
+- `POST /platform/billing/payments/{id}/reject` is the ONLY way to reject
+  a pending payment. It pairs `ApprovalService.reject()` +
+  `PaymentService.reject()` in one transaction. Using the generic approval
+  reject endpoint alone leaves the Payment row stuck in 'pending'.
+- `POST /platform/billing/subscriptions/{id}/cancel?mode=at_period_end`
+  is a direct call (no maker-checker — soft cancel, reversible until period
+  end). `?mode=immediate` goes through the maker-checker executor.
+- `POST /platform/billing/invoices/{id}/void` always requires maker-checker.
+  There is no direct void endpoint.
+- Invoice PDFs are rendered on-demand at GET time via WeasyPrint. The
+  template lives at `app/platform_/billing/templates/invoice.html`.
+  `Invoice.pdf_storage_key` is reserved for a future caching layer and
+  stays NULL in v1.
+- Tenant-facing endpoints (`/billing/me/*`) read from the platform schema
+  but enforce ownership in the handler via `tenant_id == current_user.tenant_id`.
+  Cross-tenant access returns 404 (not 403) to avoid leaking row existence.
+- `PaymentService.confirm()` accepts `confirmed_by: UUID | None`. The
+  `billing.confirm_payment` executor calls it with `None` because
+  `ApprovalService.approve()` has already enforced maker != checker.
+  Direct callers (tests, scripts) should still pass the actual user UUID.
