@@ -209,3 +209,37 @@ Schema-per-tenant on PostgreSQL. Each tenant SACCO gets its own schema.
   if `amount_paid + new_amount > amount_total`. Partial payments are
   supported; the invoice transitions to `partial` until cumulative
   payments equal the total.
+- The maker-checker executors live in `app/platform_/billing/executors.py`:
+  `billing.confirm_payment`, `billing.void_invoice`, `billing.cancel_subscription`.
+  These are imported at app startup via `app/main.py` so the
+  `@approval_executor` decorators register on boot. Do not remove the
+  startup import — the registry is empty without it.
+- There is no `billing.record_payment` executor. The maker action creates
+  `Payment(status=pending)` + `ApprovalRequest(operation_type='billing.confirm_payment')`
+  in one transaction (SP05 API). The checker's approval triggers the
+  `billing.confirm_payment` executor, which calls `PaymentService.confirm()`.
+- Payment rejection is paired at the API layer (SP05): the rejection endpoint
+  calls `ApprovalService.reject(...)` and `PaymentService.reject(...)` in the
+  same DB transaction. There is no rejection executor — `ApprovalService.reject()`
+  alone would leave the `Payment` row stuck in `pending`.
+- All billing executors are idempotent. They check the target row's status
+  first and return success if already in the post-execution state. This
+  protects against duplicate `ApprovalService.approve()` invocations from
+  retries or beat-job interactions.
+- The subscription gate runs inside `get_tenant_session` (in `app/core/db.py`)
+  after schema resolution. It runs a single LEFT JOIN query
+  (`platform.tenants` ⋈ `platform.subscriptions`) per request — fresh from
+  Postgres, not cached. Schema_name continues to use the 5-minute Redis cache.
+- Gate HTTP semantics are fixed contracts:
+  `pending | trialing | active` → allow.
+  `past_due` within `grace_period_ends_at` → allow.
+  `past_due` past grace → **402 Payment Required**.
+  `suspended | cancelled` → **403 Forbidden**.
+  Changing any of these requires coordination with the Phase 2 admin portal.
+- The gate applies to ALL tenant-scoped requests including GETs.
+  `get_platform_session` is NOT gated — operators must be able to manage
+  tenants in any state.
+- Hard cancellation (`SubscriptionService.cancel(cancel_at_period_end=False)`)
+  is only callable from the `billing.cancel_subscription` executor.
+  Direct calls from HTTP handlers are forbidden. Soft cancellation
+  (`cancel_at_period_end=True`) does not require maker-checker.
