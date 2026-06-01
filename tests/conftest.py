@@ -53,6 +53,8 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     import app.modules.reporting.models  # noqa: F401 — registers reporting tables in Base.metadata
     import app.modules.savings.models  # noqa: F401 — registers savings tables in Base.metadata
     import app.modules.shares.models  # noqa: F401 — registers shares tables in Base.metadata
+    import app.platform_.billing.models  # noqa: F401 — registers billing tables in Base.metadata
+    import app.platform_.models  # noqa: F401 — registers Tenant, PlatformUser in Base.metadata
     from app.core.db import Base  # noqa: F401 — triggers metadata registration
 
     url = os.environ["DATABASE_URL"]

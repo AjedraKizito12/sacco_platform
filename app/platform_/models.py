@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime  # noqa: TC003 — used at runtime by SQLAlchemy
 
-from sqlalchemy import Boolean, CheckConstraint, Index, Integer, Text
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, Text
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +21,11 @@ class Tenant(Base):
             "'failed','deprovisioning','archived')",
             name="ck_tenants_status",
         ),
+        CheckConstraint(
+            "subscription_status IN ("
+            "'pending','trialing','active','past_due','suspended','cancelled')",
+            name="ck_tenants_subscription_status",
+        ),
         Index("ix_platform_tenants_slug", "slug"),
         Index("ix_platform_tenants_status", "status"),
         {"schema": "platform"},
@@ -32,6 +37,12 @@ class Tenant(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    subscription_status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
+    current_subscription_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform.subscriptions.id", name="fk_tenants_current_subscription"),
+        nullable=True,
+    )
     provisioning_state: Mapped[str | None] = mapped_column(Text, nullable=True)
     failed_step: Mapped[str | None] = mapped_column(Text, nullable=True)
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
