@@ -30,6 +30,7 @@ from app.modules.savings.api import router as savings_router
 from app.modules.shares import executors as _shares_executors  # noqa: F401
 from app.modules.shares.api import router as shares_router
 from app.platform_.auth import get_current_superuser
+from app.platform_.billing import executors as _billing_executors  # noqa: F401
 from app.platform_.tenants.api import router as platform_tenants_router
 from app.platform_.users.api import router as platform_users_router
 
