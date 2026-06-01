@@ -11,6 +11,7 @@ celery_app = Celery(
         "app.core.outbox.worker",
         "app.core.outbox.retention",
         "app.platform_.provisioning.tasks",
+        "app.platform_.billing.beat",
         "app.modules.iam.beat",
         "app.modules.fees.consumer",
         "app.modules.fees.beat",
@@ -104,6 +105,22 @@ celery_app.conf.update(
         },
         "materialize-fee-collection": {
             "task": "app.modules.reporting.beat.materialize_fee_collection",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "assess-subscription-state": {
+            "task": "app.platform_.billing.beat.assess_subscription_state",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "generate-next-period-invoices": {
+            "task": "app.platform_.billing.beat.generate_next_period_invoices",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "send-invoice-reminders": {
+            "task": "app.platform_.billing.beat.send_invoice_reminders",
+            "schedule": 24 * 3600.0,  # daily
+        },
+        "mark-overdue-invoices": {
+            "task": "app.platform_.billing.beat.mark_overdue_invoices",
             "schedule": 24 * 3600.0,  # daily
         },
     },
