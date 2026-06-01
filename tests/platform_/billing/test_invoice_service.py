@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -190,5 +190,101 @@ async def test_generate_rejects_unknown_subscription(factory) -> None:
             svc = InvoiceService(s)
             with pytest.raises(ValueError, match="Subscription"):
                 await svc.generate_for_subscription(subscription_id=uuid.uuid4())
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_void_unpaid_invoice_succeeds(factory) -> None:
+    plan = await _make_plan(factory)
+    tenant = await _make_tenant(factory)
+    sub_id = await _assigned_subscription(factory, plan, tenant)
+    try:
+        async with factory() as s:
+            await _set_platform(s)
+            svc = InvoiceService(s)
+            inv = await svc.generate_for_subscription(subscription_id=sub_id)
+            await s.commit()
+
+        async with factory() as s:
+            await _set_platform(s)
+            svc = InvoiceService(s)
+            voided = await svc.void(invoice_id=inv.id, reason="duplicate")
+            await s.commit()
+            assert voided.status == "void"
+            assert voided.voided_at is not None
+            assert voided.void_reason == "duplicate"
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_void_rejects_partially_paid_invoice(factory) -> None:
+    plan = await _make_plan(factory)
+    tenant = await _make_tenant(factory)
+    sub_id = await _assigned_subscription(factory, plan, tenant)
+    try:
+        async with factory() as s:
+            await _set_platform(s)
+            svc = InvoiceService(s)
+            inv = await svc.generate_for_subscription(subscription_id=sub_id)
+            inv.amount_paid = Decimal("100")
+            await s.commit()
+
+        async with factory() as s:
+            await _set_platform(s)
+            svc = InvoiceService(s)
+            with pytest.raises(InvoiceConflict, match="amount_paid"):
+                await svc.void(invoice_id=inv.id, reason="x")
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_mark_overdue_skips_recent_invoice(factory) -> None:
+    plan = await _make_plan(factory)
+    tenant = await _make_tenant(factory)
+    sub_id = await _assigned_subscription(factory, plan, tenant)
+    try:
+        async with factory() as s:
+            await _set_platform(s)
+            svc = InvoiceService(s)
+            inv = await svc.generate_for_subscription(subscription_id=sub_id)
+            await s.commit()
+
+        async with factory() as s:
+            await _set_platform(s)
+            svc = InvoiceService(s)
+            result = await svc.mark_overdue(invoice_id=inv.id)
+            assert result.status == "issued"
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_mark_overdue_batch_transitions_only_eligible(factory) -> None:
+    plan = await _make_plan(factory)
+    tenant = await _make_tenant(factory)
+    sub_id = await _assigned_subscription(factory, plan, tenant)
+    try:
+        async with factory() as s:
+            await _set_platform(s)
+            svc = InvoiceService(s)
+            inv = await svc.generate_for_subscription(subscription_id=sub_id)
+            inv.due_at = date.today() - timedelta(days=1)
+            await s.commit()
+
+        async with factory() as s:
+            await _set_platform(s)
+            svc = InvoiceService(s)
+            n = await svc.mark_overdue_batch()
+            await s.commit()
+            assert n == 1
+
+        async with factory() as s:
+            await _set_platform(s)
+            refreshed = await s.get(Invoice, inv.id)
+            assert refreshed is not None
+            assert refreshed.status == "overdue"
     finally:
         await _cleanup(factory)

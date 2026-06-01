@@ -183,3 +183,92 @@ class InvoiceService:
             amount_total=str(plan.base_price),
         )
         return invoice
+
+    async def void(
+        self,
+        *,
+        invoice_id: uuid.UUID,
+        reason: str,
+    ) -> Invoice:
+        """Void an invoice that has not received any payment.
+
+        Only invoices with amount_paid == 0 are voidable. Voiding a partial
+        or paid invoice raises InvoiceConflict; the caller must reverse
+        payments first (out of scope for v1).
+
+        Raises:
+            ValueError: invoice not found.
+            InvoiceConflict: invoice already void, or has nonzero amount_paid.
+        """
+        invoice = await self.get(invoice_id)
+        if invoice is None:
+            raise ValueError(f"Invoice {invoice_id} not found")
+        if invoice.status == "void":
+            raise InvoiceConflict(f"Invoice {invoice_id} is already void")
+        if invoice.amount_paid > Decimal("0"):
+            raise InvoiceConflict(
+                f"Invoice {invoice_id} has amount_paid={invoice.amount_paid}; "
+                "reverse payments before voiding"
+            )
+
+        invoice.status = "void"
+        invoice.voided_at = datetime.now(UTC)
+        invoice.void_reason = reason
+        await self._s.flush()
+
+        _log.info(
+            "invoice.voided",
+            invoice_id=str(invoice.id),
+            invoice_number=invoice.invoice_number,
+            tenant_id=str(invoice.tenant_id),
+            reason=reason,
+        )
+        return invoice
+
+    async def mark_overdue(self, *, invoice_id: uuid.UUID) -> Invoice:
+        """Mark a single invoice overdue. Silent no-op if invoice is not
+        in {'issued', 'partial'} or if due_at has not passed.
+        """
+        invoice = await self.get(invoice_id)
+        if invoice is None:
+            raise ValueError(f"Invoice {invoice_id} not found")
+        if invoice.status not in {"issued", "partial"}:
+            return invoice
+        if invoice.due_at >= date.today():
+            return invoice
+
+        invoice.status = "overdue"
+        await self._s.flush()
+
+        _log.info(
+            "invoice.overdue",
+            invoice_id=str(invoice.id),
+            invoice_number=invoice.invoice_number,
+            tenant_id=str(invoice.tenant_id),
+            due_at=invoice.due_at.isoformat(),
+        )
+        return invoice
+
+    async def mark_overdue_batch(self, *, as_of: date | None = None) -> int:
+        """Mark all overdue invoices in one pass. Returns count transitioned.
+
+        This is the beat-job-friendly bulk version. Uses a single UPDATE
+        statement to keep the lock window small.
+        """
+        cutoff = as_of or date.today()
+        result = await self._s.execute(
+            text(
+                "UPDATE platform.invoices "
+                "SET status = 'overdue', updated_at = now() "
+                "WHERE status IN ('issued', 'partial') "
+                "AND due_at < :cutoff"
+            ),
+            {"cutoff": cutoff},
+        )
+        affected = result.rowcount or 0  # type: ignore[attr-defined]
+        _log.info(
+            "invoice.mark_overdue_batch",
+            cutoff=cutoff.isoformat(),
+            invoices_transitioned=affected,
+        )
+        return affected
