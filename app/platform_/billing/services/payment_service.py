@@ -21,6 +21,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.platform_.billing.exceptions import (
+    OverpaymentRejected,
+    PaymentConflict,
+)
 from app.platform_.billing.models import Invoice, Payment
 
 _log = structlog.get_logger(__name__)
@@ -113,5 +117,114 @@ class PaymentService:
             amount=str(amount),
             payment_method=payment_method,
             recorded_by=str(recorded_by),
+        )
+        return pmt
+
+    async def confirm(
+        self,
+        *,
+        payment_id: uuid.UUID,
+        confirmed_by: uuid.UUID,
+    ) -> Payment:
+        """Confirm a pending payment. Applies amount to the parent invoice.
+
+        Transitions:
+            payment.status: pending → confirmed
+            invoice.amount_paid: += payment.amount
+            invoice.status:
+                amount_paid == amount_total → 'paid' (paid_at set)
+                0 < amount_paid < amount_total → 'partial'
+                else → unchanged
+
+        Raises:
+            ValueError: payment not found.
+            PaymentConflict: payment not pending, or self-approval attempt.
+            OverpaymentRejected: confirmation would push amount_paid past total.
+        """
+        pmt = await self.get(payment_id)
+        if pmt is None:
+            raise ValueError(f"Payment {payment_id} not found")
+        if pmt.status != "pending":
+            raise PaymentConflict(
+                f"Cannot confirm payment in status {pmt.status!r}"
+            )
+        if pmt.recorded_by == confirmed_by:
+            raise PaymentConflict(
+                "Maker cannot be checker (payment.recorded_by == confirmed_by)"
+            )
+
+        invoice = cast(
+            Invoice | None,
+            await self._s.scalar(
+                select(Invoice).where(Invoice.id == pmt.invoice_id)
+            ),
+        )
+        if invoice is None:  # pragma: no cover — FK guarantees existence
+            raise ValueError(f"Invoice {pmt.invoice_id} not found")
+
+        new_paid = invoice.amount_paid + pmt.amount
+        if new_paid > invoice.amount_total:
+            raise OverpaymentRejected(
+                f"Confirming would make amount_paid={new_paid} > "
+                f"amount_total={invoice.amount_total}"
+            )
+
+        now = datetime.now(UTC)
+        pmt.status = "confirmed"
+        pmt.confirmed_at = now
+        invoice.amount_paid = new_paid
+        if new_paid == invoice.amount_total:
+            invoice.status = "paid"
+            invoice.paid_at = now
+        elif new_paid > Decimal("0"):
+            invoice.status = "partial"
+        await self._s.flush()
+
+        _log.info(
+            "payment.confirmed",
+            payment_id=str(pmt.id),
+            invoice_id=str(invoice.id),
+            tenant_id=str(invoice.tenant_id),
+            amount=str(pmt.amount),
+            new_invoice_status=invoice.status,
+            confirmed_by=str(confirmed_by),
+        )
+        return pmt
+
+    async def reject(
+        self,
+        *,
+        payment_id: uuid.UUID,
+        rejected_by: uuid.UUID,
+        reason: str,
+    ) -> Payment:
+        """Reject a pending payment. Invoice is not touched.
+
+        Raises:
+            ValueError: payment not found.
+            PaymentConflict: payment not pending, or self-rejection attempt.
+        """
+        pmt = await self.get(payment_id)
+        if pmt is None:
+            raise ValueError(f"Payment {payment_id} not found")
+        if pmt.status != "pending":
+            raise PaymentConflict(
+                f"Cannot reject payment in status {pmt.status!r}"
+            )
+        if pmt.recorded_by == rejected_by:
+            raise PaymentConflict(
+                "Maker cannot be checker (payment.recorded_by == rejected_by)"
+            )
+
+        pmt.status = "rejected"
+        # Reason is captured in audit log (SP04), not in the Payment row.
+        await self._s.flush()
+
+        _log.info(
+            "payment.rejected",
+            payment_id=str(pmt.id),
+            invoice_id=str(pmt.invoice_id),
+            rejected_by=str(rejected_by),
+            reason=reason,
         )
         return pmt

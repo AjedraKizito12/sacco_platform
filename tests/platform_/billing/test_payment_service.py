@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 
+from app.platform_.billing.exceptions import OverpaymentRejected, PaymentConflict
 from app.platform_.billing.models import (
     Invoice,
     InvoiceLineItem,
@@ -229,5 +230,190 @@ async def test_record_rejects_currency_mismatch(factory) -> None:
                     recorded_by=user.id,
                     idempotency_key="key-curr-001",
                 )
+    finally:
+        await _cleanup(factory)
+
+
+async def _make_two_users(factory) -> tuple[PlatformUser, PlatformUser]:
+    return (
+        await _make_platform_user(factory),
+        await _make_platform_user(factory),
+    )
+
+
+@pytest.mark.anyio
+async def test_confirm_full_payment_marks_invoice_paid(factory) -> None:
+    plan = await _make_plan(factory)
+    tenant = await _make_tenant(factory)
+    maker, checker = await _make_two_users(factory)
+    invoice_id = await _make_invoice(factory, plan, tenant)
+    try:
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            pmt = await svc.record(
+                invoice_id=invoice_id,
+                amount=Decimal("50000"),
+                currency="UGX",
+                payment_method="bank_transfer",
+                recorded_by=maker.id,
+                idempotency_key="key-cccc-001",
+            )
+            await s.commit()
+            pmt_id = pmt.id
+
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            confirmed = await svc.confirm(payment_id=pmt_id, confirmed_by=checker.id)
+            await s.commit()
+            assert confirmed.status == "confirmed"
+            assert confirmed.confirmed_at is not None
+
+        async with factory() as s:
+            await _set_platform(s)
+            inv = await s.get(Invoice, invoice_id)
+            assert inv is not None
+            assert inv.status == "paid"
+            assert inv.amount_paid == Decimal("50000")
+            assert inv.paid_at is not None
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_confirm_partial_payment_marks_invoice_partial(factory) -> None:
+    plan = await _make_plan(factory)
+    tenant = await _make_tenant(factory)
+    maker, checker = await _make_two_users(factory)
+    invoice_id = await _make_invoice(factory, plan, tenant)
+    try:
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            pmt = await svc.record(
+                invoice_id=invoice_id,
+                amount=Decimal("20000"),
+                currency="UGX",
+                payment_method="cash",
+                recorded_by=maker.id,
+                idempotency_key="key-dddd-001",
+            )
+            await s.commit()
+            pmt_id = pmt.id
+
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            await svc.confirm(payment_id=pmt_id, confirmed_by=checker.id)
+            await s.commit()
+
+        async with factory() as s:
+            await _set_platform(s)
+            inv = await s.get(Invoice, invoice_id)
+            assert inv is not None
+            assert inv.status == "partial"
+            assert inv.amount_paid == Decimal("20000")
+            assert inv.paid_at is None
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_confirm_rejects_overpayment(factory) -> None:
+    plan = await _make_plan(factory)
+    tenant = await _make_tenant(factory)
+    maker, checker = await _make_two_users(factory)
+    invoice_id = await _make_invoice(factory, plan, tenant)
+    try:
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            pmt = await svc.record(
+                invoice_id=invoice_id,
+                amount=Decimal("999999"),
+                currency="UGX",
+                payment_method="bank_transfer",
+                recorded_by=maker.id,
+                idempotency_key="key-eeee-001",
+            )
+            await s.commit()
+            pmt_id = pmt.id
+
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            with pytest.raises(OverpaymentRejected):
+                await svc.confirm(payment_id=pmt_id, confirmed_by=checker.id)
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_confirm_rejects_self_approval(factory) -> None:
+    plan = await _make_plan(factory)
+    tenant = await _make_tenant(factory)
+    maker = await _make_platform_user(factory)
+    invoice_id = await _make_invoice(factory, plan, tenant)
+    try:
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            pmt = await svc.record(
+                invoice_id=invoice_id,
+                amount=Decimal("50000"),
+                currency="UGX",
+                payment_method="cash",
+                recorded_by=maker.id,
+                idempotency_key="key-ffff-001",
+            )
+            await s.commit()
+            pmt_id = pmt.id
+
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            with pytest.raises(PaymentConflict, match="Maker cannot be checker"):
+                await svc.confirm(payment_id=pmt_id, confirmed_by=maker.id)
+    finally:
+        await _cleanup(factory)
+
+
+@pytest.mark.anyio
+async def test_reject_moves_to_rejected_without_touching_invoice(factory) -> None:
+    plan = await _make_plan(factory)
+    tenant = await _make_tenant(factory)
+    maker, checker = await _make_two_users(factory)
+    invoice_id = await _make_invoice(factory, plan, tenant)
+    try:
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            pmt = await svc.record(
+                invoice_id=invoice_id,
+                amount=Decimal("50000"),
+                currency="UGX",
+                payment_method="cash",
+                recorded_by=maker.id,
+                idempotency_key="key-gggg-001",
+            )
+            await s.commit()
+            pmt_id = pmt.id
+
+        async with factory() as s:
+            await _set_platform(s)
+            svc = PaymentService(s)
+            rejected = await svc.reject(
+                payment_id=pmt_id, rejected_by=checker.id, reason="fake reference"
+            )
+            await s.commit()
+            assert rejected.status == "rejected"
+
+        async with factory() as s:
+            await _set_platform(s)
+            inv = await s.get(Invoice, invoice_id)
+            assert inv is not None
+            assert inv.status == "issued"
+            assert inv.amount_paid == Decimal("0")
     finally:
         await _cleanup(factory)
