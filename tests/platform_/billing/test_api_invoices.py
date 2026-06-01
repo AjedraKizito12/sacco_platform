@@ -243,3 +243,20 @@ async def test_void_invoice_creates_approval_request(
         assert "approval_request_id" in body
     finally:
         await _cleanup(factory)
+
+
+async def test_get_invoice_pdf(test_engine: AsyncEngine, client: AsyncClient) -> None:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    actor = await _create_superuser(factory)
+    tenant, plan, sub_id, invoice_id = await _setup_invoice(factory)
+    try:
+        r = await client.get(
+            f"/platform/billing/invoices/{invoice_id}.pdf",
+            headers={"X-Platform-Actor-ID": str(actor.id)},
+        )
+        assert r.status_code == 200, r.text
+        assert r.headers["content-type"] == "application/pdf"
+        assert r.content[:5] == b"%PDF-"
+        assert len(r.content) > 1000
+    finally:
+        await _cleanup(factory)

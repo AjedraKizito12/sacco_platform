@@ -10,6 +10,7 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -290,6 +291,44 @@ async def list_invoices(
         q = q.where(Invoice.status == status_filter)
     result = await session.execute(q)
     return [InvoiceOut.model_validate(inv) for inv in result.scalars().all()]
+
+
+# NOTE: this route MUST be registered before /invoices/{invoice_id} so that
+# Starlette's router matches the literal ".pdf" suffix first, before the
+# catch-all {invoice_id} pattern grabs the whole "{uuid}.pdf" segment.
+@platform_router.get(
+    "/invoices/{invoice_id}.pdf",
+    response_class=Response,
+)
+async def get_invoice_pdf(
+    invoice_id: uuid.UUID,
+    _user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    session: Annotated[AsyncSession, Depends(get_platform_session)],
+) -> Response:
+    from sqlalchemy import select
+
+    from app.platform_.billing.models import InvoiceLineItem
+    from app.platform_.billing.pdf import render_invoice_pdf
+
+    invoice = await InvoiceService(session).get(invoice_id)
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    line_result = await session.execute(
+        select(InvoiceLineItem)
+        .where(InvoiceLineItem.invoice_id == invoice_id)
+        .order_by(InvoiceLineItem.line_order)
+    )
+    lines = list(line_result.scalars().all())
+    pdf_bytes = render_invoice_pdf(invoice, lines)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'inline; filename="{invoice.invoice_number}.pdf"'
+            ),
+        },
+    )
 
 
 @platform_router.get("/invoices/{invoice_id}", response_model=InvoiceDetailOut)
