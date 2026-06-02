@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Invoice {{ invoice.invoice_number }}</title>
+<style>
+  @page { size: A4; margin: 18mm 15mm; }
+  body { font-family: "DejaVu Sans", Helvetica, sans-serif; font-size: 10pt; color: #1a1a1a; }
+  h1 { margin: 0; font-size: 22pt; color: #0a3a6b; }
+  .meta { margin: 12pt 0 24pt; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 6pt 8pt; }
+  thead th { background: #0a3a6b; color: white; text-align: left; }
+  tbody td { border-bottom: 1px solid #e0e0e0; }
+  td.right, th.right { text-align: right; }
+  .totals { margin-top: 18pt; }
+  .totals td { font-weight: bold; }
+  .footer { margin-top: 36pt; font-size: 9pt; color: #555; }
+  .status-tag { display: inline-block; padding: 3pt 8pt; border-radius: 3pt;
+                background: #f1f5f9; font-weight: bold; text-transform: uppercase; }
+  .void { color: #c00; }
+</style>
+</head>
+<body>
+  <h1>Invoice</h1>
+  <div class="meta">
+    <div><strong>Number:</strong> {{ invoice.invoice_number }}</div>
+    <div><strong>Issued:</strong> {{ invoice.issued_at.strftime("%Y-%m-%d") if invoice.issued_at else "—" }}</div>
+    <div><strong>Due:</strong> {{ invoice.due_at.strftime("%Y-%m-%d") }}</div>
+    <div><strong>Period:</strong> {{ invoice.billing_period_start.strftime("%Y-%m-%d") }} to {{ invoice.billing_period_end.strftime("%Y-%m-%d") }}</div>
+    <div><strong>Tenant:</strong> {{ invoice.tenant_id }}</div>
+    <div><strong>Status:</strong> <span class="status-tag {% if invoice.status == 'void' %}void{% endif %}">{{ invoice.status }}</span></div>
+    {% if invoice.status == "void" and invoice.void_reason %}
+    <div class="void"><strong>Void reason:</strong> {{ invoice.void_reason }}</div>
+    {% endif %}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th class="right">Quantity</th>
+        <th class="right">Unit price ({{ invoice.currency }})</th>
+        <th class="right">Amount ({{ invoice.currency }})</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in line_items %}
+      <tr>
+        <td>{{ line.description }}</td>
+        <td class="right">{{ line.quantity }}</td>
+        <td class="right">{{ "{:,.2f}".format(line.unit_price) }}</td>
+        <td class="right">{{ "{:,.2f}".format(line.amount) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr><td>Subtotal</td><td class="right">{{ "{:,.2f}".format(invoice.amount_subtotal) }}</td></tr>
+    <tr><td>Tax</td><td class="right">{{ "{:,.2f}".format(invoice.amount_tax) }}</td></tr>
+    <tr><td>Total ({{ invoice.currency }})</td><td class="right">{{ "{:,.2f}".format(invoice.amount_total) }}</td></tr>
+    <tr><td>Paid</td><td class="right">{{ "{:,.2f}".format(invoice.amount_paid) }}</td></tr>
+    <tr><td><strong>Balance due</strong></td><td class="right"><strong>{{ "{:,.2f}".format(invoice.amount_total - invoice.amount_paid) }}</strong></td></tr>
+  </table>
+
+  <div class="footer">
+    Generated {{ now_iso }} — SACCO Platform Billing
+  </div>
+</body>
+</html>

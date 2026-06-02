@@ -178,3 +178,97 @@ Schema-per-tenant on PostgreSQL. Each tenant SACCO gets its own schema.
   Direct calls to `PaymentService.confirm` / `InvoiceService.void` /
   `SubscriptionService.cancel(cancel_at_period_end=False)` are only allowed
   from the maker-checker executor module, never from HTTP route handlers.
+- Invoice numbers are issued via per-year Postgres SEQUENCE named
+  `platform.invoice_seq_YYYY`. Format: `INV-YYYY-NNNNNN` (6-digit
+  zero-padded). The InvoiceService creates new yearly sequences lazily
+  via `CREATE SEQUENCE IF NOT EXISTS`; do not hand-roll numbers.
+- `InvoiceService.generate_for_subscription()` is the only path to
+  creating an Invoice row. Direct `Invoice(...)` instantiation outside
+  the service is forbidden. The function is idempotent on
+  `(subscription_id, billing_period_start)`.
+- v1 invoice line generation is **base price only** — one
+  `InvoiceLineItem` per invoice with `quantity=1`, `unit_price =
+  plan.base_price`. Per-user and per-member billing lines are
+  intentionally out of scope; they would be zero-amount rows anyway
+  because all v1 plans default both prices to 0. Implementations may
+  add multi-line generation when a real-world plan requires it.
+- `InvoiceService.void()` only voids invoices with `amount_paid = 0`.
+  Voiding a partial/paid invoice is forbidden in v1; the caller must
+  reverse payments first (payment reversal is post-launch work).
+- `PaymentService.record()` is the only path to creating a Payment row.
+  The function is idempotent on `idempotency_key` (DB-enforced via
+  `uq_payments_idempotency_key`). Callers must supply a key ≥ 8 chars
+  long (validated by `PaymentRecordIn`).
+- `PaymentService.confirm()` is the only path to flipping a pending
+  Payment to `confirmed` and applying the amount to the parent invoice.
+  Self-approval (maker == checker) is rejected at the service level.
+- `PaymentService.reject()` is the only path to flipping pending →
+  rejected. Rejection reason is captured in the audit log (SP04
+  executors write the entry), not on the Payment row.
+- Overpayment is rejected: `confirm()` raises `OverpaymentRejected`
+  if `amount_paid + new_amount > amount_total`. Partial payments are
+  supported; the invoice transitions to `partial` until cumulative
+  payments equal the total.
+- The maker-checker executors live in `app/platform_/billing/executors.py`:
+  `billing.confirm_payment`, `billing.void_invoice`, `billing.cancel_subscription`.
+  These are imported at app startup via `app/main.py` so the
+  `@approval_executor` decorators register on boot. Do not remove the
+  startup import — the registry is empty without it.
+- There is no `billing.record_payment` executor. The maker action creates
+  `Payment(status=pending)` + `ApprovalRequest(operation_type='billing.confirm_payment')`
+  in one transaction (SP05 API). The checker's approval triggers the
+  `billing.confirm_payment` executor, which calls `PaymentService.confirm()`.
+- Payment rejection is paired at the API layer (SP05): the rejection endpoint
+  calls `ApprovalService.reject(...)` and `PaymentService.reject(...)` in the
+  same DB transaction. There is no rejection executor — `ApprovalService.reject()`
+  alone would leave the `Payment` row stuck in `pending`.
+- All billing executors are idempotent. They check the target row's status
+  first and return success if already in the post-execution state. This
+  protects against duplicate `ApprovalService.approve()` invocations from
+  retries or beat-job interactions.
+- The subscription gate runs inside `get_tenant_session` (in `app/core/db.py`)
+  after schema resolution. It runs a single LEFT JOIN query
+  (`platform.tenants` ⋈ `platform.subscriptions`) per request — fresh from
+  Postgres, not cached. Schema_name continues to use the 5-minute Redis cache.
+- Gate HTTP semantics are fixed contracts:
+  `pending | trialing | active` → allow.
+  `past_due` within `grace_period_ends_at` → allow.
+  `past_due` past grace → **402 Payment Required**.
+  `suspended | cancelled` → **403 Forbidden**.
+  Changing any of these requires coordination with the Phase 2 admin portal.
+- The gate applies to ALL tenant-scoped requests including GETs.
+  `get_platform_session` is NOT gated — operators must be able to manage
+  tenants in any state.
+- Hard cancellation (`SubscriptionService.cancel(cancel_at_period_end=False)`)
+  is only callable from the `billing.cancel_subscription` executor.
+  Direct calls from HTTP handlers are forbidden. Soft cancellation
+  (`cancel_at_period_end=True`) does not require maker-checker.
+- HTTP API surface lives in `app/platform_/billing/api.py`, exposing two
+  routers: `platform_router` at `/platform/billing/*` and `tenant_router`
+  at `/billing/me/*`. Both are mounted from `app/main.py`. Do not add
+  billing endpoints outside this file.
+- `POST /platform/billing/invoices/{id}/payments` creates `Payment(pending)`
+  and the matching `ApprovalRequest(operation_type='billing.confirm_payment')`
+  in one DB transaction. The maker calls this; the checker approves via
+  the generic `/maker-checker/approval-requests/{id}/approve` endpoint or
+  rejects via `/platform/billing/payments/{id}/reject` (paired rejection).
+- `POST /platform/billing/payments/{id}/reject` is the ONLY way to reject
+  a pending payment. It pairs `ApprovalService.reject()` +
+  `PaymentService.reject()` in one transaction. Using the generic approval
+  reject endpoint alone leaves the Payment row stuck in 'pending'.
+- `POST /platform/billing/subscriptions/{id}/cancel?mode=at_period_end`
+  is a direct call (no maker-checker — soft cancel, reversible until period
+  end). `?mode=immediate` goes through the maker-checker executor.
+- `POST /platform/billing/invoices/{id}/void` always requires maker-checker.
+  There is no direct void endpoint.
+- Invoice PDFs are rendered on-demand at GET time via WeasyPrint. The
+  template lives at `app/platform_/billing/templates/invoice.html`.
+  `Invoice.pdf_storage_key` is reserved for a future caching layer and
+  stays NULL in v1.
+- Tenant-facing endpoints (`/billing/me/*`) read from the platform schema
+  but enforce ownership in the handler via `tenant_id == current_user.tenant_id`.
+  Cross-tenant access returns 404 (not 403) to avoid leaking row existence.
+- `PaymentService.confirm()` accepts `confirmed_by: UUID | None`. The
+  `billing.confirm_payment` executor calls it with `None` because
+  `ApprovalService.approve()` has already enforced maker != checker.
+  Direct callers (tests, scripts) should still pass the actual user UUID.
