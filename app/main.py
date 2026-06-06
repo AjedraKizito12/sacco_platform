@@ -22,6 +22,7 @@ from app.modules.iam.tenant_auth.api import router as tenant_auth_router
 from app.modules.ledger import executors as _ledger_executors  # noqa: F401
 from app.modules.ledger.api import router as ledger_router
 from app.modules.maker_checker.api import router as maker_checker_router
+from app.modules.maker_checker.platform_api import router as platform_maker_checker_router
 from app.modules.members import executors as _members_executors  # noqa: F401
 from app.modules.members.api import router as members_router
 from app.modules.reporting.api import router as reporting_router
@@ -121,6 +122,7 @@ async def request_id_middleware(request: Request, call_next: Any) -> Any:
 
 
 app.include_router(maker_checker_router)
+app.include_router(platform_maker_checker_router)
 app.include_router(ledger_router)
 app.include_router(members_router)
 app.include_router(shares_router)
