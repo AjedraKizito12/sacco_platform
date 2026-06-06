@@ -43,6 +43,10 @@ class TenantUser(AuditableMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Coarse superuser gate; replaced by the permission system in IAM v2.
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Populated by 02b's shadow-user creation. NULL for real tenant users.
+    impersonation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(

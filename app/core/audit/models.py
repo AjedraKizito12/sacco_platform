@@ -43,3 +43,10 @@ class TenantAuditLog(_AuditLogBase, Base):
         Index("ix_tenant_audit_log_table_record", "table_name", "record_id"),
         Index("ix_tenant_audit_log_occurred_at", text("occurred_at DESC")),
     )
+
+    # Set when the row was produced inside an impersonation session.
+    # NULL for normal tenant_user / system actions. PlatformAuditLog has no
+    # equivalent column.
+    impersonation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )

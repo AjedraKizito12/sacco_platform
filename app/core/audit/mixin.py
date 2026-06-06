@@ -48,11 +48,21 @@ def _actor_context() -> dict[str, Any]:
         )
     except ValueError:
         actor_id = None
+    raw_impersonation_id = ctx.get("impersonation_id")
+    try:
+        impersonation_id: uuid.UUID | None = (
+            uuid.UUID(str(raw_impersonation_id))
+            if raw_impersonation_id is not None
+            else None
+        )
+    except ValueError:
+        impersonation_id = None
     return {
         "actor_type": ctx.get("actor_type", "system"),
         "actor_id": actor_id,
         "actor_label": ctx.get("actor_label"),
         "request_id": ctx.get("request_id"),
+        "impersonation_id": impersonation_id,
     }
 
 
@@ -106,6 +116,12 @@ def _write_audit(
     record_id = _get_record_id(mapper, target)
 
     model_cls = PlatformAuditLog if is_platform else TenantAuditLog
+    values_ctx = dict(ctx)
+    # PlatformAuditLog has no impersonation_id column (only TenantAuditLog does).
+    # Drop the key for platform writes so SQLAlchemy doesn't bind a non-existent
+    # column.
+    if is_platform:
+        values_ctx.pop("impersonation_id", None)
     connection.execute(
         insert(model_cls).values(
             id=uuid.uuid4(),
@@ -115,7 +131,7 @@ def _write_audit(
             before_state=before_state,
             after_state=after_state,
             occurred_at=datetime.now(UTC),
-            **ctx,
+            **values_ctx,
         )
     )
 
