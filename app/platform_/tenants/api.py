@@ -8,14 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_platform_session
 from app.modules.maker_checker.registry import approval_executor
 from app.platform_.auth import get_current_platform_user, get_current_superuser
-from app.platform_.models import PlatformUser
-from app.platform_.provisioning.tasks import provision_tenant
 from app.platform_.billing.exceptions import (
     PlanInactive,
     SubscriptionConflict,
 )
 from app.platform_.billing.schemas import SubscriptionOut
 from app.platform_.billing.services import SubscriptionService
+from app.platform_.models import PlatformUser
+from app.platform_.provisioning.tasks import provision_tenant
 from app.platform_.tenants.schemas import (
     AssignPlanIn,
     CreateTenantRequest,
