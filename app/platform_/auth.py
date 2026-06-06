@@ -15,6 +15,7 @@ Production boot guard: APP_ENV=production + PLATFORM_AUTH_MODE=stub → crash.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 import structlog
@@ -97,9 +98,79 @@ async def get_current_superuser(
 CurrentSuperuser = Annotated[PlatformUser, Depends(get_current_superuser)]
 
 
+# ── Role hierarchy ────────────────────────────────────────────────────────────
+
+_ROLE_RANK: dict[str, int] = {
+    "superuser": 4,
+    "admin": 3,
+    "finance": 2,
+    "support": 1,
+}
+
+
+def get_current_platform_user_with_role(
+    role: str,
+) -> Callable[[PlatformUser], Awaitable[PlatformUser]]:
+    """Dep factory: returns a FastAPI dep requiring role rank >= ``role``.
+
+    Use as::
+
+        CurrentAdmin = Annotated[
+            PlatformUser, Depends(get_current_platform_user_with_role("admin"))
+        ]
+
+    A user with role='admin' passes ``with_role('admin')``, ``with_role('finance')``,
+    and ``with_role('support')`` but is rejected by ``with_role('superuser')``.
+
+    Raises:
+        ValueError: if ``role`` is not one of the four valid values
+            (programmer error — fail fast at module import time).
+    """
+    if role not in _ROLE_RANK:
+        raise ValueError(
+            f"unknown role {role!r}; must be one of {sorted(_ROLE_RANK)}"
+        )
+    required_rank = _ROLE_RANK[role]
+
+    async def _dep(
+        user: CurrentPlatformUser,
+    ) -> PlatformUser:
+        user_rank = _ROLE_RANK.get(user.role, 0)
+        # Backward compat: is_superuser=true overrides role rank.
+        if user.is_superuser:
+            user_rank = max(user_rank, _ROLE_RANK["superuser"])
+        if user_rank < required_rank:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"Requires role >= {role!r}; "
+                    f"current role is {user.role!r}"
+                ),
+            )
+        return user
+
+    return _dep
+
+
+# Pre-built dep shortcuts.
+CurrentAdmin = Annotated[
+    PlatformUser, Depends(get_current_platform_user_with_role("admin"))
+]
+CurrentFinance = Annotated[
+    PlatformUser, Depends(get_current_platform_user_with_role("finance"))
+]
+CurrentSupport = Annotated[
+    PlatformUser, Depends(get_current_platform_user_with_role("support"))
+]
+
+
 __all__ = [
+    "CurrentAdmin",
+    "CurrentFinance",
     "CurrentPlatformUser",
     "CurrentSuperuser",
+    "CurrentSupport",
     "get_current_platform_user",
+    "get_current_platform_user_with_role",
     "get_current_superuser",
 ]
