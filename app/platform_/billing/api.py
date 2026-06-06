@@ -410,9 +410,9 @@ async def record_payment(
 ) -> dict[str, str]:
     """Maker action: create Payment(pending) + ApprovalRequest in one tx.
 
-    The checker approves via `/maker-checker/approval-requests/{id}/approve`
+    The checker approves via `POST /platform/approvals/{id}/approve`
     (which triggers the `billing.confirm_payment` executor) OR rejects via
-    `/platform/billing/payments/{id}/reject`.
+    `POST /platform/billing/payments/{id}/reject`.
     """
     invoice = await InvoiceService(session).get(invoice_id)
     if invoice is None:
