@@ -137,6 +137,39 @@ Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
 - JWT token audiences: platform tokens use `aud="platform"`, tenant tokens use `aud="tenant:<slug>"`. A token issued for one tenant is rejected by another tenant's endpoints.
 - `CurrentPlatformUser` is exported from `app.platform_.auth`. `CurrentTenantUser` is exported from `app.modules.iam.dependencies`. Do not import the underlying dependency functions directly into route handlers.
 
+## Impersonation contracts (do not violate)
+
+These contracts are partial — 02a (data layer) establishes the foundational rules below. 02b adds the HTTP, token mint, AuditableMixin, and tenant JWT dep contracts.
+
+- `platform.support_impersonations` rows are created **only** by the
+  `platform.start_impersonation` maker-checker executor in
+  `app/platform_/impersonations/executors.py`. Direct insertion is forbidden.
+  Direct UPDATE is forbidden except via `ImpersonationService.end()` and
+  `ImpersonationService.revoke()`.
+- `ImpersonationService.request()` is the only path to submitting a
+  `platform.start_impersonation` approval. The reason field must be at least
+  10 characters. The tenant must exist and be active at request time.
+- Self-approval is rejected by `ApprovalService.approve()` (existing rule,
+  applies here too). The requester cannot approve their own impersonation.
+- Default required-approvals quorum is `IMPERSONATION_DEFAULT_REQUIRED_APPROVALS`
+  (settings; default 1). Production tenants may raise this.
+- `IMPERSONATION_MAX_MINUTES` (default 30) caps the session duration. Sessions
+  expire automatically — the `is_active` check (used by every downstream gate
+  in 02b) includes `expires_at > now()`. No Celery beat job is required.
+- Once a row is in the `ended` or `revoked` state, it is terminal — the
+  `ck_support_impersonations_not_both_ended_and_revoked` constraint disallows
+  setting both. To "re-impersonate" after end/revoke, request a new
+  impersonation (new approval cycle).
+- `ApprovalService._execute` enriches the executor payload with
+  `approval_request_id` (added in 02a). Executors should treat that key as
+  reserved; existing executors that ignore it are unaffected.
+- The full set of impersonation contracts — token mint, shadow tenant_user
+  pattern, audit identity, tenant JWT dep extension — is documented after
+  02b merges.
+
+See `docs/superpowers/decisions/2026-06-02-impersonation-design.md` for the
+full design rationale.
+
 ## Fees module contracts (do not violate)
 - Fees module never writes to journal tables directly. Always via LedgerService.
 - Fees module never mutates savings balances directly. Always via SavingsService.system_debit/system_credit.
