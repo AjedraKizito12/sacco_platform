@@ -140,11 +140,16 @@ async def get_current_tenant_user_stub(
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Tenant actor is inactive")
 
-    structlog.contextvars.bind_contextvars(
-        actor_type="tenant_user",
-        actor_id=str(user.id),
-        actor_label=user.email,
-    )
+    bind_kwargs: dict[str, str] = {
+        "actor_type": "tenant_user",
+        "actor_id": str(user.id),
+        "actor_label": user.email,
+    }
+    if user.impersonation_id is not None:
+        bind_kwargs["impersonation_id"] = str(user.impersonation_id)
+        # Annotate the label so log lines and audit show this is impersonation.
+        bind_kwargs["actor_label"] = f"{user.email} (impersonating)"
+    structlog.contextvars.bind_contextvars(**bind_kwargs)
 
     return user
 
@@ -209,11 +214,15 @@ async def get_current_tenant_user_jwt(
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
-    structlog.contextvars.bind_contextvars(
-        actor_type="tenant_user",
-        actor_id=str(user.id),
-        actor_label=user.email,
-    )
+    bind_kwargs: dict[str, str] = {
+        "actor_type": "tenant_user",
+        "actor_id": str(user.id),
+        "actor_label": user.email,
+    }
+    if user.impersonation_id is not None:
+        bind_kwargs["impersonation_id"] = str(user.impersonation_id)
+        bind_kwargs["actor_label"] = f"{user.email} (impersonating)"
+    structlog.contextvars.bind_contextvars(**bind_kwargs)
 
     return user
 
