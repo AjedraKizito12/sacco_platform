@@ -261,6 +261,16 @@ Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
   These are imported at app startup via `app/main.py` so the
   `@approval_executor` decorators register on boot. Do not remove the
   startup import — the registry is empty without it.
+- Platform-scoped approval requests (created by `billing.*`, `platform_user.update_sensitive`,
+  `tenant.retry_provisioning`, and future platform-scoped operations) are approved,
+  rejected, listed, and cancelled via the `/platform/approvals/*` router in
+  `app/modules/maker_checker/platform_api.py`. The tenant-scoped `/approvals/*`
+  router in `app/modules/maker_checker/api.py` handles tenant-scoped requests
+  only and does NOT see platform.approval_requests rows. `ApprovalService` is
+  schema-agnostic — it picks the right model based on
+  `session.sync_session.info["is_platform"]`, set by `get_platform_session`.
+  Both routers reuse the same `SubmitApprovalRequest` / `ApprovalRequestOut` /
+  `ApprovalActionRequest` / `RejectRequest` Pydantic schemas.
 - There is no `billing.record_payment` executor. The maker action creates
   `Payment(status=pending)` + `ApprovalRequest(operation_type='billing.confirm_payment')`
   in one transaction (SP05 API). The checker's approval triggers the
