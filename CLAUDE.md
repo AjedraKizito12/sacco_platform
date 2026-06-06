@@ -139,36 +139,72 @@ Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
 
 ## Impersonation contracts (do not violate)
 
-These contracts are partial — 02a (data layer) establishes the foundational rules below. 02b adds the HTTP, token mint, AuditableMixin, and tenant JWT dep contracts.
+### Data layer (from 02a, unchanged)
 
 - `platform.support_impersonations` rows are created **only** by the
-  `platform.start_impersonation` maker-checker executor in
-  `app/platform_/impersonations/executors.py`. Direct insertion is forbidden.
-  Direct UPDATE is forbidden except via `ImpersonationService.end()` and
-  `ImpersonationService.revoke()`.
+  `platform.start_impersonation` maker-checker executor. Direct insertion is
+  forbidden. Direct UPDATE is forbidden except via `ImpersonationService.end()`
+  and `ImpersonationService.revoke()`.
 - `ImpersonationService.request()` is the only path to submitting a
-  `platform.start_impersonation` approval. The reason field must be at least
-  10 characters. The tenant must exist and be active at request time.
-- Self-approval is rejected by `ApprovalService.approve()` (existing rule,
-  applies here too). The requester cannot approve their own impersonation.
+  `platform.start_impersonation` approval. Reason must be at least 10 chars.
+  Tenant must be active at request time.
+- Self-approval is rejected by `ApprovalService.approve()`.
 - Default required-approvals quorum is `IMPERSONATION_DEFAULT_REQUIRED_APPROVALS`
-  (settings; default 1). Production tenants may raise this.
+  (settings; default 1).
 - `IMPERSONATION_MAX_MINUTES` (default 30) caps the session duration. Sessions
-  expire automatically — the `is_active` check (used by every downstream gate
-  in 02b) includes `expires_at > now()`. No Celery beat job is required.
-- Once a row is in the `ended` or `revoked` state, it is terminal — the
+  expire automatically — no Celery beat job required.
+- A row in `ended` or `revoked` state is terminal — the
   `ck_support_impersonations_not_both_ended_and_revoked` constraint disallows
-  setting both. To "re-impersonate" after end/revoke, request a new
-  impersonation (new approval cycle).
+  setting both. Re-impersonation requires a new approval cycle.
 - `ApprovalService._execute` enriches the executor payload with
-  `approval_request_id` (added in 02a). Executors should treat that key as
-  reserved; existing executors that ignore it are unaffected.
-- The full set of impersonation contracts — token mint, shadow tenant_user
-  pattern, audit identity, tenant JWT dep extension — is documented after
-  02b merges.
+  `approval_request_id`. Executors must treat that key as reserved.
 
-See `docs/superpowers/decisions/2026-06-02-impersonation-design.md` for the
-full design rationale.
+### HTTP + auth + audit (added in 02b)
+
+- The `/platform/impersonations/*` router in
+  `app/platform_/impersonations/api.py` is the only HTTP surface for the
+  impersonation lifecycle. Direct service calls from outside this router
+  or the executor are forbidden.
+- `POST /platform/impersonations/{id}/mint-tenant-token` is the only path
+  to obtain a tenant access token via impersonation. The endpoint is
+  restricted to the original impersonator (platform_user_id match).
+- Shadow `tenant_users` rows are auto-provisioned by
+  `ImpersonationService.mint_tenant_token` on the first mint for an
+  impersonation. They have `hashed_password=NULL`, `is_admin=true`,
+  `is_active=true`, and `impersonation_id` set to the link. They cannot
+  self-login (no password). They are reused for subsequent mints during
+  the same impersonation.
+- `tenant_users` listing endpoints (P1.7-04 / portal sub-plan 32) MUST
+  filter `impersonation_id IS NULL` so shadows are invisible in operator UI.
+- `tenant.audit_log` rows produced during an impersonated request carry
+  `actor_type='tenant_user'`, `actor_id=<shadow_id>`,
+  `actor_label='<platform_email> (impersonating)'`, and
+  `impersonation_id=<support_impersonation.id>`.
+  `platform.audit_log` is unchanged — it has no `impersonation_id` column.
+- The tenant JWT and stub deps (`get_current_tenant_user_*`) both bind
+  `impersonation_id` to structlog contextvars when the resolved tenant
+  user has a non-null `impersonation_id` column. `AuditableMixin` reads
+  the contextvar; do not bind `impersonation_id` from any other code path
+  unless you are extending the audit trail intentionally.
+- `DELETE /platform/impersonations/{id}` is restricted to the impersonator
+  (`platform_user_id` match). `POST /platform/impersonations/{id}/revoke`
+  is restricted to superuser (and admin once P1.7-05 ships). Both
+  deactivate the shadow tenant_user and revoke all its tenant sessions
+  in the same transaction.
+- Token minting reuses the existing
+  `KeyService.get_active_signing_key("tenant")` + `SessionService.create`
+  + `tokens.service.encode_*_token` primitives. No bespoke crypto path.
+- The minted token has `aud="tenant:<slug>"`, `sub=<shadow_tenant_user.id>`,
+  `actor_type="tenant_user"`, and no `impersonation_id` claim. The audit
+  trail is established at the dep layer (via contextvars) rather than at
+  the token layer (via claims).
+- HTTP responses for impersonation lifecycle endpoints:
+  410 Gone — ended/revoked/expired; 409 Conflict — not yet active (no
+  approval yet); 403 Forbidden — caller is not the impersonator;
+  404 Not Found — id unknown.
+
+See `docs/superpowers/decisions/2026-06-02-impersonation-design.md` for
+the full design rationale.
 
 ## Fees module contracts (do not violate)
 - Fees module never writes to journal tables directly. Always via LedgerService.
