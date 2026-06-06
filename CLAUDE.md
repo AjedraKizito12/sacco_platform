@@ -148,6 +148,24 @@ Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
 - All auth operations write to `audit_log` via `write_platform_auth_event` / `write_tenant_auth_event`. Do not remove these calls. For failed login attempts, actor_id may be `None` (unknown user) — the nil UUID is used as record_id in that case.
 - JWT token audiences: platform tokens use `aud="platform"`, tenant tokens use `aud="tenant:<slug>"`. A token issued for one tenant is rejected by another tenant's endpoints.
 - `CurrentPlatformUser` is exported from `app.platform_.auth`. `CurrentTenantUser` is exported from `app.modules.iam.dependencies`. Do not import the underlying dependency functions directly into route handlers.
+- Tenant-user CRUD from a platform context lives under
+  `/platform/tenants/{tenant_id}/users` (see `app/platform_/tenant_users_admin/`).
+  These endpoints use the new `get_session_for_tenant_schema(tenant_id)`
+  dependency in `app/core/db.py`. They are NOT subscription-gated — platform
+  admins must be able to manage users regardless of tenant state.
+- The list / get endpoints filter `impersonation_id IS NULL` so shadow
+  tenant_users from the impersonation flow (P1.7-02) never appear in
+  operator UI. The PATCH and password-reset endpoints also refuse to act
+  on shadows (404).
+- Admin-initiated password reset returns the HMAC reset token in the
+  response body with a 24h TTL (vs 15min for self-service). The operator
+  delivers it out of band until Phase 3 ships email. The same JTI/Redis
+  consumption rules from `app/modules/iam/reset_tokens.py` apply; the
+  user redeems via the existing `POST /auth/password-reset/confirm`.
+- Until P1.7-05 lands, these endpoints gate on `CurrentSuperuser`. After
+  P1.7-05, the dep swaps to admin-or-above via
+  `get_current_platform_user_with_role("admin")` in `api.py` only — call
+  sites do not change.
 
 ## Impersonation contracts (do not violate)
 
