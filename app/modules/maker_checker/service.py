@@ -201,8 +201,12 @@ class ApprovalService:
 
     async def _execute(self, request: Any) -> None:
         executor = approval_registry[request.operation_type]
+        # Inject the request's id into the payload so executors can use it
+        # for idempotency or for back-linking. Existing executors that ignore
+        # the extra key are unaffected.
+        enriched_payload = {**request.payload, "approval_request_id": str(request.id)}
         try:
-            result = await executor(self._session, request.payload)
+            result = await executor(self._session, enriched_payload)
             request.status = "executed"
             request.executed_at = datetime.now(UTC)
             request.execution_result = result or {}

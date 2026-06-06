@@ -38,6 +38,7 @@ from app.platform_.billing.api import (
 from app.platform_.billing.api import (
     tenant_router as billing_tenant_router,
 )
+from app.platform_.impersonations import executors as _impersonation_executors  # noqa: F401
 from app.platform_.tenants.api import router as platform_tenants_router
 from app.platform_.users.api import router as platform_users_router
 
