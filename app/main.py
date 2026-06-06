@@ -32,6 +32,7 @@ from app.modules.shares import executors as _shares_executors  # noqa: F401
 from app.modules.shares.api import router as shares_router
 from app.platform_.auth import get_current_superuser
 from app.platform_.billing import executors as _billing_executors  # noqa: F401
+from app.platform_.impersonations import executors as _impersonation_executors  # noqa: F401
 from app.platform_.billing.api import (
     platform_router as billing_platform_router,
 )
