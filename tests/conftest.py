@@ -102,6 +102,18 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
             )
         )
 
+    # Repoint app.core.db.AsyncSessionFactory at the test engine so that
+    # any code path which opens an internal cross-schema session
+    # (e.g. ImpersonationService.mint_tenant_token) uses the same engine
+    # the tests are running on. Otherwise the prod engine's pooled
+    # connections get bound to a different event loop and asyncpg fails
+    # with "Task ... attached to a different loop".
+    import app.core.db as _core_db
+
+    _core_db.AsyncSessionFactory = async_sessionmaker(  # type: ignore[assignment]
+        engine, expire_on_commit=False
+    )
+
     yield engine
 
     try:
