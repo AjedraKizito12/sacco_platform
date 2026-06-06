@@ -226,3 +226,64 @@ async def test_update_requires_superuser(test_engine: AsyncEngine, client: Async
     assert resp.status_code == 403
 
     await _cleanup(factory, actor, target)
+
+
+async def test_create_user_with_explicit_role(
+    test_engine: AsyncEngine, client: AsyncClient,
+) -> None:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    actor = await _make_user(factory, is_superuser=True)
+    email = f"finance-{uuid.uuid4().hex[:8]}@test.example"
+    try:
+        resp = await client.post(
+            "/platform/users",
+            json={
+                "email": email,
+                "full_name": "Finance Person",
+                "role": "finance",
+            },
+            headers={"X-Platform-Actor-ID": str(actor.id)},
+        )
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        assert body["role"] == "finance"
+        assert body["is_superuser"] is False
+        new_id = uuid.UUID(body["id"])
+    finally:
+        async with factory() as s, s.begin():
+            await s.execute(text("SET LOCAL search_path TO platform"))
+            row = await s.get(PlatformUser, new_id)
+            if row:
+                await s.delete(row)
+        await _cleanup(factory, actor)
+
+
+async def test_create_user_legacy_is_superuser_coerces_role(
+    test_engine: AsyncEngine, client: AsyncClient,
+) -> None:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    actor = await _make_user(factory, is_superuser=True)
+    email = f"legacy-{uuid.uuid4().hex[:8]}@test.example"
+    try:
+        resp = await client.post(
+            "/platform/users",
+            json={
+                "email": email,
+                "full_name": "Legacy",
+                "is_superuser": True,
+            },
+            headers={"X-Platform-Actor-ID": str(actor.id)},
+        )
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        # Legacy is_superuser=true coerces role to 'superuser'
+        assert body["role"] == "superuser"
+        assert body["is_superuser"] is True
+        new_id = uuid.UUID(body["id"])
+    finally:
+        async with factory() as s, s.begin():
+            await s.execute(text("SET LOCAL search_path TO platform"))
+            row = await s.get(PlatformUser, new_id)
+            if row:
+                await s.delete(row)
+        await _cleanup(factory, actor)
