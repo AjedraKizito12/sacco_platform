@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     jwt_refresh_ttl_platform_seconds: int = 3600  # 1 h
     jwt_refresh_ttl_tenant_seconds: int = 28800   # 8 h
 
+    # Impersonation
+    impersonation_max_minutes: int = 30  # max duration of a single impersonation session
+    impersonation_default_required_approvals: int = 1  # checker quorum for start_impersonation
+
     # Password policy
     auth_password_min_length: int = 12  # characters; no complexity rules in v1
 
