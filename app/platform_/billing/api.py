@@ -19,7 +19,12 @@ from app.core.config import get_settings
 from app.core.db import get_platform_session
 from app.modules.iam.dependencies import CurrentTenantUser, get_current_tenant_user
 from app.modules.maker_checker.service import ApprovalService
-from app.platform_.auth import CurrentPlatformUser, get_current_platform_user
+from app.platform_.auth import (
+    CurrentAdmin,
+    CurrentFinance,
+    CurrentPlatformUser,
+    get_current_platform_user,
+)
 from app.platform_.billing.exceptions import (
     InvalidTransition,
     PaymentConflict,
@@ -66,7 +71,7 @@ tenant_router = APIRouter(prefix="/billing/me", tags=["billing-tenant"])
     response_model=list[SubscriptionPlanOut],
 )
 async def list_plans(
-    _user: CurrentPlatformUser,
+    _user: CurrentFinance,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
     only_active: bool = False,
 ) -> list[SubscriptionPlanOut]:
@@ -81,7 +86,7 @@ async def list_plans(
 )
 async def create_plan(
     payload: SubscriptionPlanIn,
-    _user: CurrentPlatformUser,
+    _user: CurrentAdmin,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> SubscriptionPlanOut:
     try:
@@ -97,7 +102,7 @@ async def create_plan(
 )
 async def get_plan(
     plan_id: uuid.UUID,
-    _user: CurrentPlatformUser,
+    _user: CurrentFinance,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> SubscriptionPlanOut:
     plan = await PlanService(session).get(plan_id)
@@ -113,7 +118,7 @@ async def get_plan(
 async def update_plan(
     plan_id: uuid.UUID,
     payload: SubscriptionPlanPatch,
-    _user: CurrentPlatformUser,
+    _user: CurrentAdmin,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> SubscriptionPlanOut:
     try:
@@ -136,7 +141,7 @@ async def update_plan(
     response_model=list[SubscriptionOut],
 )
 async def list_subscriptions(
-    _user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    _user: CurrentFinance,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
     tenant_id: uuid.UUID | None = None,
     status_filter: str | None = None,
@@ -161,7 +166,7 @@ async def list_subscriptions(
 )
 async def assign_subscription(
     payload: SubscriptionCreateIn,
-    _user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    _user: CurrentAdmin,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> SubscriptionOut:
     try:
@@ -185,7 +190,7 @@ async def assign_subscription(
 )
 async def get_subscription(
     subscription_id: uuid.UUID,
-    _user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    _user: CurrentFinance,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> SubscriptionOut:
     sub = await SubscriptionService(session).get(subscription_id)
@@ -200,7 +205,7 @@ async def get_subscription(
 async def cancel_subscription(
     subscription_id: uuid.UUID,
     payload: SubscriptionCancelIn,
-    user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    user: CurrentAdmin,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
     mode: str = "at_period_end",
 ) -> dict[str, str]:
@@ -259,7 +264,7 @@ async def cancel_subscription(
 )
 async def reactivate_subscription(
     subscription_id: uuid.UUID,
-    _user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    _user: CurrentAdmin,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> SubscriptionOut:
     try:
@@ -278,7 +283,7 @@ async def reactivate_subscription(
 
 @platform_router.get("/invoices", response_model=list[InvoiceOut])
 async def list_invoices(
-    _user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    _user: CurrentFinance,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
     tenant_id: uuid.UUID | None = None,
     status_filter: str | None = None,
@@ -305,7 +310,7 @@ async def list_invoices(
 )
 async def get_invoice_pdf(
     invoice_id: uuid.UUID,
-    _user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    _user: CurrentFinance,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> Response:
     from sqlalchemy import select
@@ -337,7 +342,7 @@ async def get_invoice_pdf(
 @platform_router.get("/invoices/{invoice_id}", response_model=InvoiceDetailOut)
 async def get_invoice(
     invoice_id: uuid.UUID,
-    _user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    _user: CurrentFinance,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> InvoiceDetailOut:
     from sqlalchemy import select
@@ -375,7 +380,7 @@ async def get_invoice(
 async def void_invoice(
     invoice_id: uuid.UUID,
     payload: InvoiceVoidIn,
-    user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    user: CurrentAdmin,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> dict[str, str]:
     """Submit a void-invoice approval request. The actual void runs in
@@ -405,7 +410,7 @@ async def void_invoice(
 async def record_payment(
     invoice_id: uuid.UUID,
     payload: PaymentRecordIn,
-    user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    user: CurrentFinance,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> dict[str, str]:
     """Maker action: create Payment(pending) + ApprovalRequest in one tx.
@@ -464,7 +469,7 @@ async def record_payment(
 async def reject_payment(
     payment_id: uuid.UUID,
     payload: PaymentRejectIn,
-    user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    user: CurrentAdmin,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> dict[str, str]:
     """Checker action: reject a pending payment.
@@ -505,7 +510,7 @@ async def reject_payment(
     response_model=list[PaymentOut],
 )
 async def list_pending_payments(
-    _user: Annotated[PlatformUser, Depends(get_current_platform_user)],
+    _user: CurrentFinance,
     session: Annotated[AsyncSession, Depends(get_platform_session)],
 ) -> list[PaymentOut]:
     from sqlalchemy import select

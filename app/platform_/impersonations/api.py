@@ -25,8 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_platform_session
 from app.platform_.auth import (
+    CurrentAdmin,
     CurrentPlatformUser,
-    CurrentSuperuser,
 )
 from app.platform_.impersonations.exceptions import (
     ImpersonationGone,
@@ -85,7 +85,7 @@ async def list_active_mine(
 
 @router.get("/all", response_model=list[ImpersonationOut])
 async def list_all_active(
-    session: Session, _user: CurrentSuperuser,
+    session: Session, _user: CurrentAdmin,
 ) -> list[ImpersonationOut]:
     rows = await ImpersonationService(session).get_all_active()
     return [ImpersonationOut.model_validate(r) for r in rows]
@@ -128,7 +128,7 @@ async def revoke_impersonation(
     impersonation_id: uuid.UUID,
     body: _RevokeIn,
     session: Session,
-    user: CurrentSuperuser,
+    user: CurrentAdmin,
 ) -> Response:
     svc = ImpersonationService(session)
     row = await svc.get_by_id(impersonation_id)

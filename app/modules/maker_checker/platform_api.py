@@ -25,7 +25,7 @@ from app.modules.maker_checker.schemas import (
     SubmitApprovalRequest,
 )
 from app.modules.maker_checker.service import ApprovalService
-from app.platform_.auth import CurrentPlatformUser
+from app.platform_.auth import CurrentAdmin, CurrentSupport
 
 router = APIRouter(prefix="/platform/approvals", tags=["platform-maker-checker"])
 
@@ -36,7 +36,7 @@ Session = Annotated[AsyncSession, Depends(get_platform_session)]
 async def submit_approval(
     body: SubmitApprovalRequest,
     session: Session,
-    user: CurrentPlatformUser,
+    user: CurrentAdmin,
 ) -> ApprovalRequestOut:
     """Submit a new platform-scoped approval request.
 
@@ -62,7 +62,7 @@ async def submit_approval(
 @router.get("", response_model=list[ApprovalRequestOut])
 async def list_approvals(
     session: Session,
-    user: CurrentPlatformUser,
+    user: CurrentSupport,
     status: str | None = Query(None),
     operation_type: str | None = Query(None),
     requested_by: uuid.UUID | None = Query(None),
@@ -82,7 +82,7 @@ async def list_approvals(
 async def get_approval(
     request_id: uuid.UUID,
     session: Session,
-    user: CurrentPlatformUser,
+    user: CurrentSupport,
 ) -> ApprovalRequestOut:
     row = await session.scalar(
         select(PlatformApprovalRequest).where(PlatformApprovalRequest.id == request_id)
@@ -97,7 +97,7 @@ async def approve(
     request_id: uuid.UUID,
     body: ApprovalActionRequest,
     session: Session,
-    user: CurrentPlatformUser,
+    user: CurrentAdmin,
 ) -> ApprovalRequestOut:
     svc = ApprovalService(session)
     try:
@@ -117,7 +117,7 @@ async def reject(
     request_id: uuid.UUID,
     body: RejectRequest,
     session: Session,
-    user: CurrentPlatformUser,
+    user: CurrentAdmin,
 ) -> ApprovalRequestOut:
     svc = ApprovalService(session)
     try:
@@ -137,7 +137,7 @@ async def cancel(
     request_id: uuid.UUID,
     body: ApprovalActionRequest,
     session: Session,
-    user: CurrentPlatformUser,
+    user: CurrentAdmin,
 ) -> ApprovalRequestOut:
     svc = ApprovalService(session)
     try:
