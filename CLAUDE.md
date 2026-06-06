@@ -74,7 +74,7 @@ Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
 - **Auth**: consumes existing `/platform/auth/token` + `/auth/token` JWT endpoints. Refresh token in httpOnly cookie; access token in memory.
 - **No new API endpoints** unless discovered necessary during build. One optional exception: `GET /platform/admin/dashboard-stats` aggregate endpoint.
 - **Screen inventory** (28 screens across 7 nav groups): Tenants, Users, Billing, Approvals, Audit, Operations, Settings — full inventory in the roadmap doc.
-- **Roles**: Platform Superuser / Admin / Finance / Support (4 tiers, enforced at API layer).
+- **Roles**: Platform Superuser / Admin / Finance / Support (4 tiers, enforced at API layer via `app/platform_/auth.py`'s `get_current_platform_user_with_role(role)` factory and the `CurrentAdmin` / `CurrentFinance` / `CurrentSupport` shortcuts).
 
 ### Phase 3 — Notifications key decisions
 - Code lives in `app/core/notifications/` (cross-cutting).
@@ -162,10 +162,32 @@ Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
   delivers it out of band until Phase 3 ships email. The same JTI/Redis
   consumption rules from `app/modules/iam/reset_tokens.py` apply; the
   user redeems via the existing `POST /auth/password-reset/confirm`.
-- Until P1.7-05 lands, these endpoints gate on `CurrentSuperuser`. After
-  P1.7-05, the dep swaps to admin-or-above via
-  `get_current_platform_user_with_role("admin")` in `api.py` only — call
-  sites do not change.
+- The `tenant_users_admin` endpoints gate on `CurrentAdmin` (admin or
+  above), per the 4-tier role hierarchy.
+- Platform user roles follow a strict hierarchy: `superuser > admin > finance > support`.
+  Enforced by `get_current_platform_user_with_role(role)` in `app/platform_/auth.py`.
+  `with_role("admin")` accepts admin and superuser; `with_role("finance")`
+  accepts finance, admin, and superuser; `with_role("support")` accepts
+  anyone authenticated; `with_role("superuser")` accepts superuser only.
+- `is_superuser` is the deprecated mirror of `role='superuser'`. The
+  `PlatformUserService` keeps the two in sync on create and update. Existing
+  code that depends on `is_superuser` continues to work. New code should
+  depend on `role` and the role-based dep shortcuts.
+- Default gate policy on `/platform/*` routes: **support+ for read,
+  admin+ for write**, with explicit exceptions:
+  - `POST /platform/users` (create), JWT key admin routes, and
+    `POST /platform/tenants` (create) require `CurrentSuperuser`.
+  - Billing read endpoints require `CurrentFinance` (billing data is
+    sensitive even read-only).
+  - `POST /platform/billing/invoices/{id}/payments` (record) requires
+    `CurrentFinance` — recording is the finance staff's job; approval
+    requires `CurrentAdmin`.
+  - Impersonation submit / active / detail / end / mint-token endpoints
+    accept any authenticated platform user (the maker-checker quorum and
+    impersonator-only checks provide the gate).
+- New `/platform/*` routes should declare the required role explicitly at
+  the dep level. Choose the lowest tier that is operationally correct —
+  raising the bar later requires coordinating with portal permission UX.
 
 ## Impersonation contracts (do not violate)
 
