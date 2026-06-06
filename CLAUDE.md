@@ -24,23 +24,70 @@ Schema-per-tenant on PostgreSQL. Each tenant SACCO gets its own schema.
 9. Outbox pattern for events to RabbitMQ. Never publish directly from business code.
 10. All product terms (interest rates, fees) are SNAPSHOTTED onto loans/accounts at creation. Never reference live config for historical records.
 
-## Bounded contexts (build in this order)
-1. core (tenancy, db session, security, audit, events, maker-checker)
-2. platform_ (tenants, platform users)
-3. iam (users, roles, permissions inside tenants)
-4. ledger (chart of accounts, journal posting)
-5. members (lifecycle, KYC fields)
-6. shares (share capital)
-7. savings (products, accounts, manual transactions)
-8. fees (membership, annual subscription, assessment job)
-9. credit (products, applications, loans, schedules, repayments, guarantors)
-10. reporting (statements, trial balance, loan portfolio)
+## Bounded contexts — implementation status (as of 2026-06-02)
 
-## Current scope (starting build)
-- Manual transaction capture only (no payment integrations)
-- No external compliance integrations
-- No mobile/USSD channels yet
-- Single currency per tenant (UGX default), but design assumes multi-currency
+All 10 core bounded contexts are **complete and on `main`**:
+
+| # | Module | Status |
+|---|--------|--------|
+| 1 | **core** | Complete — tenancy, DB session, security, audit, outbox, maker-checker |
+| 2 | **platform_** | Complete — tenant provisioning (async 202/poll), platform users, RS256 JWT auth |
+| 3 | **iam** | Complete — tenant users, roles, platform + tenant auth, sessions, key rotation, password reset, lockout |
+| 4 | **ledger** | Complete — chart of accounts, double-entry journal posting |
+| 5 | **members** | Complete — lifecycle, KYC fields |
+| 6 | **shares** | Complete — share capital |
+| 7 | **savings** | Complete — products, accounts, manual transactions, lien-aware available balance |
+| 8 | **fees** | Complete — membership/annual fees, assessment job, partial collection |
+| 9 | **credit** | Complete — applications, loans, schedules, repayments, guarantors, write-off, payroll batches, restructuring, recovery |
+| 10 | **reporting** | Complete — loan portfolio, income statement, savings statement, fee collection (beat tasks + PDF/HTML) |
+| — | **billing** (platform_) | Complete — plans, subscriptions, invoices, payments, maker-checker executors, subscription gate, PDF, 4 beat tasks |
+
+## Current scope
+
+- All 10 bounded contexts shipped. Ruff/mypy clean. Every tenant-scoped route requires `CurrentTenantUser`.
+- Manual transaction capture only (no payment gateway integrations yet — `OfflineProcessor` is the only live processor).
+- No external compliance integrations, no mobile/USSD channels.
+- Single currency per tenant (UGX default). Multi-currency columns exist; no logic keys off them yet.
+- **Next work: SaaS launch phases** — see section below.
+
+## SaaS launch roadmap
+
+Full spec: `docs/superpowers/plans/saas-launch-roadmap.md`
+
+| Phase | What | Effort | Gates | Status |
+|-------|------|--------|-------|--------|
+| 1 | Billing & Subscription Management | L — 3 wk | closed beta | **Done** |
+| 2 | Admin / Back-Office Portal (Next.js) | XL — 6 wk | closed beta | **Next** |
+| 3 | Notifications Framework (NullProvider initially) | M — 2 wk | closed beta, runs parallel to P2 | Not started |
+| 4 | Backups & Disaster Recovery (pgBackRest + PITR) | M — 2 wk | production launch | Not started |
+| 5 | Observability & Monitoring (LGTM stack) | L — 3 wk | production launch | Not started |
+| 6 | Rate Limiting & Abuse Protection | S — 1 wk | production launch (needs P5) | Not started |
+| 7 | Tenant Offboarding & Retention | M — 2 wk | public launch (needs P1, P3) | Not started |
+| 8 | Data Portability & Member Exports | M — 2 wk | public launch (needs P3) | Not started |
+| 9 | External Security Assessment & Hardening | L — 3 wk | public launch (needs P1,P2,P4,P6) | Not started |
+
+Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
+
+### Phase 2 — Admin Portal key decisions
+- **Stack**: Next.js 14 App Router, TypeScript, Tailwind + shadcn/ui, Playwright e2e.
+- **Location**: new top-level `admin/` workspace (separate deployable, no Python code).
+- **Auth**: consumes existing `/platform/auth/token` + `/auth/token` JWT endpoints. Refresh token in httpOnly cookie; access token in memory.
+- **No new API endpoints** unless discovered necessary during build. One optional exception: `GET /platform/admin/dashboard-stats` aggregate endpoint.
+- **Screen inventory** (28 screens across 7 nav groups): Tenants, Users, Billing, Approvals, Audit, Operations, Settings — full inventory in the roadmap doc.
+- **Roles**: Platform Superuser / Admin / Finance / Support (4 tiers, enforced at API layer).
+
+### Phase 3 — Notifications key decisions
+- Code lives in `app/core/notifications/` (cross-cutting).
+- Ships with `NullNotificationProvider` and `LogNotificationProvider` only. No real email/SMS in v1.
+- Outbox-pattern integration: `NotificationService.publish()` writes to outbox; Celery consumer dispatches.
+- 9 initial event codes: `password_reset`, `maker_checker_pending/approved/rejected`, `invoice_issued/overdue`, `subscription_suspended`, `system_announcement`, `member_activated`.
+
+### Admin portal contracts (do not violate — add to this section as P2 is built)
+- The Next.js admin portal is a **client** of the existing FastAPI. It adds no business logic.
+- Auth: Bearer-token scheme. Access token (15 min TTL) in memory; refresh token in httpOnly Secure cookie.
+- Permissions are enforced at the API layer. UI hiding a button has no security value.
+- No `dangerouslySetInnerHTML`. Strict CSP. React's default escaping applies everywhere.
+- Password-reset tokens displayed in a one-time modal (not URL/query string) until Phase 3 email is wired.
 
 ## Conventions
 - All async functions and database calls. No sync DB code.
@@ -214,6 +261,16 @@ Schema-per-tenant on PostgreSQL. Each tenant SACCO gets its own schema.
   These are imported at app startup via `app/main.py` so the
   `@approval_executor` decorators register on boot. Do not remove the
   startup import — the registry is empty without it.
+- Platform-scoped approval requests (created by `billing.*`, `platform_user.update_sensitive`,
+  `tenant.retry_provisioning`, and future platform-scoped operations) are approved,
+  rejected, listed, and cancelled via the `/platform/approvals/*` router in
+  `app/modules/maker_checker/platform_api.py`. The tenant-scoped `/approvals/*`
+  router in `app/modules/maker_checker/api.py` handles tenant-scoped requests
+  only and does NOT see platform.approval_requests rows. `ApprovalService` is
+  schema-agnostic — it picks the right model based on
+  `session.sync_session.info["is_platform"]`, set by `get_platform_session`.
+  Both routers reuse the same `SubmitApprovalRequest` / `ApprovalRequestOut` /
+  `ApprovalActionRequest` / `RejectRequest` Pydantic schemas.
 - There is no `billing.record_payment` executor. The maker action creates
   `Payment(status=pending)` + `ApprovalRequest(operation_type='billing.confirm_payment')`
   in one transaction (SP05 API). The checker's approval triggers the
