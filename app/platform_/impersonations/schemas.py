@@ -16,6 +16,15 @@ class ImpersonationStartIn(BaseModel):
     reason: str = Field(min_length=10, max_length=500)
 
 
+class MintTenantTokenOut(BaseModel):
+    access_token: str
+    refresh_token: str
+    expires_in: int  # seconds (access TTL)
+    tenant_slug: str
+    impersonation_id: uuid.UUID
+    impersonation_expires_at: datetime
+
+
 class ImpersonationOut(BaseModel):
     id: uuid.UUID
     platform_user_id: uuid.UUID
