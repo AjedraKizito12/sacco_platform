@@ -19,8 +19,8 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import select
 from sqlalchemy import text as sql_text
 
-from app.core.config import get_settings
 from app.core import db as _core_db  # accessed at call time for testability
+from app.core.config import get_settings
 from app.modules.iam.keys.service import KeyService
 from app.modules.iam.sessions.models import TenantSession
 from app.modules.iam.sessions.service import SessionService

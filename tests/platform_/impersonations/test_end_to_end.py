@@ -75,7 +75,7 @@ async def client(test_engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]:
             transport=ASGITransport(app=app), base_url="http://test"
         ) as c:
             yield c
-    except Exception:
+    except Exception:  # noqa: BLE001, S110 — see comment below
         # Redis-pool teardown sometimes raises when the asyncio transport
         # was created in a sibling loop; the functional test has already
         # passed by this point. Swallow so pytest doesn't report a teardown
