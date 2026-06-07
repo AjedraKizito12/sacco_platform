@@ -99,6 +99,20 @@ L. `Idempotency-Key` auto-injected on all POST/PUT/PATCH/DELETE by the API clien
 M. No client-side data fetching for initial render. Server components fetch via the typed client; client components mutate via TanStack Query.
 N. Do NOT modify anything outside `admin/` except: `docker-compose.yml` (add admin service), `Makefile` (add `admin-*` targets), `CLAUDE.md` (append portal subsection, update Phase 2 stack to "Next.js 15"), `.gitignore` (admin entries). Backend code, alembic, docker/, scripts/, tests/, app/ stay untouched.
 O. Notification bell renders empty state ("Notifications coming soon") until Phase 3 ships. Bell component accepts the future Phase 3 event-feed shape but is fed null/empty in v1.
+P. Design tokens are owned by `docs/tokens.css` (the canonical source).
+   `admin/packages/ui/src/tokens.css` is a byte-identical copy consumed by the
+   portal app and Storybook. Editing tokens means editing the canonical file
+   and running `cp docs/tokens.css admin/packages/ui/src/tokens.css`. The
+   `scripts/check-tokens-sync.sh` script enforces this in CI; PRs that drift
+   are rejected.
+
+Q. shadcn/ui components are **forked once** into
+   `admin/packages/ui/src/components/`. They are not pulled from the shadcn
+   registry at runtime. Forks consume semantic tokens via
+   `var(--color-...)` references; literal hex values in component code
+   are a contract violation. To add a new shadcn component, fork it from
+   the latest registry, replace literal colours with token references,
+   and submit as a PR.
 
 ## Conventions
 - All async functions and database calls. No sync DB code.

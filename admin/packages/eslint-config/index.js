@@ -58,8 +58,10 @@ export default [
       // Discourage `dangerouslySetInnerHTML` — CLAUDE.md hard contract.
       "react/no-danger": "error",
 
-      // Tailwind: enforce class order + warn on unknown classes.
-      "tailwindcss/classnames-order": "warn",
+      // Tailwind: classnames-order disabled (handled by prettier-plugin-tailwindcss
+      // at format time, and the v4 CSS-first config breaks the eslint plugin's
+      // tailwindcss package resolution in workspace contexts).
+      "tailwindcss/classnames-order": "off",
       "tailwindcss/no-custom-classname": "off",
     },
   },

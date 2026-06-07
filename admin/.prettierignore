@@ -7,3 +7,8 @@ storybook-static/
 coverage/
 pnpm-lock.yaml
 *.tsbuildinfo
+
+# tokens.css is a byte-identical copy of docs/tokens.css. Do not let prettier
+# touch it — the check-tokens-sync.sh CI guard would fail. Edit the canonical
+# file in docs/ and re-copy. See CLAUDE.md contract P.
+packages/ui/src/tokens.css

@@ -1,0 +1,12 @@
+{
+  "extends": "@sacco/tsconfig/library.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist",
+    "jsx": "react-jsx",
+    "lib": ["DOM", "DOM.Iterable", "ES2023"],
+    "types": ["@testing-library/jest-dom"]
+  },
+  "include": ["src/**/*", "vitest.setup.ts", ".storybook/**/*"],
+  "exclude": ["node_modules", "dist", "storybook-static", "coverage"]
+}

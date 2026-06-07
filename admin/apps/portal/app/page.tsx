@@ -1,29 +1,31 @@
+import { Badge, Button, Card, KpiCard } from "@sacco/ui";
+
 export default function Home() {
   return (
-    <main className="mx-auto grid min-h-screen max-w-3xl place-items-center p-8">
-      <div
-        className="w-full rounded-[18px] border border-[var(--color-border-subtle)] bg-[var(--color-surface-elevated)] p-8 shadow-sm"
-        style={{ boxShadow: "var(--shadow-sm)" }}
-      >
-        <p
-          className="mb-2 text-xs font-medium uppercase tracking-wider"
-          style={{ color: "var(--color-text-secondary)" }}
-        >
-          Portal v1 — sub-plan 03
+    <main className="mx-auto grid min-h-screen max-w-3xl place-items-center gap-6 p-8">
+      <Card className="w-full">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
+          Portal v1 — sub-plan 04
         </p>
-        <h1
-          className="mb-3 text-3xl font-bold leading-tight"
-          style={{ color: "var(--color-text-primary)" }}
-        >
-          SACCO Admin Portal
-        </h1>
-        <p className="mb-6 text-base" style={{ color: "var(--color-text-secondary)" }}>
-          Next.js 15 + React 19 bootstrap successful. The auth shell, design system, and feature
-          modules land in the sub-plans that follow.
+        <h1 className="mb-3 text-3xl font-bold text-[var(--text-primary)]">@sacco/ui foundation</h1>
+        <p className="mb-6 text-[var(--text-secondary)]">
+          Tokens shared with Storybook. Components ready for the auth shell (sub-plan 07) and the
+          app shell (sub-plan 08).
         </p>
-        <p className="font-tabular text-sm text-[var(--color-text-secondary)]">
-          Bootstrap timestamp: <span suppressHydrationWarning>{new Date().toISOString()}</span>
-        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button>Primary action</Button>
+          <Button variant="secondary">Secondary</Button>
+          <Button variant="ghost">Ghost</Button>
+          <Badge variant="success" withDot>
+            Wired
+          </Badge>
+        </div>
+      </Card>
+
+      <div className="grid w-full grid-cols-3 gap-4">
+        <KpiCard label="Total Members" value="—" />
+        <KpiCard label="Outstanding Loans" value="—" />
+        <KpiCard label="Members in Arrears" value="—" />
       </div>
     </main>
   );
