@@ -43,3 +43,15 @@ All Turborepo pipelines run from `admin/` and parallelise across packages:
 - Design system spec: `../docs/sacco-design-system-v2.md`
 - Design tokens (canonical): `../docs/tokens.css`
 - Hard contracts: `../CLAUDE.md` § "Admin portal contracts"
+
+## Git hooks
+
+This workspace uses Husky 9 for pre-commit hooks. After cloning the
+repo, point Git at the workspace's `.husky` directory once:
+
+```bash
+git config core.hooksPath admin/.husky
+```
+
+The `prepare` script (run automatically by `pnpm install`) takes care of
+keeping the hooks executable.

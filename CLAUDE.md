@@ -69,7 +69,7 @@ Full spec: `docs/superpowers/plans/saas-launch-roadmap.md`
 Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
 
 ### Phase 2 — Admin Portal key decisions
-- **Stack**: Next.js 14 App Router, TypeScript, Tailwind + shadcn/ui, Playwright e2e.
+- **Stack**: Next.js 15 App Router + React 19, TypeScript strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), Tailwind v4 + shadcn/ui, Playwright e2e.
 - **Location**: new top-level `admin/` workspace (separate deployable, no Python code).
 - **Auth**: consumes existing `/platform/auth/token` + `/auth/token` JWT endpoints. Refresh token in httpOnly cookie; access token in memory.
 - **No new API endpoints** unless discovered necessary during build. One optional exception: `GET /platform/admin/dashboard-stats` aggregate endpoint.
@@ -82,12 +82,23 @@ Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
 - Outbox-pattern integration: `NotificationService.publish()` writes to outbox; Celery consumer dispatches.
 - 9 initial event codes: `password_reset`, `maker_checker_pending/approved/rejected`, `invoice_issued/overdue`, `subscription_suspended`, `system_announcement`, `member_activated`.
 
-### Admin portal contracts (do not violate — add to this section as P2 is built)
-- The Next.js admin portal is a **client** of the existing FastAPI. It adds no business logic.
-- Auth: Bearer-token scheme. Access token (15 min TTL) in memory; refresh token in httpOnly Secure cookie.
-- Permissions are enforced at the API layer. UI hiding a button has no security value.
-- No `dangerouslySetInnerHTML`. Strict CSP. React's default escaping applies everywhere.
-- Password-reset tokens displayed in a one-time modal (not URL/query string) until Phase 3 email is wired.
+### Admin portal contracts (do not violate)
+
+A. The portal is a CLIENT of the existing FastAPI. No business logic.
+B. **Zero new API endpoints in Phase 2.** All backend additions ship in Phase 1.7. If a sub-plan thinks it needs a new endpoint, stop and surface.
+C. Access token in memory. Refresh token in httpOnly Secure SameSite=Strict cookie. Never `localStorage`, never `sessionStorage`, never plain cookies.
+D. UI permission gating is UX only. API enforces.
+E. Strict CSP. No `dangerouslySetInnerHTML`. No user-controlled HTML rendering.
+F. Password reset tokens displayed in one-time modal (until Phase 3 email is wired). Never in URLs, query strings, or logs.
+G. Subscription-gate responses: 402 → "Subscription past due — payment required" screen with link to billing; 403 (from gate) → "Account suspended — contact platform admin". Platform admin context is NOT gated.
+H. Money via `<Money amount currency />`. Dates via `<FormattedDate>` / `<FormattedDateTime>` / `<AuditTimestamp>` / `<RelativeTime>`. Never raw `toLocaleString`.
+I. All tables: TanStack Table via `@sacco/ui` DataTable. Server-side pagination, sort, filter. URL state via nuqs.
+J. All forms: React Hook Form + Zod. Schemas in `@sacco/schemas`.
+K. Maker-checker UI patterns: action buttons labeled "Request X" not "X" when they create approval requests; confirm dialog explicitly states "This creates an approval request, not executes"; pending-approval banner on records with open approvals; approval inbox shows quorum ("1 of 2").
+L. `Idempotency-Key` auto-injected on all POST/PUT/PATCH/DELETE by the API client (UUID per user intent — same UUID across retries of the same form submission).
+M. No client-side data fetching for initial render. Server components fetch via the typed client; client components mutate via TanStack Query.
+N. Do NOT modify anything outside `admin/` except: `docker-compose.yml` (add admin service), `Makefile` (add `admin-*` targets), `CLAUDE.md` (append portal subsection, update Phase 2 stack to "Next.js 15"), `.gitignore` (admin entries). Backend code, alembic, docker/, scripts/, tests/, app/ stay untouched.
+O. Notification bell renders empty state ("Notifications coming soon") until Phase 3 ships. Bell component accepts the future Phase 3 event-feed shape but is fed null/empty in v1.
 
 ## Conventions
 - All async functions and database calls. No sync DB code.

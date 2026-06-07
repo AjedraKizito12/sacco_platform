@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# admin/.husky/pre-commit — runs on every commit.
+# If no admin files are staged, lint-staged exits 0 (Python-only commits pass).
+cd "$(dirname "$0")/.."
+pnpm exec lint-staged
