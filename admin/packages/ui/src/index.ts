@@ -5,3 +5,7 @@ export * from "./components/Textarea";
 export * from "./components/Card";
 export * from "./components/Badge";
 export * from "./components/Separator";
+export * from "./components/Dialog";
+export * from "./components/Sheet";
+export * from "./components/Popover";
+export * from "./components/Tooltip";
