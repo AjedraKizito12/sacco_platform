@@ -17,12 +17,9 @@ export default function Home() {
         >
           SACCO Admin Portal
         </h1>
-        <p
-          className="mb-6 text-base"
-          style={{ color: "var(--color-text-secondary)" }}
-        >
-          Next.js 15 + React 19 bootstrap successful. The auth shell, design
-          system, and feature modules land in the sub-plans that follow.
+        <p className="mb-6 text-base" style={{ color: "var(--color-text-secondary)" }}>
+          Next.js 15 + React 19 bootstrap successful. The auth shell, design system, and feature
+          modules land in the sub-plans that follow.
         </p>
         <p className="font-tabular text-sm text-[var(--color-text-secondary)]">
           Bootstrap timestamp: <span suppressHydrationWarning>{new Date().toISOString()}</span>

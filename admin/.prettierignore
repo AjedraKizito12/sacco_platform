@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.turbo/
+dist/
+build/
+storybook-static/
+coverage/
+pnpm-lock.yaml
+*.tsbuildinfo

@@ -9,7 +9,10 @@
     ".": "./index.js",
     "./next": "./next.js"
   },
-  "files": ["index.js", "next.js"],
+  "files": [
+    "index.js",
+    "next.js"
+  ],
   "peerDependencies": {
     "eslint": "^9.10.0",
     "@next/eslint-plugin-next": "^15.0.0",
