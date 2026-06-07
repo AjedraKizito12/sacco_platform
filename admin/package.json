@@ -22,5 +22,12 @@
     "turbo": "^2.1.0",
     "typescript": "^5.6.2",
     "prettier": "^3.3.3"
+  },
+  "pnpm": {
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "eslint-plugin-react-hooks>eslint": "^9.10.0"
+      }
+    }
   }
 }
