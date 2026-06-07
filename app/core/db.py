@@ -1,4 +1,5 @@
 import re
+import uuid  # noqa: TC003 — used at runtime by FastAPI path-param injection
 from collections.abc import AsyncGenerator
 from datetime import date
 from typing import cast
@@ -180,6 +181,70 @@ async def get_platform_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionFactory() as session:
         await session.execute(text("SET LOCAL search_path TO platform"))
         session.sync_session.info["is_platform"] = True
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+
+async def get_session_for_tenant_schema(
+    tenant_id: uuid.UUID,
+) -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency for **platform** endpoints that operate on a
+    **tenant** schema.
+
+    Takes ``tenant_id`` from the URL path (FastAPI injects path params into
+    deps automatically), loads the tenant by UUID, validates the
+    ``schema_name``, and yields a session with
+    ``SET LOCAL search_path TO <schema>, platform``.
+
+    NOT subscription-gated — platform admins must be able to manage tenant
+    users regardless of the tenant's subscription state.
+
+    Raises:
+        HTTPException(404): tenant unknown or inactive
+        HTTPException(500): schema_name fails defensive validation
+            (indicates data corruption)
+    """
+    # Look up the tenant + validate the schema_name on the same connection
+    # the session will use. Using a separate `engine.connect()` here would
+    # bind the lookup to the prod engine's pool, which cross-contaminates
+    # asyncpg loop state under pytest.
+    async with AsyncSessionFactory() as session:
+        await session.execute(text("SET LOCAL search_path TO platform"))
+        row = (
+            await session.execute(
+                text(
+                    "SELECT schema_name FROM platform.tenants "
+                    "WHERE id = :id AND is_active = true"
+                ),
+                {"id": tenant_id},
+            )
+        ).fetchone()
+
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Tenant {tenant_id} not found or inactive",
+            )
+
+        schema_name: str = row[0]
+        if not _SCHEMA_RE.match(schema_name):
+            _log.error(
+                "Resolved schema_name failed validation — possible data corruption",
+                tenant_id=str(tenant_id),
+                schema_name=schema_name,
+            )
+            raise HTTPException(
+                status_code=500, detail="Internal configuration error"
+            )
+
+        # schema_name validated; safe to interpolate.
+        await session.execute(
+            text(f"SET LOCAL search_path TO {schema_name}, platform")  # noqa: S608
+        )
         try:
             yield session
             await session.commit()
