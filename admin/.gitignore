@@ -1,0 +1,19 @@
+# pnpm + Turborepo + Next.js artefacts
+node_modules/
+.pnpm-store/
+.turbo/
+dist/
+build/
+*.log
+*.tsbuildinfo
+
+# Next.js (lands in sub-plan 03)
+.next/
+out/
+.vercel/
+
+# Storybook (lands in sub-plan 04)
+storybook-static/
+
+# Local env files (root-level .env stays; admin's are local-only)
+.env*.local
