@@ -10,7 +10,6 @@ import contextlib
 import json
 from typing import Annotated
 
-import structlog
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,8 +17,6 @@ from app.core.db import get_platform_session
 from app.platform_.admin.schemas import DashboardStatsOut
 from app.platform_.admin.service import DashboardStatsService
 from app.platform_.auth import CurrentAdmin
-
-_log = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/platform/admin", tags=["platform-admin"])
 
@@ -42,12 +39,9 @@ async def get_dashboard_stats(
         if cached is not None:
             try:
                 return DashboardStatsOut.model_validate(json.loads(cached))
-            except Exception as exc:  # noqa: BLE001
-                # Stale-format cache; log and recompute.
-                _log.warning(
-                    "dashboard-stats cache decode failed; recomputing",
-                    error=str(exc),
-                )
+            except Exception:  # noqa: BLE001, S110
+                # Stale-format cache; ignore and recompute.
+                pass
 
     stats = await DashboardStatsService(session).compute()
 

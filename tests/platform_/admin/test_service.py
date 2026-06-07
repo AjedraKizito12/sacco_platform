@@ -9,9 +9,8 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
-import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.platform_.admin.service import DashboardStatsService
 from app.platform_.billing.models import Invoice, Subscription, SubscriptionPlan
