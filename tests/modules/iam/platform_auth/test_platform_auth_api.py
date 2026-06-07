@@ -217,6 +217,7 @@ async def test_platform_me_returns_200_with_user() -> None:
         full_name="Me User",
         is_active=True,
         is_superuser=False,
+        role="support",
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         last_login_at=None,

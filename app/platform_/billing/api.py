@@ -22,8 +22,6 @@ from app.modules.maker_checker.service import ApprovalService
 from app.platform_.auth import (
     CurrentAdmin,
     CurrentFinance,
-    CurrentPlatformUser,
-    get_current_platform_user,
 )
 from app.platform_.billing.exceptions import (
     InvalidTransition,
@@ -51,7 +49,7 @@ from app.platform_.billing.services import (
     PlanService,
     SubscriptionService,
 )
-from app.platform_.models import PlatformUser, Tenant
+from app.platform_.models import Tenant
 
 
 class PaymentRejectIn(BaseModel):

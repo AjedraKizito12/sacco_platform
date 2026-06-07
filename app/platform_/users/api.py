@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_platform_session
 from app.modules.maker_checker.registry import approval_executor
 from app.platform_.auth import CurrentSuperuser, CurrentSupport
-from app.platform_.models import PlatformUser
 from app.platform_.users.schemas import (
     CreatePlatformUserRequest,
     PlatformUserOut,
