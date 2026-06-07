@@ -9,6 +9,7 @@ volumes:
   redisdata:
   rabbitmqdata:
   esdata:
+  admin_node_modules:
 
 services:
   postgres:
@@ -108,3 +109,37 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
+
+  admin:
+    # Next.js 15 portal — dev-mode container. The host's admin/ tree is
+    # volume-mounted so live reload works; node_modules stays inside the
+    # container to avoid host/container architecture mismatches.
+    image: node:22-slim
+    restart: unless-stopped
+    networks: [sacco_net]
+    working_dir: /admin
+    ports:
+      - "3000:3000"  # Next.js dev server
+      - "6006:6006"  # Storybook (sub-plan 04)
+    volumes:
+      - ./admin:/admin
+      - admin_node_modules:/admin/node_modules
+    environment:
+      # Inside the docker network, the API is reachable at http://api:8000.
+      # Host browsers hit it via http://localhost:8000 (or 8001 if API_PORT
+      # was overridden — see Makefile).
+      NEXT_PUBLIC_API_BASE_URL: "http://localhost:8001"
+      # Cookie secret picked up by Next.js middleware (sub-plan 07). Override
+      # in a real .env if you want stable sessions across container restarts.
+      COOKIE_SECRET: "dev-only-do-not-use-in-production"
+      REFRESH_COOKIE_NAME: "sacco_refresh"
+    command:
+      - sh
+      - -c
+      - |
+        corepack enable && \
+        pnpm install --frozen-lockfile && \
+        pnpm dev
+    depends_on:
+      api:
+        condition: service_started
