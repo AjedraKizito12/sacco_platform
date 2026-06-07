@@ -1,0 +1,6 @@
+/* admin/packages/ui/src/globals.css
+ * Entry point for tokens + Tailwind v4 base. Consuming apps import this
+ * from their root CSS (e.g., admin/apps/portal/app/globals.css).
+ */
+@import "tailwindcss";
+@import "./tokens.css";
