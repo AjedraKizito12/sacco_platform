@@ -21,7 +21,9 @@ PYTEST := env -u DATABASE_URL pytest
 
 .PHONY: help up down api worker beat migrate seed-defaults seed-demo \
         materialize-reports test test-fast lint mypy ci provision-tenant \
-        platform-token tail-api tail-worker
+        platform-token tail-api tail-worker \
+        admin-install admin-dev admin-build admin-test admin-lint \
+        admin-typecheck admin-storybook admin-clean
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -117,3 +119,33 @@ tail-api: ## Tail the most recent uvicorn output file in /tmp/
 
 tail-worker: ## Tail the most recent celery worker output file in /tmp/
 	@tail -F $$(ls -t /tmp/claude-*/tasks/*.output 2>/dev/null | head -1)
+
+# ── Admin portal (Next.js 15) ────────────────────────────────────────────────
+#
+# All targets run on the host using the local Node 22 toolchain (see
+# admin/.nvmrc). For a sealed, reproducible environment use
+# `docker compose up admin` instead.
+
+admin-install: ## Install pnpm workspace deps in admin/
+	cd admin && pnpm install
+
+admin-dev: ## Run all admin dev servers (Next.js, Storybook) in parallel
+	cd admin && pnpm dev
+
+admin-build: ## Production build for every admin package
+	cd admin && pnpm build
+
+admin-test: ## Vitest across the admin workspace
+	cd admin && pnpm test
+
+admin-lint: ## ESLint across the admin workspace
+	cd admin && pnpm lint
+
+admin-typecheck: ## TypeScript no-emit check across the admin workspace
+	cd admin && pnpm typecheck
+
+admin-storybook: ## Run Storybook against packages/ui (sub-plan 04)
+	cd admin && pnpm --filter @sacco/ui storybook
+
+admin-clean: ## Remove node_modules, .turbo, .next, dist/, storybook-static/
+	cd admin && pnpm clean

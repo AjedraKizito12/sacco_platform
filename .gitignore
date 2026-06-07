@@ -45,3 +45,15 @@ ENV/
 # ── Local infra state ───────────────────────────────────────────────────────
 *.pid
 *.sock
+
+# ── Admin portal (pnpm + Turborepo + Next.js) ───────────────────────────────
+admin/node_modules/
+admin/.pnpm-store/
+admin/.turbo/
+admin/.next/
+admin/out/
+admin/.vercel/
+admin/storybook-static/
+admin/**/dist/
+admin/**/*.tsbuildinfo
+admin/coverage/
