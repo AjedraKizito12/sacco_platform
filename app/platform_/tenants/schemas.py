@@ -51,3 +51,22 @@ class TenantOut(BaseModel):
 class TenantCreateResponse(BaseModel):
     tenant: TenantOut
     status_url: str
+
+
+class TenantPatchIn(BaseModel):
+    """Body of PATCH /platform/tenants/{id}. Currently only name is editable."""
+
+    name: str = Field(min_length=1, max_length=200)
+
+
+class TenantSuspendIn(BaseModel):
+    """Body of POST /platform/tenants/{id}/suspend."""
+
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class AssignPlanIn(BaseModel):
+    """Body of POST /platform/tenants/{id}/assign-plan."""
+
+    plan_id: uuid.UUID
+    start_date: datetime | None = None

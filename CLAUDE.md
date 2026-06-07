@@ -122,6 +122,18 @@ Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
 - Do not add password handling, login routes, or /me endpoints to platform_. Those belong in IAM.
 - Platform users acting inside a tenant context send both X-Platform-Actor-ID and X-Tenant-Slug. Audit records actor_type='platform_user' and actor_id=<platform_user.id> in the tenant audit_log.
 - run_tenant_migrations() in app/platform_/provisioning/migrations.py is the canonical way to run tenant Alembic migrations. Do not use subprocess or direct psycopg2 calls for this.
+- Tenant lifecycle endpoints (`PATCH /platform/tenants/{id}`,
+  `POST .../suspend`, `POST .../reactivate`, `POST .../assign-plan`) are the
+  ONLY HTTP paths to mutate `tenants.name`, `tenants.is_active`,
+  `tenants.status`, `tenants.subscription_status`, or
+  `tenants.current_subscription_id`. Direct UPDATE from anywhere outside
+  `TenantService` (for name/status/is_active/subscription_status) or
+  `SubscriptionService` (for current_subscription_id, set automatically by
+  `assign`) is forbidden. The `tenant.suspend` maker-checker executor is the
+  only path that calls `TenantService.suspend()`. `reactivate` is direct —
+  no maker-checker — because re-enabling a tenant is a less destructive
+  operation and the operator's intent is the authorising signal. Slug and
+  schema_name remain immutable.
 
 ## IAM module contracts (do not violate)
 
