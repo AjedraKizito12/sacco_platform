@@ -43,6 +43,9 @@
         "eslint-plugin-react-hooks>eslint": "^9.10.0",
         "@storybook/react>@storybook/test": "^8.3.0"
       }
+    },
+    "overrides": {
+      "webpack": "5.101.2"
     }
   }
 }
