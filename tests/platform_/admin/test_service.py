@@ -152,6 +152,23 @@ async def _seed_impersonation(
         s.add(imp)
 
 
+async def _create_actor_for_followup(
+    factory: async_sessionmaker,
+) -> PlatformUser:
+    """Minimal platform-user seed for tests that need a requested_by FK."""
+    async with factory() as s, s.begin():
+        await s.execute(text("SET LOCAL search_path TO platform"))
+        u = PlatformUser(
+            email=f"f-{uuid.uuid4().hex[:6]}@test.example",
+            full_name="F",
+            role="admin",
+            is_active=True, is_superuser=False,
+            created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
+        )
+        s.add(u)
+    return u
+
+
 async def _cleanup(factory: async_sessionmaker) -> None:
     async with factory() as s, s.begin():
         await s.execute(text("SET LOCAL search_path TO platform"))
@@ -241,6 +258,101 @@ async def test_active_impersonations_count(test_engine: AsyncEngine) -> None:
             s.sync_session.info["is_platform"] = True
             stats = await DashboardStatsService(s).compute()
             assert stats.active_impersonations == 2
+    finally:
+        await _cleanup(factory)
+
+
+async def test_subscriptions_by_status(test_engine: AsyncEngine) -> None:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    plan = await _seed_plan(factory, base_price="100", period="monthly")
+    await _seed_subscription(factory, plan_id=plan.id, status="active")
+    await _seed_subscription(factory, plan_id=plan.id, status="active")
+    await _seed_subscription(factory, plan_id=plan.id, status="trialing")
+    await _seed_subscription(factory, plan_id=plan.id, status="cancelled")
+    try:
+        async with factory() as s:
+            await s.execute(text("SET LOCAL search_path TO platform"))
+            s.sync_session.info["is_platform"] = True
+            stats = await DashboardStatsService(s).compute()
+            assert stats.subscriptions == {
+                "active": 2, "trialing": 1, "cancelled": 1,
+            }
+    finally:
+        await _cleanup(factory)
+
+
+async def test_approvals_pending_count(test_engine: AsyncEngine) -> None:
+    """Seed a pending platform approval request and confirm the count > 0."""
+    from app.modules.maker_checker.models.platform import PlatformApprovalRequest
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    actor = await _create_actor_for_followup(factory)
+    async with factory() as s, s.begin():
+        await s.execute(text("SET LOCAL search_path TO platform"))
+        s.add_all([
+            PlatformApprovalRequest(
+                operation_type="billing.confirm_payment",
+                payload={"payment_id": str(uuid.uuid4())},
+                status="pending",
+                required_approvals=1,
+                requested_by=actor.id,
+                requested_at=datetime.now(UTC),
+            ),
+            PlatformApprovalRequest(
+                operation_type="billing.confirm_payment",
+                payload={"payment_id": str(uuid.uuid4())},
+                status="executed",
+                required_approvals=1,
+                requested_by=actor.id,
+                requested_at=datetime.now(UTC),
+            ),
+        ])
+    try:
+        async with factory() as s:
+            await s.execute(text("SET LOCAL search_path TO platform"))
+            s.sync_session.info["is_platform"] = True
+            stats = await DashboardStatsService(s).compute()
+            assert stats.approvals_pending == 1
+    finally:
+        await _cleanup(factory)
+
+
+async def test_active_impersonations_excludes_revoked(test_engine: AsyncEngine) -> None:
+    """A revoked impersonation is inactive even if ended_at is NULL."""
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with factory() as s, s.begin():
+        await s.execute(text("SET LOCAL search_path TO platform"))
+        u = PlatformUser(
+            email=f"r-{uuid.uuid4().hex[:6]}@test.example",
+            full_name="R",
+            role="admin",
+            is_active=True, is_superuser=False,
+            created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
+        )
+        t = Tenant(
+            slug=f"t-{uuid.uuid4().hex[:8]}",
+            schema_name=f"tenant_t_{uuid.uuid4().hex[:8]}",
+            name="T", status="active", is_active=True,
+            created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
+        )
+        s.add_all([u, t])
+        await s.flush()
+        now = datetime.now(UTC)
+        s.add(SupportImpersonation(
+            platform_user_id=u.id, tenant_id=t.id,
+            reason="r" * 10,
+            started_at=now,
+            expires_at=now + timedelta(minutes=30),
+            ended_at=None,
+            revoked_at=now,
+            revoked_by=u.id,
+            created_at=now, updated_at=now,
+        ))
+    try:
+        async with factory() as s:
+            await s.execute(text("SET LOCAL search_path TO platform"))
+            s.sync_session.info["is_platform"] = True
+            stats = await DashboardStatsService(s).compute()
+            assert stats.active_impersonations == 0
     finally:
         await _cleanup(factory)
 
