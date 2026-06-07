@@ -141,6 +141,19 @@ Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
   requires a portal-side coordination. When Redis is unavailable, the
   endpoint falls through to a fresh computation; this is documented degraded
   behaviour, not a fault.
+- The dashboard-stats Redis fallback path is **deliberately silent** — no
+  logging on cache-decode failure, no logging on cache-write failure. Adding
+  logs here would either spam during Redis flapping or stay quiet when needed.
+  The portal's "Last updated" timestamp is the operator's signal of freshness.
+- The dashboard-stats endpoint must NOT accept a `force_refresh` (or
+  equivalent cache-bypass) query parameter. If the portal needs fresher data,
+  shorten the TTL — do not give clients a knob that lets every dashboard
+  reload skip the cache. Likewise, do not invalidate the cache on billing /
+  tenant writes; the 60s TTL is the contract.
+- The dashboard-stats MRR aggregation counts only subscriptions with status
+  `active` or `trialing`. `past_due`, `suspended`, and `cancelled` do not
+  count. If finance needs a different convention, expose a second metric
+  rather than redefining this one.
 
 ## IAM module contracts (do not violate)
 
