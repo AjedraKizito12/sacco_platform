@@ -89,21 +89,28 @@ async def _seed_invoice(
     amount_total: str,
     amount_paid: str = "0",
     currency: str = "UGX",
+    tenant_id: uuid.UUID | None = None,
+    subscription_id: uuid.UUID | None = None,
 ) -> None:
-    """Quick-and-dirty seed; relies on a tenant + subscription existing.
-    Caller seeds those first.
+    """Seed one Invoice row.
+
+    By default looks up the first existing tenant + subscription (callers must
+    seed those first). Pass explicit IDs to make the row deterministic — useful
+    if a test runs in parallel with others that touch invoices.
     """
     async with factory() as s, s.begin():
         await s.execute(text("SET LOCAL search_path TO platform"))
-        tenant_id = (
-            await s.execute(text("SELECT id FROM platform.tenants LIMIT 1"))
-        ).scalar()
-        sub_id = (
-            await s.execute(text("SELECT id FROM platform.subscriptions LIMIT 1"))
-        ).scalar()
+        if tenant_id is None:
+            tenant_id = (
+                await s.execute(text("SELECT id FROM platform.tenants LIMIT 1"))
+            ).scalar()
+        if subscription_id is None:
+            subscription_id = (
+                await s.execute(text("SELECT id FROM platform.subscriptions LIMIT 1"))
+            ).scalar()
         inv = Invoice(
             invoice_number=f"INV-{uuid.uuid4().hex[:10]}",
-            subscription_id=sub_id,
+            subscription_id=subscription_id,
             tenant_id=tenant_id,
             billing_period_start=date.today(),
             billing_period_end=date.today() + timedelta(days=30),
