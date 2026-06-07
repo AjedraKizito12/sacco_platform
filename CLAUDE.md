@@ -134,6 +134,13 @@ Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
   no maker-checker — because re-enabling a tenant is a less destructive
   operation and the operator's intent is the authorising signal. Slug and
   schema_name remain immutable.
+- `GET /platform/admin/dashboard-stats` (admin gate) returns a single aggregate
+  view used by the portal dashboard. Cached in Redis for 60 seconds under key
+  `dashboard:platform:stats`. The response shape (`DashboardStatsOut`) is the
+  contract — adding new metrics is fine, renaming or removing existing keys
+  requires a portal-side coordination. When Redis is unavailable, the
+  endpoint falls through to a fresh computation; this is documented degraded
+  behaviour, not a fault.
 
 ## IAM module contracts (do not violate)
 
