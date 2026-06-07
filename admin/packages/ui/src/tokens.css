@@ -26,53 +26,53 @@
  * ---------------------------------------------------------------------------*/
 :root {
   /* === Neutrals === */
-  --color-black: #1f1f1f;
-  --color-white: #ffffff;
+  --color-black:    #1F1F1F;
+  --color-white:    #FFFFFF;
 
-  --color-gray-50: #f8f8f8;
-  --color-gray-100: #f4f4f4;
-  --color-gray-200: #ededed;
-  --color-gray-300: #d9d9d9;
-  --color-gray-400: #bdbdbd;
-  --color-gray-500: #9a9a9a;
+  --color-gray-50:  #F8F8F8;
+  --color-gray-100: #F4F4F4;
+  --color-gray-200: #EDEDED;
+  --color-gray-300: #D9D9D9;
+  --color-gray-400: #BDBDBD;
+  --color-gray-500: #9A9A9A;
   --color-gray-600: #767676;
-  --color-gray-700: #5b5b5b;
-  --color-gray-800: #3d3d3d;
-  --color-gray-900: #2b2b2b;
+  --color-gray-700: #5B5B5B;
+  --color-gray-800: #3D3D3D;
+  --color-gray-900: #2B2B2B;
 
   /* === Primary (near-black brand chrome) === */
   --color-primary-600: #333333;
-  --color-primary-700: #2a2a2a;
-  --color-primary-800: #1f1f1f;
+  --color-primary-700: #2A2A2A;
+  --color-primary-800: #1F1F1F;
   --color-primary-900: #111111;
 
   /* === Success (paid, approved, positive) === */
-  --color-success-100: #dcfce7;
-  --color-success-500: #22c55e; /* background/icon only on light */
-  --color-success-700: #157347; /* text on light */
-  --color-success-900: #0e5a3b;
+  --color-success-100: #DCFCE7;
+  --color-success-500: #22C55E;  /* background/icon only on light */
+  --color-success-700: #157347;  /* text on light */
+  --color-success-900: #0E5A3B;
 
   /* === Warning (pending, attention) === */
-  --color-warning-100: #fef3c7;
-  --color-warning-500: #f59e0b; /* background/icon only on light */
-  --color-warning-700: #b45309; /* text on light */
-  --color-warning-900: #78350f;
+  --color-warning-100: #FEF3C7;
+  --color-warning-500: #F59E0B;  /* background/icon only on light */
+  --color-warning-700: #B45309;  /* text on light */
+  --color-warning-900: #78350F;
 
   /* === Danger (arrears, rejected, destructive) === */
-  --color-danger-100: #fee2e2;
-  --color-danger-500: #ef4444; /* background/icon, large text only */
-  --color-danger-700: #b91c1c; /* text on light, destructive button */
-  --color-danger-900: #7f1d1d;
+  --color-danger-100:  #FEE2E2;
+  --color-danger-500:  #EF4444;  /* background/icon, large text only */
+  --color-danger-700:  #B91C1C;  /* text on light, destructive button */
+  --color-danger-900:  #7F1D1D;
 
   /* === Info (notifications, links, focus) === */
-  --color-info-100: #dbeafe;
-  --color-info-500: #3b82f6; /* background/icon only on light */
-  --color-info-700: #1d4ed8; /* text on light, link color */
-  --color-info-900: #1e3a8a;
+  --color-info-100: #DBEAFE;
+  --color-info-500: #3B82F6;  /* background/icon only on light */
+  --color-info-700: #1D4ED8;  /* text on light, link color */
+  --color-info-900: #1E3A8A;
 
   /* === Accent (non-semantic emphasis: restructured, waived) === */
-  --color-accent-100: #ede9fe;
-  --color-accent-700: #5b21b6;
+  --color-accent-100: #EDE9FE;
+  --color-accent-700: #5B21B6;
 }
 
 /* -----------------------------------------------------------------------------
@@ -83,82 +83,82 @@
  * ---------------------------------------------------------------------------*/
 :root {
   /* === Surface (backgrounds, layered top to bottom) === */
-  --surface-base: var(--color-gray-50); /* page background */
-  --surface-elevated: var(--color-white); /* cards, modals */
-  --surface-overlay: var(--color-white); /* dropdowns, popovers */
-  --surface-sunken: var(--color-gray-100); /* table header, code blocks */
-  --surface-hover: var(--color-gray-100);
-  --surface-active: var(--color-gray-200);
-  --surface-selected: var(--color-info-100);
-  --surface-disabled: var(--color-gray-100);
-  --surface-readonly: var(--color-gray-50);
+  --surface-base:        var(--color-gray-50);   /* page background */
+  --surface-elevated:    var(--color-white);     /* cards, modals */
+  --surface-overlay:     var(--color-white);     /* dropdowns, popovers */
+  --surface-sunken:      var(--color-gray-100);  /* table header, code blocks */
+  --surface-hover:       var(--color-gray-100);
+  --surface-active:      var(--color-gray-200);
+  --surface-selected:    var(--color-info-100);
+  --surface-disabled:    var(--color-gray-100);
+  --surface-readonly:    var(--color-gray-50);
 
   /* === Text === */
-  --text-primary: var(--color-gray-900); /* default body, headings */
-  --text-secondary: var(--color-gray-700); /* secondary text */
-  --text-tertiary: var(--color-gray-600); /* labels, captions */
-  --text-disabled: var(--color-gray-500); /* disabled, placeholder only */
-  --text-inverse: var(--color-white); /* text on dark surfaces */
-  --text-link: var(--color-info-700);
+  --text-primary:    var(--color-gray-900);  /* default body, headings */
+  --text-secondary:  var(--color-gray-700);  /* secondary text */
+  --text-tertiary:   var(--color-gray-600);  /* labels, captions */
+  --text-disabled:   var(--color-gray-500);  /* disabled, placeholder only */
+  --text-inverse:    var(--color-white);     /* text on dark surfaces */
+  --text-link:       var(--color-info-700);
   --text-link-hover: var(--color-info-900);
 
   /* Semantic text — always use the -700 stop on light backgrounds */
-  --text-success: var(--color-success-700);
-  --text-warning: var(--color-warning-700);
-  --text-danger: var(--color-danger-700);
-  --text-info: var(--color-info-700);
-  --text-accent: var(--color-accent-700);
+  --text-success:    var(--color-success-700);
+  --text-warning:    var(--color-warning-700);
+  --text-danger:     var(--color-danger-700);
+  --text-info:       var(--color-info-700);
+  --text-accent:     var(--color-accent-700);
 
   /* === Border === */
-  --border-subtle: var(--color-gray-200); /* default card, divider */
-  --border-default: var(--color-gray-300); /* input border */
-  --border-strong: var(--color-gray-400); /* input hover */
-  --border-focus: var(--color-info-500);
-  --border-success: var(--color-success-700);
-  --border-warning: var(--color-warning-700);
-  --border-danger: var(--color-danger-700);
+  --border-subtle:   var(--color-gray-200);  /* default card, divider */
+  --border-default:  var(--color-gray-300);  /* input border */
+  --border-strong:   var(--color-gray-400);  /* input hover */
+  --border-focus:    var(--color-info-500);
+  --border-success:  var(--color-success-700);
+  --border-warning:  var(--color-warning-700);
+  --border-danger:   var(--color-danger-700);
 
   /* === Icon (defaults; semantic icons use semantic tokens) === */
-  --icon-default: var(--color-gray-600);
-  --icon-strong: var(--color-gray-900);
-  --icon-disabled: var(--color-gray-400);
-  --icon-inverse: var(--color-white);
+  --icon-default:    var(--color-gray-600);
+  --icon-strong:     var(--color-gray-900);
+  --icon-disabled:   var(--color-gray-400);
+  --icon-inverse:    var(--color-white);
 
   /* === Interactive (buttons, links) === */
-  --interactive-primary-bg: var(--color-primary-800);
-  --interactive-primary-bg-hover: var(--color-primary-700);
-  --interactive-primary-bg-active: var(--color-primary-900);
-  --interactive-primary-bg-disabled: var(--color-gray-400);
-  --interactive-primary-text: var(--color-white);
+  --interactive-primary-bg:           var(--color-primary-800);
+  --interactive-primary-bg-hover:     var(--color-primary-700);
+  --interactive-primary-bg-active:    var(--color-primary-900);
+  --interactive-primary-bg-disabled:  var(--color-gray-400);
+  --interactive-primary-text:         var(--color-white);
 
-  --interactive-secondary-bg: var(--color-white);
-  --interactive-secondary-bg-hover: var(--color-gray-50);
-  --interactive-secondary-bg-active: var(--color-gray-100);
-  --interactive-secondary-border: var(--color-gray-300);
-  --interactive-secondary-text: var(--color-gray-900);
+  --interactive-secondary-bg:         var(--color-white);
+  --interactive-secondary-bg-hover:   var(--color-gray-50);
+  --interactive-secondary-bg-active:  var(--color-gray-100);
+  --interactive-secondary-border:     var(--color-gray-300);
+  --interactive-secondary-text:       var(--color-gray-900);
 
-  --interactive-ghost-bg-hover: var(--color-gray-100);
-  --interactive-ghost-bg-active: var(--color-gray-200);
-  --interactive-ghost-text: var(--color-gray-700);
-  --interactive-ghost-text-hover: var(--color-gray-900);
+  --interactive-ghost-bg-hover:       var(--color-gray-100);
+  --interactive-ghost-bg-active:      var(--color-gray-200);
+  --interactive-ghost-text:           var(--color-gray-700);
+  --interactive-ghost-text-hover:     var(--color-gray-900);
 
-  --interactive-destructive-bg: var(--color-danger-700);
-  --interactive-destructive-bg-hover: var(--color-danger-900);
-  --interactive-destructive-text: var(--color-white);
+  --interactive-destructive-bg:        var(--color-danger-700);
+  --interactive-destructive-bg-hover:  var(--color-danger-900);
+  --interactive-destructive-text:      var(--color-white);
 
   /* === Status backgrounds (badges, inline alerts) ===
    * Solid backgrounds use the -100 paired with the -700 text from above.
    * The "solid" variants invert: -700 background, white text. */
-  --status-success-bg: var(--color-success-100);
-  --status-warning-bg: var(--color-warning-100);
-  --status-danger-bg: var(--color-danger-100);
-  --status-info-bg: var(--color-info-100);
-  --status-accent-bg: var(--color-accent-100);
-  --status-neutral-bg: var(--color-gray-100);
-  --status-neutral-text: var(--color-gray-700);
-  --status-dark-bg: var(--color-primary-800);
-  --status-dark-text: var(--color-white);
-  --status-danger-solid-bg: var(--color-danger-700);
+  --status-success-bg:        var(--color-success-100);
+  --status-warning-bg:        var(--color-warning-100);
+  --status-danger-bg:         var(--color-danger-100);
+  --status-info-bg:           var(--color-info-100);
+  --status-accent-bg:         var(--color-accent-100);
+  --status-neutral-bg:        var(--color-gray-100);
+  --status-neutral-text:      var(--color-gray-700);
+  --status-dark-bg:           var(--color-primary-800);
+  --status-dark-text:         var(--color-white);
+  --status-danger-solid-bg:   var(--color-danger-700);
   --status-danger-solid-text: var(--color-white);
 }
 
@@ -167,40 +167,38 @@
  * ---------------------------------------------------------------------------*/
 :root {
   /* Families */
-  --font-sans:
-    "General Sans", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif;
-  --font-mono:
-    ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
-    monospace;
+  --font-sans: "General Sans", "Inter", system-ui, -apple-system,
+               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas,
+               "Liberation Mono", "Courier New", monospace;
 
   /* Sizes — match the scale in the design system doc */
-  --text-display: 48px;
-  --text-h1: 36px;
-  --text-h2: 30px;
-  --text-h3: 24px;
-  --text-h4: 20px;
-  --text-h5: 18px;
-  --text-body-lg: 16px;
-  --text-body: 14px;
-  --text-small: 12px;
-  --text-caption: 11px;
+  --text-display:    48px;
+  --text-h1:         36px;
+  --text-h2:         30px;
+  --text-h3:         24px;
+  --text-h4:         20px;
+  --text-h5:         18px;
+  --text-body-lg:    16px;
+  --text-body:       14px;
+  --text-small:      12px;
+  --text-caption:    11px;
 
   /* Weights */
-  --font-weight-regular: 400;
-  --font-weight-medium: 500;
+  --font-weight-regular:  400;
+  --font-weight-medium:   500;
   --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+  --font-weight-bold:     700;
 
   /* Line heights */
   --leading-heading: 1.2;
-  --leading-body: 1.5;
-  --leading-tight: 1.1;
+  --leading-body:    1.5;
+  --leading-tight:   1.1;
 
   /* Letter spacing */
-  --tracking-tight: -0.01em;
+  --tracking-tight:  -0.01em;
   --tracking-normal: 0;
-  --tracking-wide: 0.04em; /* uppercase table headers */
+  --tracking-wide:   0.04em;  /* uppercase table headers */
 }
 
 /* -----------------------------------------------------------------------------
@@ -210,49 +208,49 @@
  * names so the grid is explicit in CSS and survives a Tailwind version bump.
  * ---------------------------------------------------------------------------*/
 :root {
-  --space-0: 0;
-  --space-0-5: 2px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-7: 28px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
-  --space-14: 56px;
-  --space-16: 64px;
-  --space-20: 80px;
-  --space-24: 96px;
+  --space-0:    0;
+  --space-0-5:  2px;
+  --space-1:    4px;
+  --space-2:    8px;
+  --space-3:    12px;
+  --space-4:    16px;
+  --space-5:    20px;
+  --space-6:    24px;
+  --space-7:    28px;
+  --space-8:    32px;
+  --space-10:   40px;
+  --space-12:   48px;
+  --space-14:   56px;
+  --space-16:   64px;
+  --space-20:   80px;
+  --space-24:   96px;
 }
 
 /* -----------------------------------------------------------------------------
  * 5. Border Radius
  * ---------------------------------------------------------------------------*/
 :root {
-  --radius-none: 0;
-  --radius-sm: 8px; /* badges, chips, small controls */
-  --radius-md: 12px; /* buttons, inputs, selects */
-  --radius-lg: 16px; /* dropdowns, popovers, sidebar items */
-  --radius-xl: 20px; /* modals, sheets */
-  --radius-card: 18px; /* standard cards */
-  --radius-full: 9999px;
+  --radius-none:  0;
+  --radius-sm:    8px;   /* badges, chips, small controls */
+  --radius-md:    12px;  /* buttons, inputs, selects */
+  --radius-lg:    16px;  /* dropdowns, popovers, sidebar items */
+  --radius-xl:    20px;  /* modals, sheets */
+  --radius-card:  18px;  /* standard cards */
+  --radius-full:  9999px;
 }
 
 /* -----------------------------------------------------------------------------
  * 6. Shadows & Elevation
  * ---------------------------------------------------------------------------*/
 :root {
-  --shadow-none: none;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
+  --shadow-none:   none;
+  --shadow-sm:     0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md:     0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg:     0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl:     0 16px 48px rgba(0, 0, 0, 0.16);
 
   /* Focus halo — softer than the outline ring */
-  --shadow-focus: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  --shadow-focus:        0 0 0 3px rgba(59, 130, 246, 0.25);
   --shadow-focus-danger: 0 0 0 3px rgba(185, 28, 28, 0.15);
 }
 
@@ -264,18 +262,18 @@
  * ---------------------------------------------------------------------------*/
 :root {
   /* Interactive control heights */
-  --height-control-sm: 32px;
-  --height-control: 40px; /* default for buttons, inputs, selects */
-  --height-control-lg: 48px;
+  --height-control-sm:  32px;
+  --height-control:     40px;  /* default for buttons, inputs, selects */
+  --height-control-lg:  48px;
 
   /* Table */
-  --height-table-header: 44px;
-  --height-table-row: 52px; /* default density */
-  --height-table-row-compact: 40px; /* compact density */
+  --height-table-header:       44px;
+  --height-table-row:          52px;  /* default density */
+  --height-table-row-compact:  40px;  /* compact density */
 
   /* Layout chrome */
-  --height-header: 56px;
-  --width-sidebar: 260px;
+  --height-header:   56px;
+  --width-sidebar:   260px;
   --width-sidebar-collapsed: 72px;
 
   /* Content */
@@ -286,13 +284,13 @@
  * 8. Motion
  * ---------------------------------------------------------------------------*/
 :root {
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:      cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out:  cubic-bezier(0.4, 0, 0.2, 1);
 
-  --duration-fast: 150ms; /* hover, toggle, small state changes */
-  --duration-medium: 200ms; /* dropdowns, popovers, tooltips */
-  --duration-slow: 300ms; /* modals, sheets, page transitions */
+  --duration-fast:    150ms;  /* hover, toggle, small state changes */
+  --duration-medium:  200ms;  /* dropdowns, popovers, tooltips */
+  --duration-slow:    300ms;  /* modals, sheets, page transitions */
 }
 
 /* -----------------------------------------------------------------------------
@@ -302,14 +300,14 @@
  * (Radix) use values around 50; we leave 0–999 untouched and start above.
  * ---------------------------------------------------------------------------*/
 :root {
-  --z-base: 0;
-  --z-dropdown: 1000;
-  --z-sticky: 1020;
-  --z-overlay: 1030;
-  --z-modal: 1040;
-  --z-popover: 1050;
-  --z-toast: 1060;
-  --z-tooltip: 1070;
+  --z-base:      0;
+  --z-dropdown:  1000;
+  --z-sticky:    1020;
+  --z-overlay:   1030;
+  --z-modal:     1040;
+  --z-popover:   1050;
+  --z-toast:     1060;
+  --z-tooltip:   1070;
 }
 
 /* -----------------------------------------------------------------------------
@@ -319,10 +317,10 @@
  * Documented here so the canonical numbers live with all other tokens.
  * ---------------------------------------------------------------------------*/
 :root {
-  --breakpoint-sm: 640px;
-  --breakpoint-md: 768px;
-  --breakpoint-lg: 1024px;
-  --breakpoint-xl: 1280px;
+  --breakpoint-sm:  640px;
+  --breakpoint-md:  768px;
+  --breakpoint-lg:  1024px;
+  --breakpoint-xl:  1280px;
   --breakpoint-2xl: 1440px;
 }
 
@@ -338,7 +336,7 @@
  * ===========================================================================*/
 @theme inline {
   /* === Colors — primitives (for when semantic isn't a fit) === */
-  --color-gray-50: var(--color-gray-50);
+  --color-gray-50:  var(--color-gray-50);
   --color-gray-100: var(--color-gray-100);
   --color-gray-200: var(--color-gray-200);
   --color-gray-300: var(--color-gray-300);
@@ -378,80 +376,80 @@
   --color-accent-700: var(--color-accent-700);
 
   /* === Colors — semantic === */
-  --color-surface-base: var(--surface-base);
+  --color-surface-base:     var(--surface-base);
   --color-surface-elevated: var(--surface-elevated);
-  --color-surface-overlay: var(--surface-overlay);
-  --color-surface-sunken: var(--surface-sunken);
-  --color-surface-hover: var(--surface-hover);
-  --color-surface-active: var(--surface-active);
+  --color-surface-overlay:  var(--surface-overlay);
+  --color-surface-sunken:   var(--surface-sunken);
+  --color-surface-hover:    var(--surface-hover);
+  --color-surface-active:   var(--surface-active);
   --color-surface-selected: var(--surface-selected);
   --color-surface-disabled: var(--surface-disabled);
   --color-surface-readonly: var(--surface-readonly);
 
-  --color-text-primary: var(--text-primary);
-  --color-text-secondary: var(--text-secondary);
-  --color-text-tertiary: var(--text-tertiary);
-  --color-text-disabled: var(--text-disabled);
-  --color-text-inverse: var(--text-inverse);
-  --color-text-link: var(--text-link);
+  --color-text-primary:    var(--text-primary);
+  --color-text-secondary:  var(--text-secondary);
+  --color-text-tertiary:   var(--text-tertiary);
+  --color-text-disabled:   var(--text-disabled);
+  --color-text-inverse:    var(--text-inverse);
+  --color-text-link:       var(--text-link);
   --color-text-link-hover: var(--text-link-hover);
-  --color-text-success: var(--text-success);
-  --color-text-warning: var(--text-warning);
-  --color-text-danger: var(--text-danger);
-  --color-text-info: var(--text-info);
-  --color-text-accent: var(--text-accent);
+  --color-text-success:    var(--text-success);
+  --color-text-warning:    var(--text-warning);
+  --color-text-danger:     var(--text-danger);
+  --color-text-info:       var(--text-info);
+  --color-text-accent:     var(--text-accent);
 
-  --color-border-subtle: var(--border-subtle);
+  --color-border-subtle:  var(--border-subtle);
   --color-border-default: var(--border-default);
-  --color-border-strong: var(--border-strong);
-  --color-border-focus: var(--border-focus);
+  --color-border-strong:  var(--border-strong);
+  --color-border-focus:   var(--border-focus);
   --color-border-success: var(--border-success);
   --color-border-warning: var(--border-warning);
-  --color-border-danger: var(--border-danger);
+  --color-border-danger:  var(--border-danger);
 
-  --color-icon-default: var(--icon-default);
-  --color-icon-strong: var(--icon-strong);
+  --color-icon-default:  var(--icon-default);
+  --color-icon-strong:   var(--icon-strong);
   --color-icon-disabled: var(--icon-disabled);
-  --color-icon-inverse: var(--icon-inverse);
+  --color-icon-inverse:  var(--icon-inverse);
 
   /* === Typography === */
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 
   --text-display: var(--text-display);
-  --text-h1: var(--text-h1);
-  --text-h2: var(--text-h2);
-  --text-h3: var(--text-h3);
-  --text-h4: var(--text-h4);
-  --text-h5: var(--text-h5);
+  --text-h1:      var(--text-h1);
+  --text-h2:      var(--text-h2);
+  --text-h3:      var(--text-h3);
+  --text-h4:      var(--text-h4);
+  --text-h5:      var(--text-h5);
   --text-body-lg: var(--text-body-lg);
-  --text-body: var(--text-body);
-  --text-small: var(--text-small);
+  --text-body:    var(--text-body);
+  --text-small:   var(--text-small);
   --text-caption: var(--text-caption);
 
   /* === Spacing — primitives === */
-  --spacing-0: var(--space-0);
+  --spacing-0:   var(--space-0);
   --spacing-0-5: var(--space-0-5);
-  --spacing-1: var(--space-1);
-  --spacing-2: var(--space-2);
-  --spacing-3: var(--space-3);
-  --spacing-4: var(--space-4);
-  --spacing-5: var(--space-5);
-  --spacing-6: var(--space-6);
-  --spacing-7: var(--space-7);
-  --spacing-8: var(--space-8);
-  --spacing-10: var(--space-10);
-  --spacing-12: var(--space-12);
-  --spacing-14: var(--space-14);
-  --spacing-16: var(--space-16);
-  --spacing-20: var(--space-20);
-  --spacing-24: var(--space-24);
+  --spacing-1:   var(--space-1);
+  --spacing-2:   var(--space-2);
+  --spacing-3:   var(--space-3);
+  --spacing-4:   var(--space-4);
+  --spacing-5:   var(--space-5);
+  --spacing-6:   var(--space-6);
+  --spacing-7:   var(--space-7);
+  --spacing-8:   var(--space-8);
+  --spacing-10:  var(--space-10);
+  --spacing-12:  var(--space-12);
+  --spacing-14:  var(--space-14);
+  --spacing-16:  var(--space-16);
+  --spacing-20:  var(--space-20);
+  --spacing-24:  var(--space-24);
 
   /* === Radius === */
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
-  --radius-xl: var(--radius-xl);
+  --radius-sm:   var(--radius-sm);
+  --radius-md:   var(--radius-md);
+  --radius-lg:   var(--radius-lg);
+  --radius-xl:   var(--radius-xl);
   --radius-card: var(--radius-card);
   --radius-full: var(--radius-full);
 
@@ -462,10 +460,10 @@
   --shadow-xl: var(--shadow-xl);
 
   /* === Breakpoints === */
-  --breakpoint-sm: var(--breakpoint-sm);
-  --breakpoint-md: var(--breakpoint-md);
-  --breakpoint-lg: var(--breakpoint-lg);
-  --breakpoint-xl: var(--breakpoint-xl);
+  --breakpoint-sm:  var(--breakpoint-sm);
+  --breakpoint-md:  var(--breakpoint-md);
+  --breakpoint-lg:  var(--breakpoint-lg);
+  --breakpoint-xl:  var(--breakpoint-xl);
   --breakpoint-2xl: var(--breakpoint-2xl);
 }
 
@@ -501,19 +499,12 @@ body {
  * Applied automatically by <Money>, <Percentage>, <Count>, <FormattedDate>
  * etc. Apply manually with the .font-tabular utility class. */
 .font-tabular {
-  font-feature-settings:
-    "tnum" 1,
-    "lnum" 1;
+  font-feature-settings: "tnum" 1, "lnum" 1;
   font-variant-numeric: tabular-nums lining-nums;
 }
 
 /* Default headings use heading line-height and tracking */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+h1, h2, h3, h4, h5, h6 {
   line-height: var(--leading-heading);
   letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
