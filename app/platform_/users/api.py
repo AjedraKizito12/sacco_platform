@@ -7,8 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_platform_session
 from app.modules.maker_checker.registry import approval_executor
-from app.platform_.auth import get_current_platform_user, get_current_superuser
-from app.platform_.models import PlatformUser
+from app.platform_.auth import CurrentSuperuser, CurrentSupport
 from app.platform_.users.schemas import (
     CreatePlatformUserRequest,
     PlatformUserOut,
@@ -19,8 +18,6 @@ from app.platform_.users.service import MAKER_CHECKER_FIELDS, PlatformUserServic
 router = APIRouter(prefix="/platform/users", tags=["platform-users"])
 
 Session = Annotated[AsyncSession, Depends(get_platform_session)]
-AnyPlatformUser = Annotated[PlatformUser, Depends(get_current_platform_user)]
-Superuser = Annotated[PlatformUser, Depends(get_current_superuser)]
 
 
 @approval_executor("platform_user.update_sensitive")  # type: ignore[misc]
@@ -30,12 +27,13 @@ async def _execute_update_sensitive(session: AsyncSession, payload: dict) -> dic
         uuid.UUID(payload["user_id"]),
         is_active=payload.get("is_active"),
         is_superuser=payload.get("is_superuser"),
+        role=payload.get("role"),
     )
     return {"updated": str(user.id)}
 
 
 @router.get("", response_model=list[PlatformUserOut])
-async def list_users(session: Session, actor: AnyPlatformUser) -> list[PlatformUserOut]:
+async def list_users(session: Session, actor: CurrentSupport) -> list[PlatformUserOut]:
     svc = PlatformUserService(session)
     users = await svc.list_users()
     return [PlatformUserOut.model_validate(u) for u in users]
@@ -45,7 +43,7 @@ async def list_users(session: Session, actor: AnyPlatformUser) -> list[PlatformU
 async def get_user(
     user_id: uuid.UUID,
     session: Session,
-    actor: AnyPlatformUser,
+    actor: CurrentSupport,
 ) -> PlatformUserOut:
     svc = PlatformUserService(session)
     user = await svc.get(user_id)
@@ -58,7 +56,7 @@ async def get_user(
 async def create_user(
     body: CreatePlatformUserRequest,
     session: Session,
-    actor: Superuser,
+    actor: CurrentSuperuser,
 ) -> PlatformUserOut:
     """Create a new platform user. Superuser only."""
     svc = PlatformUserService(session)
@@ -66,7 +64,8 @@ async def create_user(
         user = await svc.create(
             email=str(body.email),
             full_name=body.full_name,
-            is_superuser=body.is_superuser,
+            role=body.role,
+            is_superuser=body.is_superuser if body.is_superuser else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -79,7 +78,7 @@ async def update_user(
     user_id: uuid.UUID,
     body: UpdatePlatformUserRequest,
     session: Session,
-    actor: Superuser,
+    actor: CurrentSuperuser,
 ) -> PlatformUserOut:
     """Update a platform user.
 
@@ -99,6 +98,7 @@ async def update_user(
                 "user_id": str(user_id),
                 "is_active": body.is_active,
                 "is_superuser": body.is_superuser,
+                "role": body.role,
             },
             requested_by=actor.id,
         )

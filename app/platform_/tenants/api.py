@@ -7,14 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_platform_session
 from app.modules.maker_checker.registry import approval_executor
-from app.platform_.auth import get_current_platform_user, get_current_superuser
+from app.platform_.auth import CurrentAdmin, CurrentSuperuser, CurrentSupport
 from app.platform_.billing.exceptions import (
     PlanInactive,
     SubscriptionConflict,
 )
 from app.platform_.billing.schemas import SubscriptionOut
 from app.platform_.billing.services import SubscriptionService
-from app.platform_.models import PlatformUser
 from app.platform_.provisioning.tasks import provision_tenant
 from app.platform_.tenants.schemas import (
     AssignPlanIn,
@@ -29,8 +28,6 @@ from app.platform_.tenants.service import TenantService
 router = APIRouter(prefix="/platform/tenants", tags=["platform-tenants"])
 
 Session = Annotated[AsyncSession, Depends(get_platform_session)]
-AnyPlatformUser = Annotated[PlatformUser, Depends(get_current_platform_user)]
-Superuser = Annotated[PlatformUser, Depends(get_current_superuser)]
 
 
 @approval_executor("tenant.retry_provisioning")  # type: ignore[misc]
@@ -43,7 +40,7 @@ async def _execute_retry_provisioning(session: AsyncSession, payload: dict) -> d
 async def create_tenant(
     body: CreateTenantRequest,
     session: Session,
-    actor: Superuser,
+    actor: CurrentSuperuser,
 ) -> TenantCreateResponse:
     svc = TenantService(session)
     try:
@@ -63,7 +60,7 @@ async def create_tenant(
 @router.get("", response_model=list[TenantOut])
 async def list_tenants(
     session: Session,
-    actor: AnyPlatformUser,
+    actor: CurrentSupport,
     status: str | None = Query(None),
 ) -> list[TenantOut]:
     svc = TenantService(session)
@@ -75,7 +72,7 @@ async def list_tenants(
 async def get_tenant(
     tenant_id: uuid.UUID,
     session: Session,
-    actor: AnyPlatformUser,
+    actor: CurrentSupport,
 ) -> TenantOut:
     svc = TenantService(session)
     tenant = await svc.get(tenant_id)
@@ -88,7 +85,7 @@ async def get_tenant(
 async def retry_provisioning(
     tenant_id: uuid.UUID,
     session: Session,
-    actor: Superuser,
+    actor: CurrentAdmin,
 ) -> TenantOut:
     """Retry a failed provisioning. Requires maker-checker approval."""
     from app.modules.maker_checker.service import ApprovalService
@@ -115,7 +112,7 @@ async def patch_tenant(
     tenant_id: uuid.UUID,
     body: TenantPatchIn,
     session: Session,
-    actor: AnyPlatformUser,
+    actor: CurrentAdmin,
 ) -> TenantOut:
     """Edit the tenant's name. Immediate, no maker-checker.
 
@@ -135,7 +132,7 @@ async def suspend_tenant(
     tenant_id: uuid.UUID,
     body: TenantSuspendIn,
     session: Session,
-    actor: Superuser,
+    actor: CurrentAdmin,
 ) -> dict[str, str]:
     """Submit a tenant-suspend approval request.
 
@@ -169,7 +166,7 @@ async def suspend_tenant(
 async def reactivate_tenant(
     tenant_id: uuid.UUID,
     session: Session,
-    actor: Superuser,
+    actor: CurrentAdmin,
 ) -> TenantOut:
     """Restore a suspended tenant. Direct (no maker-checker).
 
@@ -196,7 +193,7 @@ async def assign_plan(
     tenant_id: uuid.UUID,
     body: AssignPlanIn,
     session: Session,
-    actor: Superuser,
+    actor: CurrentAdmin,
 ) -> SubscriptionOut:
     """Assign a billing plan to a tenant. Delegates to SubscriptionService.assign.
 

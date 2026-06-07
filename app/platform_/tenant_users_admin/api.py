@@ -3,10 +3,8 @@
 Platform-context endpoints that operate on the tenant schema via the
 get_session_for_tenant_schema dep.
 
-Role gate: CurrentSuperuser until P1.7-05 ships 4-tier roles, at which
-point swap to:
-    Annotated[..., Depends(get_current_platform_user_with_role("admin"))]
-All call sites stay frozen.
+Role gate: CurrentAdmin (admin or above). The dep wraps
+``get_current_platform_user_with_role("admin")`` so superusers also pass.
 """
 from __future__ import annotations
 
@@ -17,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session_for_tenant_schema
-from app.platform_.auth import CurrentSuperuser
+from app.platform_.auth import CurrentAdmin
 from app.platform_.tenant_users_admin.schemas import (
     PasswordResetOut,
     TenantUserCreateIn,
@@ -45,7 +43,7 @@ TenantSchemaSession = Annotated[
 async def list_tenant_users(
     tenant_id: uuid.UUID,  # noqa: ARG001 — consumed by dep injection
     session: TenantSchemaSession,
-    _user: CurrentSuperuser,
+    _user: CurrentAdmin,
 ) -> list[TenantUserOut]:
     users = await TenantUsersAdminService(session).list_users()
     return [TenantUserOut.model_validate(u) for u in users]
@@ -59,7 +57,7 @@ async def create_tenant_user(
     body: TenantUserCreateIn,
     request: Request,
     session: TenantSchemaSession,
-    _user: CurrentSuperuser,
+    _user: CurrentAdmin,
 ) -> TenantUserCreateOut:
     redis = getattr(request.app.state, "redis", None)
     svc = TenantUsersAdminService(session, redis=redis)
@@ -83,7 +81,7 @@ async def get_tenant_user(
     tenant_id: uuid.UUID,  # noqa: ARG001
     user_id: uuid.UUID,
     session: TenantSchemaSession,
-    _user: CurrentSuperuser,
+    _user: CurrentAdmin,
 ) -> TenantUserOut:
     user = await TenantUsersAdminService(session).get_user(user_id)
     if user is None:
@@ -97,7 +95,7 @@ async def patch_tenant_user(
     user_id: uuid.UUID,
     body: TenantUserPatchIn,
     session: TenantSchemaSession,
-    _user: CurrentSuperuser,
+    _user: CurrentAdmin,
 ) -> TenantUserOut:
     svc = TenantUsersAdminService(session)
     try:
@@ -118,7 +116,7 @@ async def initiate_password_reset(
     user_id: uuid.UUID,
     request: Request,
     session: TenantSchemaSession,
-    _user: CurrentSuperuser,
+    _user: CurrentAdmin,
 ) -> PasswordResetOut:
     redis = getattr(request.app.state, "redis", None)
     svc = TenantUsersAdminService(session, redis=redis)

@@ -70,6 +70,7 @@ class PlatformUser(AuditableMixin, Base):
     hashed_password: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    role: Mapped[str] = mapped_column(Text, nullable=False, default="support")
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
