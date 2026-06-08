@@ -17,7 +17,9 @@
     "typecheck": "turbo run typecheck",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "clean": "turbo run clean && rm -rf node_modules .turbo",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "openapi:capture": "node scripts/capture-openapi.mjs",
+    "openapi:codegen": "pnpm --filter @sacco/api-client codegen"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
