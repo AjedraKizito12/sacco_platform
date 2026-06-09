@@ -3,15 +3,13 @@ import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 
 import "./globals.css";
+import { AuthProvider } from "@/auth/AuthProvider";
+import { getServerTenantSlug } from "@/auth/server-helpers";
 
 // Inter is the fallback in the design system's font stack
 // (General Sans → Inter → system-ui). Sub-plan 04 swaps to a real
 // General Sans @font-face declaration via Fontshare or self-hosted files.
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
   title: "SACCO Admin Portal",
@@ -19,16 +17,29 @@ export const metadata: Metadata = {
   icons: {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
   },
-  robots: {
-    index: false,
-    follow: false,
-  },
+  robots: { index: false, follow: false },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+const API_BASE = process.env["NEXT_PUBLIC_API_BASE_URL"] ?? "http://localhost:8001";
+
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const tenantSlug = await getServerTenantSlug();
+  const initialAuthContext = tenantSlug ? "tenant" : "platform";
   return (
     <html lang="en" className={inter.variable}>
-      <body>{children}</body>
+      <body>
+        <AuthProvider
+          baseUrl={API_BASE}
+          initialTenantSlug={tenantSlug}
+          initialAuthContext={initialAuthContext}
+        >
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }
