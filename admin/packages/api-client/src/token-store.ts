@@ -26,10 +26,10 @@ export interface TokenStore {
 export class InMemoryTokenStore implements TokenStore {
   #accessToken: string | null = null;
   #refreshToken: string | null = null;
-  #refreshEndpoint: "/platform/auth/refresh" | "/auth/refresh";
+  #refreshEndpoint: string;
 
   constructor(
-    refreshEndpoint: "/platform/auth/refresh" | "/auth/refresh",
+    refreshEndpoint: string,
   ) {
     this.#refreshEndpoint = refreshEndpoint;
   }
@@ -41,7 +41,7 @@ export class InMemoryTokenStore implements TokenStore {
     this.#accessToken = token;
   }
   getRefreshEndpoint(): "/platform/auth/refresh" | "/auth/refresh" {
-    return this.#refreshEndpoint;
+    return this.#refreshEndpoint as "/platform/auth/refresh" | "/auth/refresh";
   }
   getRefreshToken(): string | null {
     return this.#refreshToken;

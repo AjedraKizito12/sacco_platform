@@ -3,6 +3,7 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { createApiClient } from "../client";
 import { InMemoryTokenStore } from "../token-store";
+import { FixedTenantContext } from "../tenant-context";
 import {
   ServerError,
   SubscriptionPastDueError,
@@ -215,5 +216,37 @@ describe("refreshMiddleware", () => {
     await expect(
       api.GET("/platform/auth/me" as never),
     ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+});
+
+describe("refreshMiddleware (cookie-backed)", () => {
+  it("uses credentials:include with no body when refresh token is null", async () => {
+    // Cookie-backed path: refresh token lives in httpOnly cookie, JS sees null.
+    // The handler ignores the body — it just verifies the request shape.
+    server.use(
+      http.post(`${BASE}/api/auth/platform-refresh`, () =>
+        HttpResponse.json({
+          access_token: "fresh-from-cookie",
+          expires_in: 900,
+        }),
+      ),
+      http.get(`${BASE}/platform/auth/me`, ({ request }) =>
+        request.headers.get("Authorization") === "Bearer fresh-from-cookie"
+          ? HttpResponse.json({ id: "p2" })
+          : new HttpResponse(null, { status: 401 }),
+      ),
+    );
+    const store = new InMemoryTokenStore("/api/auth/platform-refresh");
+    store.setAccessToken("stale-token");
+    // Cookie-backed: no refresh token in JS.
+    store.setRefreshToken(null);
+    const api = createApiClient({
+      baseUrl: BASE,
+      tokenStore: store,
+      tenantContext: new FixedTenantContext(null),
+    });
+    const { data } = await api.GET("/platform/auth/me" as never);
+    expect(data).toEqual({ id: "p2" });
+    expect(store.getAccessToken()).toBe("fresh-from-cookie");
   });
 });
