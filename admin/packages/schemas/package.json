@@ -1,0 +1,38 @@
+{
+  "name": "@sacco/schemas",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./common": "./src/common.ts",
+    "./auth": "./src/auth.ts",
+    "./member": "./src/member.ts",
+    "./savings": "./src/savings.ts",
+    "./credit": "./src/credit.ts",
+    "./billing": "./src/billing.ts",
+    "./fees": "./src/fees.ts",
+    "./ledger": "./src/ledger.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf .turbo coverage"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@sacco/eslint-config": "workspace:*",
+    "@sacco/tsconfig": "workspace:*",
+    "eslint": "^9.10.0",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.1"
+  }
+}
