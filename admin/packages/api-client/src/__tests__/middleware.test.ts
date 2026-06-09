@@ -200,4 +200,20 @@ describe("refreshMiddleware", () => {
       api.GET("/platform/auth/me" as never),
     ).rejects.toBeInstanceOf(UnauthorizedError);
   });
+
+  it("throws UnauthorizedError when refresh succeeds but retry still 401s", async () => {
+    // Override the /platform/auth/me handler to always 401, even with the fresh token.
+    server.use(
+      http.get(`${BASE}/platform/auth/me`, () =>
+        new HttpResponse(null, { status: 401 }),
+      ),
+    );
+    const { api } = makeClient({
+      accessToken: "stale-token",
+      refreshToken: "good-refresh",
+    });
+    await expect(
+      api.GET("/platform/auth/me" as never),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
 });

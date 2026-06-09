@@ -44,9 +44,6 @@ export function refreshMiddleware(
   return {
     async onResponse({ request, response }) {
       if (response.status !== 401) return response;
-      if (request.headers.get("X-Sacco-Retry") === "1") {
-        throw new UnauthorizedError();
-      }
       const newToken = await refreshOnce();
       if (!newToken) {
         throw new UnauthorizedError();
@@ -55,8 +52,11 @@ export function refreshMiddleware(
         headers: new Headers(request.headers),
       });
       retry.headers.set("Authorization", `Bearer ${newToken}`);
-      retry.headers.set("X-Sacco-Retry", "1");
-      return fetch(retry);
+      const retryResponse = await fetch(retry);
+      if (retryResponse.status === 401) {
+        throw new UnauthorizedError();
+      }
+      return retryResponse;
     },
   };
 }
