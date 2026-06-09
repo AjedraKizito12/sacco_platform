@@ -1,9 +1,8 @@
-// admin/packages/api-client/src/index.ts
 export * from "./types";
 export * from "./errors";
+export * from "./token-store";
+export * from "./tenant-context";
 export { createApiClient } from "./client";
 export type { ApiClientOptions, FetchClient } from "./client";
-export { InMemoryTokenStore } from "./token-store";
-export type { TokenStore } from "./token-store";
-export { FixedTenantContext } from "./tenant-context";
-export type { TenantContext } from "./tenant-context";
+export { buildResources } from "./resources";
+export type { Resources } from "./resources";
