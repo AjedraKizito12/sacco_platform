@@ -13,13 +13,20 @@
     "clean": "rm -rf .next .turbo"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.9.0",
+    "@sacco/api-client": "workspace:*",
+    "@sacco/schemas": "workspace:*",
     "@sacco/ui": "workspace:*",
     "next": "^15.0.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.53.0",
+    "zod": "^3.23.8",
+    "zustand": "^4.5.5"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^15.0.0",
+    "@playwright/test": "^1.47.0",
     "@sacco/eslint-config": "workspace:*",
     "@sacco/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4.0.0-beta.3",
