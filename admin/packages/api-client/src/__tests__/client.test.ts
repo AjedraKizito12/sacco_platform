@@ -7,7 +7,7 @@ import { InMemoryTokenStore } from "../token-store";
 import { FixedTenantContext } from "../tenant-context";
 
 const server = setupServer(
-  http.get("http://test/healthz", () =>
+  http.get("http://api.example.com/healthz", () =>
     HttpResponse.json({ status: "ok" }),
   ),
 );
@@ -19,7 +19,7 @@ afterAll(() => server.close());
 describe("createApiClient (base)", () => {
   it("issues a GET against the configured base URL", async () => {
     const api = createApiClient({
-      baseUrl: "http://test",
+      baseUrl: "http://api.example.com",
       tokenStore: new InMemoryTokenStore("/platform/auth/refresh"),
       tenantContext: new FixedTenantContext(null),
     });

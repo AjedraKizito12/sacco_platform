@@ -124,9 +124,6 @@ importers:
       openapi-typescript:
         specifier: ^7.4.1
         version: 7.13.0(typescript@5.9.3)
-      tough-cookie:
-        specifier: ^6.0.1
-        version: 6.0.1
       typescript:
         specifier: ^5.6.2
         version: 5.9.3
