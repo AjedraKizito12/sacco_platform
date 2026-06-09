@@ -1,0 +1,65 @@
+// admin/packages/schemas/src/member.ts
+import { z } from "zod";
+import { isoDate, uuid } from "./common";
+
+export const memberGenderSchema = z.enum(["M", "F", "X"]);
+
+export const idDocumentTypeSchema = z.enum([
+  "national_id",
+  "passport",
+  "driving_license",
+  "voters_card",
+]);
+
+export const memberRegistrationSchema = z.object({
+  full_name: z.string().trim().min(1, "Full name is required").max(200),
+  date_of_birth: isoDate,
+  gender: memberGenderSchema,
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9\s-]{7,20}$/, "Must be a valid phone number")
+    .optional()
+    .or(z.literal("")),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Must be a valid email")
+    .optional()
+    .or(z.literal("")),
+  physical_address: z.string().trim().max(500).optional().or(z.literal("")),
+  national_id_number: z.string().trim().max(50).optional().or(z.literal("")),
+  id_document_type: idDocumentTypeSchema.optional(),
+  id_document_number: z.string().trim().max(50).optional().or(z.literal("")),
+  id_issued_date: isoDate.optional(),
+  id_expiry_date: isoDate.optional(),
+});
+
+export const memberStatusSchema = z.enum([
+  "prospect",
+  "active",
+  "dormant",
+  "suspended",
+  "exited",
+  "deceased",
+]);
+
+export const memberStatusChangeSchema = z.object({
+  new_status: memberStatusSchema,
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Reason must be at least 10 characters")
+    .max(500),
+  idempotency_key: z.string().min(8),
+});
+
+// Tenant id (UUID) helper used by other forms that target a specific member.
+export const memberIdSchema = uuid;
+
+export type MemberRegistrationInput = z.infer<typeof memberRegistrationSchema>;
+export type MemberStatusChangeInput = z.infer<typeof memberStatusChangeSchema>;
+export type MemberStatus = z.infer<typeof memberStatusSchema>;
+export type MemberGender = z.infer<typeof memberGenderSchema>;
+export type IdDocumentType = z.infer<typeof idDocumentTypeSchema>;
