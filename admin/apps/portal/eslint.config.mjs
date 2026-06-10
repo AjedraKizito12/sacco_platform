@@ -28,6 +28,25 @@ export default [
       "tailwindcss/classnames-order": "off",
     },
   },
+  // Vitest test files: declare vitest globals so ESLint doesn't flag `vi`
+  // as an undefined identifier. The `globals` package doesn't ship a
+  // "vitest" entry, so we declare the commonly-used ones explicitly.
+  {
+    files: ["**/__tests__/**/*.{ts,tsx}", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
+    languageOptions: {
+      globals: {
+        vi: "readonly",
+        describe: "readonly",
+        it: "readonly",
+        expect: "readonly",
+        beforeAll: "readonly",
+        afterAll: "readonly",
+        beforeEach: "readonly",
+        afterEach: "readonly",
+        test: "readonly",
+      },
+    },
+  },
   {
     ignores: ["node_modules", ".next", ".turbo", "next-env.d.ts"],
   },

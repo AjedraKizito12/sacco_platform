@@ -1,0 +1,72 @@
+// admin/apps/portal/app/api/auth/tenant-login/route.ts
+import { NextResponse } from "next/server";
+import { loginSchema } from "@sacco/schemas";
+import {
+  TENANT_REFRESH_COOKIE,
+  TENANT_REFRESH_MAX_AGE,
+  setRefreshCookie,
+  setTenantSlugCookie,
+} from "@/auth/cookies";
+
+const API_BASE = process.env["NEXT_PUBLIC_API_BASE_URL"] ?? "http://localhost:8001";
+
+export async function POST(request: Request): Promise<NextResponse> {
+  const body = await request.json();
+  const parsed = loginSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid request", issues: parsed.error.format() },
+      { status: 400 },
+    );
+  }
+
+  const tenantSlug = request.headers.get("x-sacco-tenant-slug");
+  if (!tenantSlug) {
+    return NextResponse.json(
+      { error: "Tenant context missing" },
+      { status: 400 },
+    );
+  }
+
+  const r = await fetch(`${API_BASE}/auth/token`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Tenant-Slug": tenantSlug,
+    },
+    body: JSON.stringify(parsed.data),
+  });
+  if (!r.ok) {
+    const detail = await safeJson(r);
+    return NextResponse.json(detail ?? { error: "Login failed" }, {
+      status: r.status,
+    });
+  }
+  const data = (await r.json()) as {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+  };
+
+  await setRefreshCookie({
+    name: TENANT_REFRESH_COOKIE,
+    value: data.refresh_token,
+    maxAgeSeconds: TENANT_REFRESH_MAX_AGE,
+  });
+  // Persist the slug so reloads keep tenant context without a query param.
+  await setTenantSlugCookie(tenantSlug);
+
+  return NextResponse.json({
+    access_token: data.access_token,
+    expires_in: data.expires_in,
+    tenant_slug: tenantSlug,
+  });
+}
+
+async function safeJson(r: Response): Promise<unknown> {
+  try {
+    return await r.json();
+  } catch {
+    return null;
+  }
+}

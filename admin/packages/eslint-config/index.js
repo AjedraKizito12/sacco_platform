@@ -41,7 +41,11 @@ export default [
     rules: {
       ...tsPlugin.configs.recommended.rules,
       ...reactPlugin.configs.recommended.rules,
-      ...reactHooks.configs.recommended.rules,
+      // eslint-plugin-react-hooks v7 ships many React Compiler rules in
+      // `recommended`. We only opt into the two classic rules for now;
+      // the compiler rules require the React Compiler to be configured.
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
       ...jsxA11y.configs.recommended.rules,
 
       // React 19 / Next.js 15 — no need for React import in JSX.

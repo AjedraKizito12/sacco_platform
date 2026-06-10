@@ -10,11 +10,13 @@ export interface TokenStore {
   /** Persists a refreshed access token. Called by refreshMiddleware. */
   setAccessToken(token: string | null): void;
   /**
-   * Returns the refresh-endpoint path for the current auth context.
-   * `/platform/auth/refresh` for platform context, `/auth/refresh` for
-   * tenant context.
+   * Returns the refresh-endpoint path for the current auth context. Two
+   * shapes ship today: the FastAPI paths (`/platform/auth/refresh`,
+   * `/auth/refresh`) used in tests + SSR; and the Next.js Route Handler
+   * paths (`/api/auth/{platform,tenant}-refresh`) used in the browser
+   * where the refresh token lives in an httpOnly cookie.
    */
-  getRefreshEndpoint(): "/platform/auth/refresh" | "/auth/refresh";
+  getRefreshEndpoint(): string;
   /**
    * Returns the current refresh token. May return null in server context
    * where the token is in an httpOnly cookie and Next.js forwards it via
@@ -26,10 +28,10 @@ export interface TokenStore {
 export class InMemoryTokenStore implements TokenStore {
   #accessToken: string | null = null;
   #refreshToken: string | null = null;
-  #refreshEndpoint: "/platform/auth/refresh" | "/auth/refresh";
+  #refreshEndpoint: string;
 
   constructor(
-    refreshEndpoint: "/platform/auth/refresh" | "/auth/refresh",
+    refreshEndpoint: string,
   ) {
     this.#refreshEndpoint = refreshEndpoint;
   }
@@ -40,7 +42,7 @@ export class InMemoryTokenStore implements TokenStore {
   setAccessToken(token: string | null): void {
     this.#accessToken = token;
   }
-  getRefreshEndpoint(): "/platform/auth/refresh" | "/auth/refresh" {
+  getRefreshEndpoint(): string {
     return this.#refreshEndpoint;
   }
   getRefreshToken(): string | null {
