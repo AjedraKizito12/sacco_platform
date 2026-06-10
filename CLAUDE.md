@@ -144,6 +144,40 @@ T. Every list screen in the portal renders through `<DataTable>` from
    not a table export. Every `TData` must extend `{ id: string }` so
    `getRowId` keeps selection stable across pagination.
 
+U. Form fields render through `<FormField control name label render />`
+   from `@sacco/ui`. The render prop returns the inner field
+   (`<Input>` / `<MoneyInput>` / `<PercentageInput>` / `<DateInput>` /
+   `<DateRangeInput>` / `<ReadOnlyField>` / shadcn `<Select>` / etc.).
+   FormField owns label / required-indicator / help / error /
+   `aria-describedby` wiring; the field stays presentational. Hand-rolling
+   the label-input-error triad is a contract violation. Money inputs use
+   `<MoneyInput>` only (it reads precision from the currency registry);
+   `<input type="number">` for currency amounts is forbidden.
+
+V. Every action button that creates an approval request renders through
+   `<MakerCheckerConfirmDialog>` from `@sacco/ui`. The dialog's copy
+   ("This will create an approval request, not execute…" + the confirm
+   button labelled "Create Approval Request") is intentionally locked.
+   Records with open approvals render `<MakerCheckerBanner>` above the
+   record body. Destructive confirmations use the base `<ConfirmDialog>`
+   with `destructive`. Custom inline confirms or browser `confirm()`
+   calls are contract violations.
+
+W. Entity detail pages render `<AuditBar entityType entityId />` from
+   `@sacco/ui`. Until the Phase 1.7-F audit-log query endpoint ships,
+   the component renders a placeholder; the prop shape is the future
+   API contract. Hand-rolling an activity panel is a contract violation
+   even while the backend is pending — the placeholder is the single
+   source of truth so the day the endpoint lands it lights up everywhere.
+
+X. Long forms (loan applications, member onboarding) wire
+   `useDraftAutoSave` from `@sacco/ui` against a stable per-user form
+   key. On mount, the consumer calls `restore()` and prompts the user
+   to resume if a draft exists; on successful submit, the consumer
+   calls `clear()`. Drafts persist to `localStorage` keys prefixed
+   `sacco_draft:`. Persistence is debounced 750ms — do not call
+   `clear()` between keystrokes.
+
 ## Conventions
 - All async functions and database calls. No sync DB code.
 - Pydantic schemas in schemas.py, SQLAlchemy models in models.py, business logic in service.py, FastAPI router in api.py.
