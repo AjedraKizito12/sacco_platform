@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { PermissionGuard } from "@/auth/PermissionGuard";
+import { PortalUserProvider } from "@/auth/portal-user-context";
 import { useCurrentUserStore } from "@/auth/use-current-user";
 
 afterEach(() => {
@@ -69,5 +70,53 @@ describe("PermissionGuard", () => {
       </PermissionGuard>,
     );
     expect(screen.queryByText("See bills")).toBeNull();
+  });
+
+  it("prefers PortalUserContext over the store (SSR-friendly path)", () => {
+    // Store says "support" (would normally deny billing.write)…
+    useCurrentUserStore.getState().setUser({
+      id: "u-store",
+      email: "store@test.example",
+      full_name: "Store",
+      is_active: true,
+      is_superuser: false,
+      role: "support",
+    });
+    // …but context provides an admin: should win.
+    render(
+      <PortalUserProvider
+        user={{
+          id: "u-ctx",
+          email: "ctx@test.example",
+          full_name: "Ctx",
+          is_active: true,
+          is_superuser: false,
+          role: "admin",
+        }}
+      >
+        <PermissionGuard permission="billing.write">
+          <button>Edit plan</button>
+        </PermissionGuard>
+      </PortalUserProvider>,
+    );
+    expect(screen.getByText("Edit plan")).toBeInTheDocument();
+  });
+
+  it("treats a null context value as authoritative (does not fall back to store)", () => {
+    useCurrentUserStore.getState().setUser({
+      id: "u-store",
+      email: "store@test.example",
+      full_name: "Store",
+      is_active: true,
+      is_superuser: true,
+    });
+    render(
+      <PortalUserProvider user={null}>
+        <PermissionGuard permission="billing.write">
+          <button>Edit plan</button>
+        </PermissionGuard>
+      </PortalUserProvider>,
+    );
+    expect(screen.queryByText("Edit plan")).toBeNull();
   });
 });
