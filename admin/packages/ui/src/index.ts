@@ -15,3 +15,4 @@ export * from "./components/Select";
 export * from "./components/DropdownMenu";
 export * from "./components/Tabs";
 export * from "./components/Toaster";
+export * from "./components/Shell";
