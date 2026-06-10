@@ -28,3 +28,4 @@ export * from "./components/DataTable";
 export * from "./components/FormField";
 export * from "./components/MoneyInput";
 export * from "./components/PercentageInput";
+export * from "./components/DateInput";
