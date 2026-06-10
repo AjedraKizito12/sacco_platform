@@ -4,6 +4,7 @@ import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { AppShellHeader } from "@/components/AppShellHeader";
 import { AppShellSidebar } from "@/components/AppShellSidebar";
 import { AuthProvider } from "@/auth/AuthProvider";
+import { PortalUserProvider } from "@/auth/portal-user-context";
 import {
   getServerAccessToken,
   getServerCurrentUser,
@@ -32,19 +33,21 @@ export default async function TenantAuthedLayout({
       initialTenantSlug={slug}
       initialUser={user}
     >
-      <AppErrorBoundary>
-        <div className="flex min-h-screen">
-          <div className="flex w-full flex-col">
-            <AppShellHeader variant="tenant" tenantName={slug} />
-            <div className="flex flex-1">
-              <AppShellSidebar variant="tenant" />
-              <main className="mx-auto w-full max-w-[var(--width-content-max)] p-6">
-                {children}
-              </main>
+      <PortalUserProvider user={user}>
+        <AppErrorBoundary>
+          <div className="flex min-h-screen">
+            <div className="flex w-full flex-col">
+              <AppShellHeader variant="tenant" tenantName={slug} />
+              <div className="flex flex-1">
+                <AppShellSidebar variant="tenant" />
+                <main className="mx-auto w-full max-w-[var(--width-content-max)] p-6">
+                  {children}
+                </main>
+              </div>
             </div>
           </div>
-        </div>
-      </AppErrorBoundary>
+        </AppErrorBoundary>
+      </PortalUserProvider>
     </AuthProvider>
   );
 }
