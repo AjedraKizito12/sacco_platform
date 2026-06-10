@@ -32,12 +32,15 @@ export class AppErrorBoundary extends Component<Props, State> {
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     // Sub-plan 40 (Sentry) wires the real reporter. Until then, just log.
     console.error("AppErrorBoundary caught:", error, info);
+    this.routeFor(error);
   }
 
   override componentDidUpdate(_prev: Props, prev: State): void {
     if (prev.error === this.state.error) return;
-    const e = this.state.error;
-    if (!e) return;
+    if (this.state.error) this.routeFor(this.state.error);
+  }
+
+  private routeFor(e: Error): void {
     if (e instanceof SubscriptionPastDueError) {
       window.location.assign("/subscription-past-due");
     } else if (e instanceof SubscriptionSuspendedError) {
