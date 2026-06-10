@@ -14,7 +14,7 @@ export function StatusBadge({
   entity,
   status,
   label,
-  withDot,
+  withDot = false,
   className,
 }: StatusBadgeProps) {
   const entry = resolveStatus(entity, status);
