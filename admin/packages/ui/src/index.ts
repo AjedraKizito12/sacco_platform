@@ -22,3 +22,4 @@ export * from "./utils/format";
 export * from "./components/Money";
 export * from "./components/Percentage";
 export * from "./components/Count";
+export * from "./components/FormattedDate";

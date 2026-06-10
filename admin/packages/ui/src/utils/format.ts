@@ -1,4 +1,4 @@
-import { format, formatDistanceToNow, parseISO } from "date-fns";
+import { format, formatDistance, parseISO } from "date-fns";
 import { getCurrencyConfig } from "./currency";
 
 /**
@@ -96,5 +96,7 @@ export function formatRelativeTime(
   if (Math.abs(ageMs) > sevenDaysMs) {
     return formatDate(date);
   }
-  return formatDistanceToNow(date, { addSuffix: true });
+  // formatDistance(date, baseDate) is testable; formatDistanceToNow uses the
+  // real clock and would ignore the injected `now`.
+  return formatDistance(date, now, { addSuffix: true });
 }
