@@ -114,6 +114,23 @@ Q. shadcn/ui components are **forked once** into
    the latest registry, replace literal colours with token references,
    and submit as a PR.
 
+R. Numbers and money are rendered through the typed primitives from
+   `@sacco/ui` only: `<Money>`, `<Percentage>`, `<Count>`. Each enforces
+   tabular numerals and the currency registry's precision rules. Inline
+   `toLocaleString` calls are a contract violation and should be flagged
+   in review. The seven supported currencies (UGX/KES/TZS/RWF/USD/EUR/GBP)
+   live in `admin/packages/ui/src/utils/currency.ts`; adding a new one
+   is a single-row PR. Money without a currency is meaningless — callers
+   either wrap in `<TenantCurrencyProvider>` or pass `currency` explicitly.
+
+S. Domain statuses (loan, member, tenant, savings account, fee assessment,
+   approval request, subscription, invoice, payment) render through
+   `<StatusBadge entity status />`. The mapping tables live in
+   `admin/packages/ui/src/components/StatusBadge/status-maps.ts`. Adding a
+   new status means adding a row in that file; never hand-pick a `Badge`
+   variant for a domain status. Unknown statuses render in `neutral` with
+   the raw value so the operator can see what came through.
+
 ## Conventions
 - All async functions and database calls. No sync DB code.
 - Pydantic schemas in schemas.py, SQLAlchemy models in models.py, business logic in service.py, FastAPI router in api.py.
