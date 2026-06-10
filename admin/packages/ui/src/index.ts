@@ -32,3 +32,5 @@ export * from "./components/DateInput";
 export * from "./components/ReadOnlyField";
 export * from "./components/Stepper";
 export * from "./components/ConfirmDialog";
+export * from "./components/MakerCheckerBanner";
+export * from "./components/AuditBar";
