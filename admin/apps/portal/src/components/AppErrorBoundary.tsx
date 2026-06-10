@@ -31,7 +31,6 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     // Sub-plan 40 (Sentry) wires the real reporter. Until then, just log.
-    // eslint-disable-next-line no-console
     console.error("AppErrorBoundary caught:", error, info);
   }
 
