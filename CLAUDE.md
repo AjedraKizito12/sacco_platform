@@ -131,6 +131,19 @@ S. Domain statuses (loan, member, tenant, savings account, fee assessment,
    variant for a domain status. Unknown statuses render in `neutral` with
    the raw value so the operator can see what came through.
 
+T. Every list screen in the portal renders through `<DataTable>` from
+   `@sacco/ui`. Server-side pagination, sort, and filter; URL-synced
+   state via `useTableUrlState` (page, pageSize, sort, dir, density,
+   plus `f_<key>` per filter). Hand-rolling a `<table>` for a list of
+   records is a contract violation. The five visual states
+   (data / loading / empty / filter-empty / error / permission-denied)
+   are handled by the component; consumers configure them via props.
+   Column visibility and density persist per-user via the
+   `sacco_table_prefs` cookie. Client-side CSV export covers the loaded
+   page only; large-dataset CSV is a reporting endpoint (sub-plan 29),
+   not a table export. Every `TData` must extend `{ id: string }` so
+   `getRowId` keeps selection stable across pagination.
+
 ## Conventions
 - All async functions and database calls. No sync DB code.
 - Pydantic schemas in schemas.py, SQLAlchemy models in models.py, business logic in service.py, FastAPI router in api.py.
