@@ -9,6 +9,8 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CookieBackedTokenStore, ClientTenantContext, useAuthStore } from "./token-store";
+import { useCurrentUserStore } from "./use-current-user";
+import type { CurrentUserShape } from "./permissions";
 
 interface AuthContextValue {
   api: FetchClient;
@@ -23,6 +25,7 @@ interface AuthProviderProps {
   initialAccessToken?: string | null;
   initialTenantSlug?: string | null;
   initialAuthContext?: "platform" | "tenant";
+  initialUser?: CurrentUserShape | null;
 }
 
 export function AuthProvider({
@@ -31,13 +34,17 @@ export function AuthProvider({
   initialAccessToken,
   initialTenantSlug,
   initialAuthContext,
+  initialUser,
 }: AuthProviderProps) {
-  // Hydrate the zustand store once from server-provided values
+  // Hydrate the zustand stores once from server-provided values
   useEffect(() => {
     const store = useAuthStore.getState();
     if (initialAccessToken !== undefined) store.setAccessToken(initialAccessToken);
     if (initialTenantSlug !== undefined) store.setTenantSlug(initialTenantSlug);
     if (initialAuthContext) store.setAuthContext(initialAuthContext);
+    if (initialUser !== undefined) {
+      useCurrentUserStore.getState().setUser(initialUser);
+    }
     // Intentionally no dep array — only run once at mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
