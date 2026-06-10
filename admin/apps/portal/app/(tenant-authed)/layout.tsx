@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
+import { TenantCurrencyProvider } from "@sacco/ui";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { AppShellHeader } from "@/components/AppShellHeader";
 import { AppShellSidebar } from "@/components/AppShellSidebar";
@@ -34,19 +35,21 @@ export default async function TenantAuthedLayout({
       initialUser={user}
     >
       <PortalUserProvider user={user}>
-        <AppErrorBoundary>
-          <div className="flex min-h-screen">
-            <div className="flex w-full flex-col">
-              <AppShellHeader variant="tenant" tenantName={slug} />
-              <div className="flex flex-1">
-                <AppShellSidebar variant="tenant" />
-                <main className="mx-auto w-full max-w-[var(--width-content-max)] p-6">
-                  {children}
-                </main>
+        <TenantCurrencyProvider currency="UGX" timeZone="Africa/Kampala">
+          <AppErrorBoundary>
+            <div className="flex min-h-screen">
+              <div className="flex w-full flex-col">
+                <AppShellHeader variant="tenant" tenantName={slug} />
+                <div className="flex flex-1">
+                  <AppShellSidebar variant="tenant" />
+                  <main className="mx-auto w-full max-w-[var(--width-content-max)] p-6">
+                    {children}
+                  </main>
+                </div>
               </div>
             </div>
-          </div>
-        </AppErrorBoundary>
+          </AppErrorBoundary>
+        </TenantCurrencyProvider>
       </PortalUserProvider>
     </AuthProvider>
   );
