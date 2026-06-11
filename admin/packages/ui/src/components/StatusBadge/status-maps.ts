@@ -12,7 +12,8 @@ export type StatusEntity =
   | "approval_request"
   | "subscription"
   | "invoice"
-  | "payment";
+  | "payment"
+  | "platform_user";
 
 interface MapEntry {
   variant: NonNullable<BadgeProps["variant"]>;
@@ -105,6 +106,11 @@ export const PAYMENT_STATUS: StatusMap = {
   rejected: { variant: "danger", label: "Rejected" },
 };
 
+export const PLATFORM_USER_STATUS: StatusMap = {
+  active: { variant: "success", label: "Active" },
+  inactive: { variant: "neutral", label: "Inactive" },
+};
+
 const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   loan: LOAN_STATUS,
   member: MEMBER_STATUS,
@@ -115,6 +121,7 @@ const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   subscription: SUBSCRIPTION_STATUS,
   invoice: INVOICE_STATUS,
   payment: PAYMENT_STATUS,
+  platform_user: PLATFORM_USER_STATUS,
 };
 
 export function resolveStatus(
