@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 
 import "./globals.css";
+import { Toaster } from "@sacco/ui";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { getServerTenantSlug } from "@/auth/server-helpers";
 
@@ -39,6 +40,7 @@ export default async function RootLayout({
         >
           {children}
         </AuthProvider>
+        <Toaster />
       </body>
     </html>
   );
