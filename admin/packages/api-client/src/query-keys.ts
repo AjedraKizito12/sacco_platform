@@ -10,6 +10,11 @@ export const queryKeys = {
   platformAuth: {
     me: () => ["platformAuth", "me"] as const,
   },
+  platformUsers: {
+    root: () => ["platformUsers"] as const,
+    list: () => ["platformUsers", "list"] as const,
+    detail: (id: string) => ["platformUsers", "detail", id] as const,
+  },
   tenants: {
     root: () => ["tenants"] as const,
     list: (filters?: Record<string, unknown>) =>
