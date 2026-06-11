@@ -27,4 +27,14 @@ describe("StatusBadge", () => {
     render(<StatusBadge entity="payment" status="pending" />);
     expect(screen.getByText("Pending Confirmation")).toBeInTheDocument();
   });
+
+  it("renders a platform_user active status", () => {
+    render(<StatusBadge entity="platform_user" status="active" />);
+    expect(screen.getByText("Active")).toBeInTheDocument();
+  });
+
+  it("renders a platform_user inactive status", () => {
+    render(<StatusBadge entity="platform_user" status="inactive" />);
+    expect(screen.getByText("Inactive")).toBeInTheDocument();
+  });
 });
