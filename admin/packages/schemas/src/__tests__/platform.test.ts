@@ -39,6 +39,20 @@ describe("createPlatformUserSchema", () => {
     });
     expect(res.success).toBe(false);
   });
+  it("rejects a whitespace-only full_name", () => {
+    const res = createPlatformUserSchema.safeParse({
+      email: "ops@example.com",
+      full_name: "   ",
+    });
+    expect(res.success).toBe(false);
+  });
+  it("trims and lowercases email on parse", () => {
+    const parsed = createPlatformUserSchema.parse({
+      email: " OPS@Example.com ",
+      full_name: "X",
+    });
+    expect(parsed.email).toBe("ops@example.com");
+  });
 });
 
 describe("updatePlatformUserSchema", () => {
