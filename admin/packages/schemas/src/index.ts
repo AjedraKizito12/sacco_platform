@@ -6,3 +6,4 @@ export * from "./credit";
 export * from "./billing";
 export * from "./fees";
 export * from "./ledger";
+export * from "./platform";
