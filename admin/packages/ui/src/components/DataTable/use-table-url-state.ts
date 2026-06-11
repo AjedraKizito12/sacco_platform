@@ -68,9 +68,11 @@ export function useTableUrlState(
     [setCore],
   );
   const setFilter = useCallback(
-    (key: string, value: string | null) =>
-      void setFiltersRaw({ [`f_${key}`]: value ?? "" }),
-    [setFiltersRaw],
+    (key: string, value: string | null) => {
+      void setFiltersRaw({ [`f_${key}`]: value ?? "" });
+      void setCore({ page: 1 });
+    },
+    [setFiltersRaw, setCore],
   );
   const setFilters = useCallback(
     (values: Record<string, string | null>) => {
@@ -79,8 +81,9 @@ export function useTableUrlState(
         next[`f_${key}`] = value ?? "";
       }
       void setFiltersRaw(next);
+      void setCore({ page: 1 });
     },
-    [setFiltersRaw],
+    [setFiltersRaw, setCore],
   );
   const setDensity = useCallback(
     (d: Density) => void setCore({ density: d }),
