@@ -10,14 +10,7 @@ import {
   StatusBadge,
   useTableUrlState,
 } from "@sacco/ui";
-import type { PlatformUserOut } from "@sacco/schemas";
-
-const ROLE_LABELS: Record<PlatformUserOut["role"], string> = {
-  superuser: "Superuser",
-  admin: "Admin",
-  finance: "Finance",
-  support: "Support",
-};
+import { PLATFORM_ROLE_LABELS, type PlatformUserOut } from "@sacco/schemas";
 
 // ColumnDef is a dep of @sacco/ui (@tanstack/react-table), not the portal.
 // Derive the column type from the exported DataTableProps to avoid a
@@ -41,7 +34,7 @@ const columns: DataTableProps<PlatformUserOut>["columns"] = [
     id: "role",
     accessorKey: "role",
     header: "Role",
-    cell: ({ row }) => ROLE_LABELS[row.original.role],
+    cell: ({ row }) => PLATFORM_ROLE_LABELS[row.original.role],
   },
   {
     id: "is_active",

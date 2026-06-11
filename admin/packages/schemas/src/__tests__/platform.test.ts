@@ -2,6 +2,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createPlatformUserSchema,
+  PLATFORM_ROLE_LABELS,
+  PLATFORM_ROLE_OPTIONS,
   platformRoleSchema,
   updatePlatformUserSchema,
 } from "../platform";
@@ -70,5 +72,24 @@ describe("updatePlatformUserSchema", () => {
       is_active: true,
     });
     expect(res.success).toBe(false);
+  });
+});
+
+describe("PLATFORM_ROLE_OPTIONS", () => {
+  const allRoles = ["admin", "finance", "superuser", "support"];
+
+  it("contains all four roles", () => {
+    expect(PLATFORM_ROLE_OPTIONS).toHaveLength(4);
+  });
+
+  it("values exactly cover the platformRoleSchema enum", () => {
+    const values = PLATFORM_ROLE_OPTIONS.map((o) => o.value).sort();
+    expect(values).toEqual(allRoles);
+  });
+
+  it("every option label matches PLATFORM_ROLE_LABELS[value]", () => {
+    for (const opt of PLATFORM_ROLE_OPTIONS) {
+      expect(opt.label).toBe(PLATFORM_ROLE_LABELS[opt.value]);
+    }
   });
 });

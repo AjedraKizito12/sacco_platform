@@ -8,14 +8,7 @@ import {
   RelativeTime,
   StatusBadge,
 } from "@sacco/ui";
-import type { PlatformUserOut } from "@sacco/schemas";
-
-const ROLE_LABELS: Record<PlatformUserOut["role"], string> = {
-  superuser: "Superuser",
-  admin: "Admin",
-  finance: "Finance",
-  support: "Support",
-};
+import { PLATFORM_ROLE_LABELS, type PlatformUserOut } from "@sacco/schemas";
 
 export function UserDetail({
   user,
@@ -40,7 +33,7 @@ export function UserDetail({
 
       <Card className="grid grid-cols-2 gap-5 p-6">
         <ReadOnlyField label="Email" value={user.email} />
-        <ReadOnlyField label="Role" value={ROLE_LABELS[user.role]} />
+        <ReadOnlyField label="Role" value={PLATFORM_ROLE_LABELS[user.role]} />
         <ReadOnlyField
           label="Last login"
           value={user.last_login_at ? <RelativeTime value={user.last_login_at} /> : "Never"}

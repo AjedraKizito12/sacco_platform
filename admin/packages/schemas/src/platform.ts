@@ -9,6 +9,21 @@ export const platformRoleSchema = z.enum([
 ]);
 export type PlatformRole = z.infer<typeof platformRoleSchema>;
 
+export const PLATFORM_ROLE_LABELS: Record<PlatformRole, string> = {
+  superuser: "Superuser",
+  admin: "Admin",
+  finance: "Finance",
+  support: "Support",
+};
+
+/** Display order for role pickers: least-privileged first. */
+export const PLATFORM_ROLE_OPTIONS: { value: PlatformRole; label: string }[] = [
+  { value: "support", label: PLATFORM_ROLE_LABELS.support },
+  { value: "finance", label: PLATFORM_ROLE_LABELS.finance },
+  { value: "admin", label: PLATFORM_ROLE_LABELS.admin },
+  { value: "superuser", label: PLATFORM_ROLE_LABELS.superuser },
+];
+
 // Mirrors app/platform_/users/schemas.py CreatePlatformUserRequest.
 // is_superuser is deprecated server-side (role is authoritative); the
 // portal only sends role.

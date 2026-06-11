@@ -5,9 +5,7 @@ import { resolve } from "node:path";
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src"),
-    },
+    alias: { "@": resolve(__dirname, "./src") },
   },
   test: {
     environment: "jsdom",

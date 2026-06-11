@@ -16,17 +16,10 @@ import {
 import { useTypedMutation, queryKeys } from "@sacco/api-client";
 import {
   createPlatformUserSchema,
+  PLATFORM_ROLE_OPTIONS,
   type CreatePlatformUserInput,
-  type PlatformRole,
 } from "@sacco/schemas";
 import { useAuth } from "@/auth/use-auth";
-
-const ROLE_OPTIONS: { value: PlatformRole; label: string }[] = [
-  { value: "support", label: "Support" },
-  { value: "finance", label: "Finance" },
-  { value: "admin", label: "Admin" },
-  { value: "superuser", label: "Superuser" },
-];
 
 export function CreateUserForm() {
   const router = useRouter();
@@ -92,7 +85,7 @@ export function CreateUserForm() {
               <SelectValue placeholder="Select a role" />
             </SelectTrigger>
             <SelectContent>
-              {ROLE_OPTIONS.map((o) => (
+              {PLATFORM_ROLE_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
               ))}
             </SelectContent>

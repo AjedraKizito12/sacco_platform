@@ -19,18 +19,11 @@ import {
 import { queryKeys, useTypedMutation } from "@sacco/api-client";
 import {
   updatePlatformUserSchema,
-  type PlatformRole,
+  PLATFORM_ROLE_OPTIONS,
   type PlatformUserOut,
   type UpdatePlatformUserInput,
 } from "@sacco/schemas";
 import { useAuth } from "@/auth/use-auth";
-
-const ROLE_OPTIONS: { value: PlatformRole; label: string }[] = [
-  { value: "support", label: "Support" },
-  { value: "finance", label: "Finance" },
-  { value: "admin", label: "Admin" },
-  { value: "superuser", label: "Superuser" },
-];
 
 export function EditUserForm({ user }: { user: PlatformUserOut }) {
   const router = useRouter();
@@ -118,7 +111,7 @@ export function EditUserForm({ user }: { user: PlatformUserOut }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ROLE_OPTIONS.map((o) => (
+                {PLATFORM_ROLE_OPTIONS.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
                   </SelectItem>
