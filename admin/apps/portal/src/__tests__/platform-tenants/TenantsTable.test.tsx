@@ -9,7 +9,7 @@
  * mockUrlState() provides a static state object for story render fns.
  */
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TenantOut } from "@sacco/schemas";
 
 // nuqs is a dep of @sacco/ui, not the portal (pnpm isolation) — mock the
@@ -34,7 +34,7 @@ vi.mock("@sacco/ui", async (importActual) => {
   return { ...actual, useTableUrlState: () => mockUrlState };
 });
 
-import { filterTenants, TenantsTable } from "../../../app/platform/(authed)/tenants/_components/TenantsTable";
+import { filterTenants, sortTenants, TenantsTable } from "../../../app/platform/(authed)/tenants/_components/TenantsTable";
 
 function tenant(over: Partial<TenantOut>): TenantOut {
   return {
@@ -53,6 +53,10 @@ const rows = [
 ];
 
 describe("TenantsTable", () => {
+  beforeEach(() => {
+    mockUrlState.filters = {};
+  });
+
   it("renders a row per tenant with name link and status badge", () => {
     render(<TenantsTable rows={rows} />);
     expect(screen.getByRole("link", { name: "Alpha SACCO" })).toHaveAttribute(
@@ -74,7 +78,6 @@ describe("TenantsTable", () => {
     render(<TenantsTable rows={rows} />);
     expect(screen.queryByText("Alpha SACCO")).toBeNull();
     expect(screen.getByText("Beta SACCO")).toBeInTheDocument();
-    mockUrlState.filters = {};
   });
 });
 
@@ -84,5 +87,22 @@ describe("filterTenants", () => {
   });
   it("returns only matching rows for a status", () => {
     expect(filterTenants(rows, "failed").map((t) => t.id)).toEqual(["t2"]);
+  });
+});
+
+describe("sortTenants", () => {
+  it("sorts ascending by name", () => {
+    const result = sortTenants(rows, "name", "asc");
+    expect(result.map((t) => t.name)).toEqual(["Alpha SACCO", "Beta SACCO"]);
+  });
+
+  it("sorts descending by name (reverses order)", () => {
+    const result = sortTenants(rows, "name", "desc");
+    expect(result.map((t) => t.name)).toEqual(["Beta SACCO", "Alpha SACCO"]);
+  });
+
+  it("returns rows unchanged when column is null", () => {
+    const result = sortTenants(rows, null, "asc");
+    expect(result.map((t) => t.id)).toEqual(["t1", "t2"]);
   });
 });
