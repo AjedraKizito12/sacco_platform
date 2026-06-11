@@ -15,6 +15,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  toast,
 } from "@sacco/ui";
 import { queryKeys, useTypedMutation } from "@sacco/api-client";
 import {
@@ -24,6 +25,15 @@ import {
   type UpdatePlatformUserInput,
 } from "@sacco/schemas";
 import { useAuth } from "@/auth/use-auth";
+import { apiErrorMessage } from "@/lib/api-error";
+
+/** is_active / role changes route through maker-checker on the backend. */
+function isSensitiveChange(
+  user: PlatformUserOut,
+  values: Pick<UpdatePlatformUserInput, "is_active" | "role">,
+): boolean {
+  return values.is_active !== user.is_active || values.role !== user.role;
+}
 
 export function EditUserForm({ user }: { user: PlatformUserOut }) {
   const router = useRouter();
@@ -59,18 +69,36 @@ export function EditUserForm({ user }: { user: PlatformUserOut }) {
         queryKeys.platformUsers.root(),
         queryKeys.platformUsers.detail(user.id),
       ],
-      onSuccess: () => {
+      onSuccess: (_data, vars) => {
+        if (isSensitiveChange(user, vars)) {
+          toast.success("Approval request created", {
+            description:
+              "The change will apply once another platform user approves it.",
+          });
+        } else {
+          toast.success("Changes saved");
+        }
         setConfirmOpen(false);
         setPending(null);
         router.push(`/platform/users/${user.id}`);
       },
+      onError: (error) => {
+        toast.error("The change was not saved", {
+          description: apiErrorMessage(error, "Please try again."),
+        });
+      },
     },
   );
 
+  // Drives the dual-mode submit label: sensitive changes create an approval
+  // request (contract K: label "Request X", not "X"); name-only saves directly.
+  const sensitiveDirty = isSensitiveChange(user, {
+    is_active: form.watch("is_active"),
+    role: form.watch("role"),
+  });
+
   function onValid(values: UpdatePlatformUserInput) {
-    const sensitiveDirty =
-      values.is_active !== user.is_active || values.role !== user.role;
-    if (sensitiveDirty) {
+    if (isSensitiveChange(user, values)) {
       setPending(values);
       setConfirmOpen(true);
       return;
@@ -105,9 +133,13 @@ export function EditUserForm({ user }: { user: PlatformUserOut }) {
           label="Role"
           required
           helpText="Changing the role creates an approval request."
-          render={({ field, id }) => (
+          render={({ field, id, describedBy, invalid }) => (
             <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger id={id} aria-label="Role">
+              <SelectTrigger
+                id={id}
+                aria-describedby={describedBy}
+                aria-invalid={invalid}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -125,9 +157,10 @@ export function EditUserForm({ user }: { user: PlatformUserOut }) {
           name="is_active"
           label="Active"
           helpText="Deactivating a user creates an approval request."
-          render={({ field, id }) => (
+          render={({ field, id, describedBy }) => (
             <Checkbox
               id={id}
+              aria-describedby={describedBy}
               checked={field.value}
               onCheckedChange={(v) => field.onChange(Boolean(v))}
             />
@@ -135,7 +168,7 @@ export function EditUserForm({ user }: { user: PlatformUserOut }) {
         />
         <div className="flex gap-3">
           <Button type="submit" disabled={mutation.isPending}>
-            Save
+            {sensitiveDirty ? "Request Change" : "Save"}
           </Button>
           <Button
             type="button"

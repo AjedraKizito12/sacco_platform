@@ -12,6 +12,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  toast,
 } from "@sacco/ui";
 import { useTypedMutation, queryKeys } from "@sacco/api-client";
 import {
@@ -20,6 +21,7 @@ import {
   type CreatePlatformUserInput,
 } from "@sacco/schemas";
 import { useAuth } from "@/auth/use-auth";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export function CreateUserForm() {
   const router = useRouter();
@@ -46,7 +48,15 @@ export function CreateUserForm() {
     },
     {
       invalidates: [queryKeys.platformUsers.root()],
-      onSuccess: () => router.push("/platform/users"),
+      onSuccess: () => {
+        toast.success("Platform user created");
+        router.push("/platform/users");
+      },
+      onError: (error) => {
+        toast.error("The user was not created", {
+          description: apiErrorMessage(error, "Please try again."),
+        });
+      },
     },
   );
 
@@ -79,9 +89,13 @@ export function CreateUserForm() {
         name="role"
         label="Role"
         required
-        render={({ field, id }) => (
+        render={({ field, id, describedBy, invalid }) => (
           <Select value={field.value} onValueChange={field.onChange}>
-            <SelectTrigger id={id}>
+            <SelectTrigger
+              id={id}
+              aria-describedby={describedBy}
+              aria-invalid={invalid}
+            >
               <SelectValue placeholder="Select a role" />
             </SelectTrigger>
             <SelectContent>

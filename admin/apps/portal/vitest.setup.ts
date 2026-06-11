@@ -29,3 +29,21 @@ if (typeof window.ResizeObserver === "undefined") {
     disconnect() {}
   };
 }
+
+// Sonner (the toast renderer behind @sacco/ui Toaster) queries
+// prefers-reduced-motion via matchMedia, which jsdom does not implement.
+if (typeof window.matchMedia === "undefined") {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
