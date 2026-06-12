@@ -183,7 +183,7 @@ function ProvisioningProgress({ tenant }: { tenant: TenantOut }) {
 
         {current.status === "active" ? (
           <>
-            <p className="text-[var(--text-secondary)]">Tenant is ready.</p>
+            <p role="status" className="text-[var(--text-secondary)]">Tenant is ready.</p>
             <div>
               <Button asChild>
                 <Link href={`/platform/tenants/${current.id}`}>View tenant</Link>
