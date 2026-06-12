@@ -55,6 +55,20 @@ describe("TenantDetail", () => {
     expect(screen.getByText(/alembic timeout/)).toBeInTheDocument();
   });
 
+  it("renders the retry button for a failed tenant with write permission", () => {
+    renderDetail(tenant({ status: "failed", failed_step: "x", failure_reason: "y" }), true);
+    expect(
+      screen.getByRole("button", { name: /request provisioning retry/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render the retry button for a failed tenant without permission", () => {
+    renderDetail(tenant({ status: "failed", failed_step: "x", failure_reason: "y" }), false);
+    expect(
+      screen.queryByRole("button", { name: /request provisioning retry/i }),
+    ).toBeNull();
+  });
+
   it("does not render a retry button for a non-failed tenant even with permission", () => {
     renderDetail(tenant({ status: "active" }), true);
     expect(screen.queryByRole("button", { name: /request provisioning retry/i })).toBeNull();
