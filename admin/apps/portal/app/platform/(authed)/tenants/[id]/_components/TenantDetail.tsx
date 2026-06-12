@@ -1,0 +1,83 @@
+"use client";
+
+import {
+  AuditBar,
+  Card,
+  FormattedDateTime,
+  ReadOnlyField,
+  StatusBadge,
+} from "@sacco/ui";
+import type { TenantOut } from "@sacco/schemas";
+import { useTenantProvisioning } from "@/hooks/use-tenant-provisioning";
+import { RetryProvisioningButton } from "./RetryProvisioningButton";
+
+export function TenantDetail({
+  tenant,
+  canRetry,
+}: {
+  tenant: TenantOut;
+  canRetry: boolean;
+}) {
+  // Live-updates while the tenant is mid-provision; settles once terminal.
+  const live = useTenantProvisioning(tenant.id, tenant);
+  const t = live.data ?? tenant;
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h1 className="text-[var(--text-h3)] font-semibold">{t.name}</h1>
+          <StatusBadge entity="tenant" status={t.status} />
+        </div>
+        {canRetry && t.status === "failed" ? (
+          <RetryProvisioningButton tenant={t} />
+        ) : null}
+      </div>
+
+      <Card className="grid grid-cols-2 gap-5 p-6">
+        <ReadOnlyField label="Slug" value={t.slug} />
+        <ReadOnlyField label="Schema" value={t.schema_name} />
+        <ReadOnlyField label="Seed version" value={String(t.seed_version)} />
+        <ReadOnlyField
+          label="Created"
+          value={<FormattedDateTime value={t.created_at} />}
+        />
+      </Card>
+
+      <Card className="flex flex-col gap-4 p-6">
+        <h2 className="text-[var(--text-h5)] font-semibold">Provisioning</h2>
+        <div className="grid grid-cols-2 gap-5">
+          <ReadOnlyField label="State" value={t.provisioning_state ?? "—"} />
+          <ReadOnlyField
+            label="Started"
+            value={
+              t.provisioning_started_at ? (
+                <FormattedDateTime value={t.provisioning_started_at} />
+              ) : (
+                "—"
+              )
+            }
+          />
+          <ReadOnlyField
+            label="Completed"
+            value={
+              t.provisioning_completed_at ? (
+                <FormattedDateTime value={t.provisioning_completed_at} />
+              ) : (
+                "—"
+              )
+            }
+          />
+          {t.status === "failed" ? (
+            <ReadOnlyField label="Failed step" value={t.failed_step ?? "unknown"} />
+          ) : null}
+        </div>
+        {t.status === "failed" && t.failure_reason ? (
+          <p className="text-[var(--text-danger)]">{t.failure_reason}</p>
+        ) : null}
+      </Card>
+
+      <AuditBar entityType="tenant" entityId={t.id} />
+    </div>
+  );
+}

@@ -7,3 +7,4 @@ export * from "./billing";
 export * from "./fees";
 export * from "./ledger";
 export * from "./platform";
+export * from "./tenants";
