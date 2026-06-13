@@ -8,3 +8,7 @@ export {
   type CommandPaletteTriggerProps,
 } from "./CommandPaletteTrigger";
 export { NotificationBellStub } from "./NotificationBellStub";
+export {
+  ImpersonationBanner,
+  type ImpersonationBannerProps,
+} from "./ImpersonationBanner";

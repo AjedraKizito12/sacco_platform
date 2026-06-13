@@ -29,6 +29,7 @@ export default async function TenantDetailPage({
     <TenantDetail
       tenant={data}
       canRetry={userHasPermission(user, "platform.tenants.write")}
+      canImpersonate={userHasPermission(user, "impersonation.start")}
     />
   );
 }

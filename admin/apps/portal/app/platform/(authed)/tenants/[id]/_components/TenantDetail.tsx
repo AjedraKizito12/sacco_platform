@@ -10,13 +10,16 @@ import {
 import type { TenantOut } from "@sacco/schemas";
 import { useTenantProvisioning } from "@/hooks/use-tenant-provisioning";
 import { RetryProvisioningButton } from "./RetryProvisioningButton";
+import { TenantActions } from "./TenantActions";
 
 export function TenantDetail({
   tenant,
   canRetry,
+  canImpersonate,
 }: {
   tenant: TenantOut;
   canRetry: boolean;
+  canImpersonate: boolean;
 }) {
   // Live-updates while the tenant is mid-provision; settles once terminal.
   const live = useTenantProvisioning(tenant.id, tenant);
@@ -29,9 +32,12 @@ export function TenantDetail({
           <h1 className="text-[var(--text-h3)] font-semibold">{t.name}</h1>
           <StatusBadge entity="tenant" status={t.status} />
         </div>
-        {canRetry && t.status === "failed" ? (
-          <RetryProvisioningButton tenant={t} />
-        ) : null}
+        <div className="flex items-center gap-2">
+          {canRetry && t.status === "failed" ? (
+            <RetryProvisioningButton tenant={t} />
+          ) : null}
+          <TenantActions tenant={t} canWrite={canRetry} canImpersonate={canImpersonate} />
+        </div>
       </div>
 
       <Card className="grid grid-cols-2 gap-5 p-6">
