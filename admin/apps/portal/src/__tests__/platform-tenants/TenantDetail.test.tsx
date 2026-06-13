@@ -4,8 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { TenantOut } from "@sacco/schemas";
 
 const get = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/auth/use-auth", () => ({
-  useAuth: () => ({ resources: { tenants: { get, retryProvisioning: vi.fn() } } }),
+  useAuth: () => ({
+    resources: {
+      tenants: { get, retryProvisioning: vi.fn(), reactivate: vi.fn() },
+    },
+  }),
 }));
 
 import { TenantDetail } from "../../../app/platform/(authed)/tenants/[id]/_components/TenantDetail";
@@ -22,12 +27,12 @@ function tenant(over: Partial<TenantOut>): TenantOut {
   };
 }
 
-function renderDetail(t: TenantOut, canRetry = false) {
+function renderDetail(t: TenantOut, canRetry = false, canImpersonate = false) {
   get.mockResolvedValue({ data: t, error: undefined });
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <TenantDetail tenant={t} canRetry={canRetry} />
+      <TenantDetail tenant={t} canRetry={canRetry} canImpersonate={canImpersonate} />
     </QueryClientProvider>,
   );
 }
@@ -72,5 +77,10 @@ describe("TenantDetail", () => {
   it("does not render a retry button for a non-failed tenant even with permission", () => {
     renderDetail(tenant({ status: "active" }), true);
     expect(screen.queryByRole("button", { name: /request provisioning retry/i })).toBeNull();
+  });
+
+  it("shows the Edit action for an active tenant with write permission", () => {
+    renderDetail(tenant({ status: "active" }), true);
+    expect(screen.getByRole("link", { name: /edit/i })).toBeInTheDocument();
   });
 });
