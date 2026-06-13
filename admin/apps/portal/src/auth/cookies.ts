@@ -54,3 +54,50 @@ export async function setTenantSlugCookie(slug: string): Promise<void> {
     maxAge: 60 * 60 * 24 * 30, // 30 days
   });
 }
+
+export async function clearTenantSlugCookie(): Promise<void> {
+  const jar = await cookies();
+  jar.delete(TENANT_SLUG_COOKIE);
+}
+
+export const IMPERSONATION_COOKIE = "sacco_impersonation";
+
+export interface ImpersonationMarker {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  expiresAt: string;
+}
+
+// Marker that the operator is inside an impersonated tenant session. httpOnly
+// so the tenant refresh token (set alongside it) is never exposed to client JS
+// (contract C); read server-side in the (tenant-authed) layout to render the
+// persistent banner.
+export async function setImpersonationCookie(
+  marker: ImpersonationMarker,
+): Promise<void> {
+  const jar = await cookies();
+  jar.set(IMPERSONATION_COOKIE, JSON.stringify(marker), {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "strict",
+    path: "/",
+    maxAge: TENANT_REFRESH_MAX_AGE,
+  });
+}
+
+export async function readImpersonationCookie(): Promise<ImpersonationMarker | null> {
+  const jar = await cookies();
+  const raw = jar.get(IMPERSONATION_COOKIE)?.value;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ImpersonationMarker;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearImpersonationCookie(): Promise<void> {
+  const jar = await cookies();
+  jar.delete(IMPERSONATION_COOKIE);
+}
