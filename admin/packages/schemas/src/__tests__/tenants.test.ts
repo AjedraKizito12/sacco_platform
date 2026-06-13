@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createTenantSchema, suggestSlug } from "../tenants";
+import {
+  createTenantSchema,
+  impersonationRequestSchema,
+  suggestSlug,
+  tenantPatchSchema,
+  tenantSuspendSchema,
+} from "../tenants";
 
 describe("createTenantSchema", () => {
   it("accepts a valid payload", () => {
@@ -65,5 +71,38 @@ describe("suggestSlug", () => {
   });
   it("strips a trailing hyphen introduced by the 40-char cut", () => {
     expect(suggestSlug("x".repeat(39) + " extra")).toBe("x".repeat(39));
+  });
+});
+
+describe("tenantPatchSchema", () => {
+  it("accepts a non-empty name", () => {
+    expect(tenantPatchSchema.safeParse({ name: "Renamed SACCO" }).success).toBe(true);
+  });
+  it("rejects a whitespace-only name", () => {
+    expect(tenantPatchSchema.safeParse({ name: "   " }).success).toBe(false);
+  });
+  it("rejects a name over 200 chars", () => {
+    expect(tenantPatchSchema.safeParse({ name: "a".repeat(201) }).success).toBe(false);
+  });
+});
+
+describe("tenantSuspendSchema", () => {
+  it("accepts a reason of at least 10 chars", () => {
+    expect(tenantSuspendSchema.safeParse({ reason: "Non-payment for 90 days" }).success).toBe(true);
+  });
+  it("rejects a reason under 10 chars", () => {
+    expect(tenantSuspendSchema.safeParse({ reason: "too short" }).success).toBe(false);
+  });
+  it("rejects a reason over 500 chars", () => {
+    expect(tenantSuspendSchema.safeParse({ reason: "a".repeat(501) }).success).toBe(false);
+  });
+});
+
+describe("impersonationRequestSchema", () => {
+  it("accepts a reason of at least 10 chars", () => {
+    expect(impersonationRequestSchema.safeParse({ reason: "Investigating a posting bug" }).success).toBe(true);
+  });
+  it("rejects a reason under 10 chars", () => {
+    expect(impersonationRequestSchema.safeParse({ reason: "debug" }).success).toBe(false);
   });
 });

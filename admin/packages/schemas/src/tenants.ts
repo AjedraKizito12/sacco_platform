@@ -54,3 +54,30 @@ export function suggestSlug(name: string): string {
     .slice(0, 40)
     .replace(/-+$/g, "");
 }
+
+// Mirrors TenantPatchIn — only name is editable; slug/schema are immutable.
+export const tenantPatchSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(200),
+});
+export type TenantPatchInput = z.infer<typeof tenantPatchSchema>;
+
+// Mirrors TenantSuspendIn — reason 10..500 chars.
+export const tenantSuspendSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Give a reason of at least 10 characters")
+    .max(500, "Reason must be 500 characters or fewer"),
+});
+export type TenantSuspendInput = z.infer<typeof tenantSuspendSchema>;
+
+// Mirrors ImpersonationStartIn.reason — reason >= 10 chars. tenant_id is
+// supplied by the screen, not the form.
+export const impersonationRequestSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Give a reason of at least 10 characters")
+    .max(500, "Reason must be 500 characters or fewer"),
+});
+export type ImpersonationRequestInput = z.infer<typeof impersonationRequestSchema>;
