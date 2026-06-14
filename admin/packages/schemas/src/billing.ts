@@ -82,6 +82,55 @@ export const paymentRejectSchema = z.object({
   reason: z.string().trim().min(10).max(500),
 });
 
+// Tenant-context assign-plan body (tenant_id comes from the URL path).
+// Mirrors AssignPlanIn in app/platform_/tenants/schemas.py.
+export const assignPlanSchema = z.object({
+  // Inline uuid (not the shared `uuid` helper) so the empty-default Select
+  // surfaces a natural "Select a plan" message on submit.
+  plan_id: z.string().uuid("Select a plan"),
+  start_date: isoDate.optional(),
+});
+export type AssignPlanInput = z.infer<typeof assignPlanSchema>;
+
+// ── Read models (hand-written, mirror app/platform_/billing/schemas.py) ──────
+
+export interface SubscriptionPlanOut {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  currency: string;
+  base_price: string;
+  per_user_price: string;
+  per_member_price: string;
+  billing_period: "monthly" | "quarterly" | "annual";
+  member_limit: number | null;
+  user_limit: number | null;
+  features: Record<string, unknown>;
+  trial_period_days: number;
+  grace_period_days: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubscriptionOut {
+  id: string;
+  tenant_id: string;
+  plan_id: string;
+  status: string;
+  started_at: string;
+  current_period_start: string;
+  current_period_end: string;
+  grace_period_ends_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+  next_billing_date: string | null;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 export type SubscriptionPlanInput = z.infer<typeof subscriptionPlanSchema>;
 export type SubscriptionPlanPatchInput = z.infer<typeof subscriptionPlanPatchSchema>;

@@ -1,6 +1,7 @@
 // admin/packages/schemas/src/__tests__/billing.test.ts
 import { describe, expect, it } from "vitest";
 import {
+  assignPlanSchema,
   recordPaymentSchema,
   subscriptionPlanPatchSchema,
   subscriptionPlanSchema,
@@ -76,5 +77,28 @@ describe("subscriptionPlanPatchSchema", () => {
     expect(() =>
       subscriptionPlanPatchSchema.parse({ code: "cannot-change" }),
     ).toThrow();
+  });
+});
+
+describe("assignPlanSchema", () => {
+  it("accepts a plan_id alone", () => {
+    expect(
+      assignPlanSchema.safeParse({ plan_id: "11111111-1111-1111-1111-111111111111" })
+        .success,
+    ).toBe(true);
+  });
+  it("accepts a plan_id with an ISO start_date", () => {
+    expect(
+      assignPlanSchema.safeParse({
+        plan_id: "11111111-1111-1111-1111-111111111111",
+        start_date: "2026-07-01",
+      }).success,
+    ).toBe(true);
+  });
+  it("rejects a missing plan_id", () => {
+    expect(assignPlanSchema.safeParse({ start_date: "2026-07-01" }).success).toBe(false);
+  });
+  it("rejects a non-uuid plan_id", () => {
+    expect(assignPlanSchema.safeParse({ plan_id: "nope" }).success).toBe(false);
   });
 });
