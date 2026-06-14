@@ -9,6 +9,7 @@ import {
   ConfirmDialog,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   FormField,
@@ -147,6 +148,11 @@ export function SubscriptionActions({
             <DialogTitle>
               {reasonMode === "immediate" ? "Cancel immediately" : "Cancel at period end"}
             </DialogTitle>
+            <DialogDescription>
+              {reasonMode === "immediate"
+                ? "Provide a reason. This creates an approval request; another authorised user must approve before cancellation runs."
+                : "Provide a reason. The subscription will end at the close of the current billing period."}
+            </DialogDescription>
           </DialogHeader>
           <form
             noValidate
@@ -179,7 +185,10 @@ export function SubscriptionActions({
       {/* Immediate cancel = maker-checker. */}
       <MakerCheckerConfirmDialog
         open={confirmOpen}
-        onOpenChange={setConfirmOpen}
+        onOpenChange={(o) => {
+          setConfirmOpen(o);
+          if (!o) setPendingReason(null);
+        }}
         operationLabel="immediate subscription cancellation"
         busy={cancelMutation.isPending}
         onConfirm={() => {
