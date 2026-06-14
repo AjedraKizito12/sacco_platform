@@ -28,10 +28,12 @@ export function billing(api: FetchClient) {
       } as never),
     cancelSubscription: (
       id: string,
+      body: { reason: string },
       query?: { mode?: "at_period_end" | "immediate" },
     ) =>
       api.POST("/platform/billing/subscriptions/{subscription_id}/cancel" as never, {
         params: { path: { subscription_id: id }, query },
+        body,
       } as never),
     reactivateSubscription: (id: string) =>
       api.POST("/platform/billing/subscriptions/{subscription_id}/reactivate" as never, {
