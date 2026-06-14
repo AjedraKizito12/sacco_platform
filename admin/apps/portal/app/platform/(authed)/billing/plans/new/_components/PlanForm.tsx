@@ -103,18 +103,21 @@ export function PlanForm() {
       <FormField control={form.control} name="base_price" label="Base price" required
         render={({ field, id, describedBy, invalid }) => (
           <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
+            currency={form.watch("currency")}
             value={field.value ?? ""} onValueChange={field.onChange}
             onBlur={field.onBlur} name={field.name} ref={field.ref} />
         )} />
       <FormField control={form.control} name="per_user_price" label="Per-user price"
         render={({ field, id, describedBy, invalid }) => (
           <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
+            currency={form.watch("currency")}
             value={field.value ?? ""} onValueChange={field.onChange}
             onBlur={field.onBlur} name={field.name} ref={field.ref} />
         )} />
       <FormField control={form.control} name="per_member_price" label="Per-member price"
         render={({ field, id, describedBy, invalid }) => (
           <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
+            currency={form.watch("currency")}
             value={field.value ?? ""} onValueChange={field.onChange}
             onBlur={field.onBlur} name={field.name} ref={field.ref} />
         )} />
@@ -131,7 +134,7 @@ export function PlanForm() {
             </SelectContent>
           </Select>
         )} />
-      <FormField control={form.control} name="trial_period_days" label="Trial days" required
+      <FormField control={form.control} name="trial_period_days" label="Trial days"
         render={({ field, id, describedBy, invalid }) => (
           <Input id={id} type="number" inputMode="numeric"
             aria-describedby={describedBy} aria-invalid={invalid}
@@ -139,7 +142,7 @@ export function PlanForm() {
             onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
             onBlur={field.onBlur} name={field.name} ref={field.ref} />
         )} />
-      <FormField control={form.control} name="grace_period_days" label="Grace days" required
+      <FormField control={form.control} name="grace_period_days" label="Grace days"
         render={({ field, id, describedBy, invalid }) => (
           <Input id={id} type="number" inputMode="numeric"
             aria-describedby={describedBy} aria-invalid={invalid}

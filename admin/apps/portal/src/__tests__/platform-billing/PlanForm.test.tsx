@@ -54,6 +54,21 @@ describe("PlanForm (create)", () => {
     expect(await screen.findByText(/plan created/i)).toBeInTheDocument();
   });
 
+  it("includes the selected currency in the submitted payload", async () => {
+    createPlan.mockResolvedValue({ data: { id: "p10" }, error: undefined });
+    renderForm();
+    // Switch currency from UGX (default) to USD.
+    await userEvent.click(screen.getByRole("combobox", { name: /currency/i }));
+    await userEvent.click(screen.getByRole("option", { name: "USD" }));
+    await userEvent.type(screen.getByLabelText(/code/i), "usd-plan");
+    await userEvent.type(screen.getByLabelText(/^name/i), "USD Plan");
+    await userEvent.type(screen.getByLabelText(/base price/i), "99");
+    await userEvent.click(screen.getByRole("button", { name: /create plan/i }));
+    await waitFor(() => expect(createPlan).toHaveBeenCalledTimes(1));
+    const [body] = createPlan.mock.calls[0] as [Record<string, unknown>];
+    expect(body).toMatchObject({ currency: "USD", code: "usd-plan", name: "USD Plan" });
+  });
+
   it("surfaces an error and does not redirect", async () => {
     createPlan.mockResolvedValue({ data: undefined, error: { detail: "Code already exists" } });
     renderForm();
