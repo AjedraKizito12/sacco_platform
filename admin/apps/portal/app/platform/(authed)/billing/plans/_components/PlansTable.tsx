@@ -42,7 +42,7 @@ const columns: DataTableProps<SubscriptionPlanOut>["columns"] = [
     header: "Status",
     cell: ({ row }) => (
       <StatusBadge
-        entity="platform_user"
+        entity="subscription_plan"
         status={row.original.is_active ? "active" : "inactive"}
       />
     ),

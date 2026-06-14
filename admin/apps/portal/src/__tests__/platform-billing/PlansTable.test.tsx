@@ -41,7 +41,7 @@ vi.mock("next/navigation", () => ({
 
 // Import after vi.mock so the hoisted mock is in place when the module graph loads.
 import { TenantCurrencyProvider } from "@sacco/ui";
-import { PlansTable } from "../../../app/platform/(authed)/billing/plans/_components/PlansTable";
+import { PlansTable, sortPlans } from "../../../app/platform/(authed)/billing/plans/_components/PlansTable";
 
 function plan(over: Partial<SubscriptionPlanOut>): SubscriptionPlanOut {
   return {
@@ -53,6 +53,35 @@ function plan(over: Partial<SubscriptionPlanOut>): SubscriptionPlanOut {
     ...over,
   };
 }
+
+const twoPlans = [
+  plan({ id: "p1", name: "Starter", description: "Basic plan" }),
+  plan({ id: "p2", name: "Growth", description: null }),
+];
+
+describe("sortPlans", () => {
+  it("sorts ascending by a string column", () => {
+    const result = sortPlans(twoPlans, "name", "asc");
+    expect(result.map((r) => r.id)).toEqual(["p2", "p1"]); // "Growth" < "Starter"
+  });
+
+  it("sorts descending by reversing the sorted order", () => {
+    const result = sortPlans(twoPlans, "name", "desc");
+    expect(result.map((r) => r.id)).toEqual(["p1", "p2"]); // "Starter" > "Growth"
+  });
+
+  it("returns the original order when column is null", () => {
+    const result = sortPlans(twoPlans, null, "asc");
+    expect(result.map((r) => r.id)).toEqual(["p1", "p2"]);
+  });
+
+  it("coerces a null field to empty string without throwing", () => {
+    // p2 has description: null → coerced to "" which sorts before "Basic plan"
+    const result = sortPlans(twoPlans, "description", "asc");
+    expect(result[0]?.id).toBe("p2"); // null → "" comes first
+    expect(result[1]?.id).toBe("p1");
+  });
+});
 
 describe("PlansTable", () => {
   it("renders plan rows with a linked name and formatted price", () => {
