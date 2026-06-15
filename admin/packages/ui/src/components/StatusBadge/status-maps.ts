@@ -11,6 +11,7 @@ export type StatusEntity =
   | "fee_assessment"
   | "approval_request"
   | "subscription"
+  | "subscription_plan"
   | "invoice"
   | "payment"
   | "platform_user";
@@ -82,6 +83,11 @@ export const APPROVAL_REQUEST_STATUS: StatusMap = {
   cancelled: { variant: "neutral", label: "Cancelled" },
 };
 
+export const SUBSCRIPTION_PLAN_STATUS: StatusMap = {
+  active: { variant: "success", label: "Active" },
+  inactive: { variant: "neutral", label: "Inactive" },
+};
+
 export const SUBSCRIPTION_STATUS: StatusMap = {
   pending: { variant: "info", label: "Pending" },
   trialing: { variant: "info", label: "Trialing" },
@@ -119,6 +125,7 @@ const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   fee_assessment: FEE_ASSESSMENT_STATUS,
   approval_request: APPROVAL_REQUEST_STATUS,
   subscription: SUBSCRIPTION_STATUS,
+  subscription_plan: SUBSCRIPTION_PLAN_STATUS,
   invoice: INVOICE_STATUS,
   payment: PAYMENT_STATUS,
   platform_user: PLATFORM_USER_STATUS,

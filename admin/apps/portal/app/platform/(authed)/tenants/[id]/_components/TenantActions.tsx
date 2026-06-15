@@ -13,10 +13,12 @@ export function TenantActions({
   tenant,
   canWrite,
   canImpersonate,
+  canAssignPlan,
 }: {
   tenant: TenantOut;
   canWrite: boolean;
   canImpersonate: boolean;
+  canAssignPlan: boolean;
 }) {
   const router = useRouter();
   const { resources } = useAuth();
@@ -56,6 +58,11 @@ export function TenantActions({
       {canImpersonate ? (
         <Button asChild variant="secondary">
           <Link href={`/platform/tenants/${tenant.id}/impersonate`}>Impersonate</Link>
+        </Button>
+      ) : null}
+      {canAssignPlan ? (
+        <Button asChild variant="secondary">
+          <Link href={`/platform/tenants/${tenant.id}/assign-plan`}>Assign plan</Link>
         </Button>
       ) : null}
       {canWrite && !isSuspended ? (

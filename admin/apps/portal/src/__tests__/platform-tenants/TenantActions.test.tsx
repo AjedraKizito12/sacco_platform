@@ -27,11 +27,11 @@ function tenant(over: Partial<TenantOut>): TenantOut {
   };
 }
 
-function renderActions(t: TenantOut, caps: { canWrite?: boolean; canImpersonate?: boolean } = {}) {
+function renderActions(t: TenantOut, caps: { canWrite?: boolean; canImpersonate?: boolean; canAssignPlan?: boolean } = {}) {
   const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <TenantActions tenant={t} canWrite={caps.canWrite ?? true} canImpersonate={caps.canImpersonate ?? true} />
+      <TenantActions tenant={t} canWrite={caps.canWrite ?? true} canImpersonate={caps.canImpersonate ?? true} canAssignPlan={caps.canAssignPlan ?? true} />
       <Toaster />
     </QueryClientProvider>,
   );
@@ -62,6 +62,19 @@ describe("TenantActions", () => {
     expect(screen.queryByRole("link", { name: /edit/i })).toBeNull();
     expect(screen.queryByRole("link", { name: /suspend/i })).toBeNull();
     expect(screen.getByRole("link", { name: /impersonate/i })).toBeInTheDocument();
+  });
+
+  it("shows Assign plan when canAssignPlan", () => {
+    renderActions(tenant({ status: "active" }), { canAssignPlan: true });
+    expect(screen.getByRole("link", { name: /assign plan/i })).toHaveAttribute(
+      "href",
+      "/platform/tenants/t1/assign-plan",
+    );
+  });
+
+  it("hides Assign plan when canAssignPlan is false", () => {
+    renderActions(tenant({ status: "active" }), { canAssignPlan: false });
+    expect(screen.queryByRole("link", { name: /assign plan/i })).toBeNull();
   });
 
   it("reactivates via the confirm dialog and toasts", async () => {
