@@ -1,12 +1,14 @@
 // admin/apps/portal/app/platform/(authed)/billing/invoices/[id]/page.tsx
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
-import { AuditBar, Button, Card, FormattedDate, Money, StatusBadge } from "@sacco/ui";
+import { AuditBar, Card, FormattedDate, Money, StatusBadge } from "@sacco/ui";
 import type { InvoiceDetailOut } from "@sacco/schemas";
 import {
   getPlatformPageContext,
   requirePlatformPermission,
 } from "@/auth/server-page-context";
+import { userHasPermission } from "@/auth/permissions";
+import { InvoiceActions } from "./_components/InvoiceActions";
 
 export const metadata = { title: "Invoice" };
 
@@ -24,15 +26,14 @@ export default async function InvoiceDetailPage({
   );
   if (!data) notFound();
 
+  const canRecord = userHasPermission(user, "billing.read");
+  const canVoid = userHasPermission(user, "billing.write");
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-[var(--text-h3)] font-semibold">{data.invoice_number}</h1>
-        <Button asChild variant="secondary">
-          <a href={`/api/billing/invoices/${data.id}/pdf`} target="_blank" rel="noreferrer">
-            Download PDF
-          </a>
-        </Button>
+        <InvoiceActions invoice={data} canRecord={canRecord} canVoid={canVoid} />
       </div>
       <Card className="flex flex-col gap-3 p-6">
         <Row label="Status" value={<StatusBadge entity="invoice" status={data.status} />} />
