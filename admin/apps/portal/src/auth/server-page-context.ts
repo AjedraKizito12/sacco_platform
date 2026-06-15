@@ -9,6 +9,7 @@ import {
 import {
   getServerAccessToken,
   getServerCurrentUser,
+  getServerTenantSlug,
 } from "./server-helpers";
 import {
   type CurrentUserShape,
@@ -45,6 +46,35 @@ export async function getPlatformPageContext(): Promise<PlatformPageContext> {
     tenantContext: new FixedTenantContext(null),
   });
   return { user, resources: buildResources(client) };
+}
+
+export interface TenantPageContext {
+  user: CurrentUserShape;
+  slug: string;
+  resources: Resources;
+}
+
+/**
+ * Server-component entrypoint for (tenant-authed) pages. Mirrors
+ * getPlatformPageContext but uses the tenant refresh cookie + slug so the
+ * typed client sends X-Tenant-Slug on /billing/me/* calls. Redirects to
+ * /login when unauthenticated.
+ */
+export async function getTenantPageContext(): Promise<TenantPageContext> {
+  const slug = await getServerTenantSlug();
+  const { accessToken } = await getServerAccessToken("tenant");
+  if (!slug || !accessToken) redirect("/login");
+  const user = await getServerCurrentUser("tenant", accessToken);
+  if (!user) redirect("/login");
+
+  const store = new InMemoryTokenStore("/auth/refresh");
+  store.setAccessToken(accessToken);
+  const client = createApiClient({
+    baseUrl: API_BASE,
+    tokenStore: store,
+    tenantContext: new FixedTenantContext(slug),
+  });
+  return { user, slug, resources: buildResources(client) };
 }
 
 /**
