@@ -7,6 +7,8 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/platform/billing/plans", label: "Plans" },
   { href: "/platform/billing/subscriptions", label: "Subscriptions" },
+  { href: "/platform/billing/invoices", label: "Invoices" },
+  { href: "/platform/billing/payments", label: "Payments" },
 ] as const;
 
 export function BillingTabs() {
