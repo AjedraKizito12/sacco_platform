@@ -16,10 +16,12 @@ export function TenantDetail({
   tenant,
   canRetry,
   canImpersonate,
+  canAssignPlan,
 }: {
   tenant: TenantOut;
   canRetry: boolean;
   canImpersonate: boolean;
+  canAssignPlan: boolean;
 }) {
   // Live-updates while the tenant is mid-provision; settles once terminal.
   const live = useTenantProvisioning(tenant.id, tenant);
@@ -36,7 +38,7 @@ export function TenantDetail({
           {canRetry && t.status === "failed" ? (
             <RetryProvisioningButton tenant={t} />
           ) : null}
-          <TenantActions tenant={t} canWrite={canRetry} canImpersonate={canImpersonate} />
+          <TenantActions tenant={t} canWrite={canRetry} canImpersonate={canImpersonate} canAssignPlan={canAssignPlan} />
         </div>
       </div>
 
