@@ -33,7 +33,7 @@ export default async function AssignPlanPage({
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-[var(--text-h3)] font-semibold">Assign a plan to {tenant.name}</h1>
-      <AssignPlanForm tenantId={id} plans={plans ?? []} />
+      <AssignPlanForm tenantId={id} plans={plans} />
     </div>
   );
 }

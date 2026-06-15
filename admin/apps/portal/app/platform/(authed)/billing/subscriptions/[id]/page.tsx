@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Card, FormattedDate, StatusBadge } from "@sacco/ui";
+import { AuditBar, Card, FormattedDate, StatusBadge } from "@sacco/ui";
 import type { SubscriptionOut } from "@sacco/schemas";
 import {
   getPlatformPageContext,
@@ -58,6 +58,7 @@ export default async function SubscriptionDetailPage({
           </div>
         ) : null}
       </Card>
+      <AuditBar entityType="subscription" entityId={data.id} />
     </div>
   );
 }
