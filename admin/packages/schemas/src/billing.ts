@@ -138,3 +138,64 @@ export type SubscriptionCreateInput = z.infer<typeof subscriptionCreateSchema>;
 export type SubscriptionCancelInput = z.infer<typeof subscriptionCancelSchema>;
 export type InvoiceVoidInput = z.infer<typeof invoiceVoidSchema>;
 export type PaymentRejectInput = z.infer<typeof paymentRejectSchema>;
+
+export const PAYMENT_METHOD_OPTIONS = [
+  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "mobile_money", label: "Mobile money" },
+  { value: "cash", label: "Cash" },
+  { value: "cheque", label: "Cheque" },
+] as const;
+
+// ── Read models (hand-written, mirror app/platform_/billing/schemas.py) ──────
+
+export interface InvoiceLineItemOut {
+  id: string;
+  invoice_id: string;
+  description: string;
+  quantity: number;
+  unit_price: string;
+  amount: string;
+  line_order: number;
+}
+
+export interface InvoiceOut {
+  id: string;
+  invoice_number: string;
+  subscription_id: string;
+  tenant_id: string;
+  billing_period_start: string;
+  billing_period_end: string;
+  amount_subtotal: string;
+  amount_tax: string;
+  amount_total: string;
+  amount_paid: string;
+  currency: string;
+  status: string;
+  issued_at: string | null;
+  due_at: string;
+  paid_at: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
+  pdf_storage_key: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceDetailOut extends InvoiceOut {
+  line_items: InvoiceLineItemOut[];
+}
+
+export interface PaymentOut {
+  id: string;
+  invoice_id: string;
+  amount: string;
+  currency: string;
+  payment_method: string;
+  external_reference: string | null;
+  notes: string | null;
+  recorded_by: string;
+  recorded_at: string;
+  approval_request_id: string | null;
+  status: string;
+  confirmed_at: string | null;
+}

@@ -102,3 +102,17 @@ describe("assignPlanSchema", () => {
     expect(assignPlanSchema.safeParse({ plan_id: "nope" }).success).toBe(false);
   });
 });
+
+import { PAYMENT_METHOD_OPTIONS } from "../billing";
+
+describe("PAYMENT_METHOD_OPTIONS", () => {
+  it("lists the four backend payment methods with labels", () => {
+    expect(PAYMENT_METHOD_OPTIONS.map((o) => o.value)).toEqual([
+      "bank_transfer",
+      "mobile_money",
+      "cash",
+      "cheque",
+    ]);
+    expect(PAYMENT_METHOD_OPTIONS.every((o) => o.label.length > 0)).toBe(true);
+  });
+});
