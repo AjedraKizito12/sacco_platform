@@ -170,6 +170,17 @@ export function AppShellSidebar({ variant }: AppShellSidebarProps) {
           ),
         },
         {
+          label: "Billing",
+          items: (
+            <SidebarItem
+              href="/billing"
+              icon={<Banknote size={ICON_SIZE} strokeWidth={1.75} />}
+              label="Billing"
+              active={isActive("/billing")}
+            />
+          ),
+        },
+        {
           label: "Approvals & Audit",
           items: (
             <>
