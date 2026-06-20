@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { Card, FormattedDate, StatusBadge } from "@sacco/ui";
 import type { SubscriptionOut } from "@sacco/schemas";
 import { AuditBarConnected } from "@/components/AuditBarConnected";
+import { MakerCheckerBannerConnected } from "@/components/MakerCheckerBannerConnected";
 import {
   getPlatformPageContext,
   requirePlatformPermission,
@@ -31,6 +32,7 @@ export default async function SubscriptionDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <MakerCheckerBannerConnected entityType="subscription" entityId={data.id} />
       <div className="flex items-center justify-between">
         <h1 className="text-[var(--text-h3)] font-semibold">Subscription</h1>
         <SubscriptionActions subscription={data} canWrite={canWrite} />

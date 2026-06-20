@@ -122,10 +122,6 @@ export function SubscriptionActions({
   if (!canWrite) return null;
 
   const status = subscription.status;
-  // TODO: Contract K — when SubscriptionOut gains pending_approval_request_id,
-  // render <MakerCheckerBanner> on the subscription detail page above the Card
-  // (an immediate-cancel leaves the row "active" with an open approval until the
-  // executor runs). Blocked on the backend exposing that field (contracts B/N).
   const cancellable = status === "active" || status === "trialing" || status === "past_due";
   const reactivatable = status === "suspended" || status === "past_due";
 
