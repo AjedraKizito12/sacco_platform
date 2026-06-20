@@ -42,4 +42,9 @@ describe("StatusBadge", () => {
     render(<StatusBadge entity="jwt_key" status="retiring" />);
     expect(screen.getByText("Retiring")).toBeInTheDocument();
   });
+
+  it("maps tenant_user inactive", () => {
+    render(<StatusBadge entity="tenant_user" status="inactive" />);
+    expect(screen.getByText("Inactive")).toBeInTheDocument();
+  });
 });

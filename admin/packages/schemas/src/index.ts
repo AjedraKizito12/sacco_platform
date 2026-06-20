@@ -10,3 +10,4 @@ export * from "./platform";
 export * from "./tenants";
 export * from "./approvals";
 export * from "./audit";
+export * from "./tenant-users";

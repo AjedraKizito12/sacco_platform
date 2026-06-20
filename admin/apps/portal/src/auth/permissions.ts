@@ -38,6 +38,8 @@ export const PERMISSION_MIN_ROLE: Record<
   "platform.tenants.write": "admin",
   "platform.tenants.create": "superuser",
   "platform.tenants.suspend": "admin",
+  "platform.tenants.users.read": "admin",
+  "platform.tenants.users.write": "admin",
   // Billing
   "billing.read": "finance",
   "billing.write": "admin",
