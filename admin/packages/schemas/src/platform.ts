@@ -71,3 +71,16 @@ export interface DashboardStatsOut {
   active_impersonations: number;
   last_updated: string;
 }
+
+// Mirrors app/modules/iam/keys/schemas.py JwtKeyOut. Dates are ISO strings.
+export interface JwtKeyOut {
+  id: string;
+  kid: string;
+  algorithm: string;
+  audience: string;
+  status: string; // active | retiring | retired
+  created_at: string;
+  activated_at: string | null;
+  retired_at: string | null;
+  deleted_at: string | null;
+}
