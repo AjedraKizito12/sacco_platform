@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   Button,
@@ -8,14 +9,15 @@ import {
   StatusBadge,
 } from "@sacco/ui";
 import { PLATFORM_ROLE_LABELS, type PlatformUserOut } from "@sacco/schemas";
-import { AuditBarConnected } from "@/components/AuditBarConnected";
 
 export function UserDetail({
   user,
   canEdit,
+  auditBar,
 }: {
   user: PlatformUserOut;
   canEdit: boolean;
+  auditBar: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-6">
@@ -41,7 +43,7 @@ export function UserDetail({
         <ReadOnlyField label="Created" value={<FormattedDateTime value={user.created_at} />} />
       </Card>
 
-      <AuditBarConnected entityType="platform_user" entityId={user.id} />
+      {auditBar}
     </div>
   );
 }
