@@ -282,6 +282,91 @@ async def test_reject_and_self_reject_blocked(
         await _cleanup(factory)
 
 
+async def test_list_returns_current_approvals(
+    test_engine: AsyncEngine, client: AsyncClient
+) -> None:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    maker = await _create_platform_user(factory, "maker")
+    try:
+        created = await client.post(
+            "/platform/approvals",
+            json={"operation_type": "platform.test.op", "payload": {"x": 1}},
+            headers=_hdr(maker.id),
+        )
+        assert created.status_code == 201, created.text
+        listed = await client.get("/platform/approvals", headers=_hdr(maker.id))
+        assert listed.status_code == 200, listed.text
+        body = listed.json()
+        assert body[0]["current_approvals"] == 0
+        assert body[0]["required_approvals"] == 1
+    finally:
+        await _cleanup(factory)
+
+
+async def test_detail_returns_actions_trail(
+    test_engine: AsyncEngine, client: AsyncClient
+) -> None:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    maker = await _create_platform_user(factory, "maker")
+    checker = await _create_platform_user(factory, "checker")
+    try:
+        created = await client.post(
+            "/platform/approvals",
+            json={"operation_type": "platform.test.op", "payload": {"x": 1}},
+            headers=_hdr(maker.id),
+        )
+        rid = created.json()["id"]
+        # Checker approves -> with required_approvals=1 this executes.
+        approved = await client.post(
+            f"/platform/approvals/{rid}/approve",
+            json={"comment": "looks good"},
+            headers=_hdr(checker.id),
+        )
+        assert approved.status_code == 200, approved.text
+
+        detail = await client.get(f"/platform/approvals/{rid}", headers=_hdr(maker.id))
+        assert detail.status_code == 200, detail.text
+        body = detail.json()
+        assert body["current_approvals"] == 1
+        assert len(body["actions"]) == 1
+        assert body["actions"][0]["action"] == "approve"
+        assert body["actions"][0]["actor_user_id"] == str(checker.id)
+        assert body["actions"][0]["comment"] == "looks good"
+    finally:
+        await _cleanup(factory)
+
+
+async def test_detail_quorum_two_reports_one_of_two(
+    test_engine: AsyncEngine, client: AsyncClient
+) -> None:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    maker = await _create_platform_user(factory, "maker")
+    checker = await _create_platform_user(factory, "checker")
+    try:
+        created = await client.post(
+            "/platform/approvals",
+            json={
+                "operation_type": "platform.test.op",
+                "payload": {"x": 1},
+                "required_approvals": 2,
+            },
+            headers=_hdr(maker.id),
+        )
+        rid = created.json()["id"]
+        await client.post(
+            f"/platform/approvals/{rid}/approve",
+            json={},
+            headers=_hdr(checker.id),
+        )
+        detail = (await client.get(f"/platform/approvals/{rid}", headers=_hdr(maker.id))).json()
+        assert detail["current_approvals"] == 1
+        assert detail["required_approvals"] == 2
+        assert detail["status"] == "pending"
+        assert len(detail["actions"]) == 1
+    finally:
+        await _cleanup(factory)
+
+
 async def test_cancel_maker_only(
     test_engine: AsyncEngine, client: AsyncClient
 ) -> None:

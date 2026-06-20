@@ -19,7 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_platform_session
 from app.modules.maker_checker.models.platform import PlatformApprovalRequest
 from app.modules.maker_checker.schemas import (
+    ApprovalActionOut,
     ApprovalActionRequest,
+    ApprovalRequestDetailOut,
     ApprovalRequestOut,
     RejectRequest,
     SubmitApprovalRequest,
@@ -75,21 +77,31 @@ async def list_approvals(
     if requested_by is not None:
         q = q.where(PlatformApprovalRequest.requested_by == requested_by)
     rows = (await session.execute(q)).scalars().all()
-    return [ApprovalRequestOut.model_validate(r) for r in rows]
+    svc = ApprovalService(session)
+    out: list[ApprovalRequestOut] = []
+    for r in rows:
+        dto = ApprovalRequestOut.model_validate(r)
+        dto.current_approvals = await svc.approval_count(r.id)
+        out.append(dto)
+    return out
 
 
-@router.get("/{request_id}", response_model=ApprovalRequestOut)
+@router.get("/{request_id}", response_model=ApprovalRequestDetailOut)
 async def get_approval(
     request_id: uuid.UUID,
     session: Session,
     user: CurrentSupport,
-) -> ApprovalRequestOut:
+) -> ApprovalRequestDetailOut:
     row = await session.scalar(
         select(PlatformApprovalRequest).where(PlatformApprovalRequest.id == request_id)
     )
     if row is None:
         raise HTTPException(status_code=404, detail="Approval request not found")
-    return ApprovalRequestOut.model_validate(row)
+    svc = ApprovalService(session)
+    dto = ApprovalRequestDetailOut.model_validate(row)
+    dto.current_approvals = await svc.approval_count(row.id)
+    dto.actions = [ApprovalActionOut.model_validate(a) for a in await svc.list_actions(row.id)]
+    return dto
 
 
 @router.post("/{request_id}/approve", response_model=ApprovalRequestOut)
