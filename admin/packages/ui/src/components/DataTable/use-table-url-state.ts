@@ -13,6 +13,13 @@ export interface UseTableUrlStateOptions {
   defaultDensity?: Density;
   /** Filter keys the table reads. Other URL keys are ignored. */
   filterKeys?: string[];
+  /**
+   * nuqs routing mode. `true` (default) updates the URL client-side only —
+   * right for in-memory tables. `false` does a real navigation so a Server
+   * Component re-runs (its searchParams change), enabling true server-side
+   * pagination. Existing in-memory callers omit this and keep `true`.
+   */
+  shallow?: boolean;
 }
 
 /**
@@ -27,15 +34,19 @@ export function useTableUrlState(
     defaultPageSize = 25,
     defaultDensity = "default",
     filterKeys = [],
+    shallow = true,
   } = options;
 
-  const [{ page, pageSize, sort, dir, density }, setCore] = useQueryStates({
-    page: parseAsInteger.withDefault(1),
-    pageSize: parseAsInteger.withDefault(defaultPageSize),
-    sort: parseAsString.withDefault(defaultSort?.column ?? ""),
-    dir: parseAsString.withDefault(defaultSort?.direction ?? "desc"),
-    density: parseAsString.withDefault(defaultDensity),
-  });
+  const [{ page, pageSize, sort, dir, density }, setCore] = useQueryStates(
+    {
+      page: parseAsInteger.withDefault(1),
+      pageSize: parseAsInteger.withDefault(defaultPageSize),
+      sort: parseAsString.withDefault(defaultSort?.column ?? ""),
+      dir: parseAsString.withDefault(defaultSort?.direction ?? "desc"),
+      density: parseAsString.withDefault(defaultDensity),
+    },
+    { shallow },
+  );
 
   const filterParsers = useMemo(() => {
     return Object.fromEntries(
@@ -43,7 +54,7 @@ export function useTableUrlState(
     );
   }, [filterKeys]);
 
-  const [filterRaw, setFiltersRaw] = useQueryStates(filterParsers);
+  const [filterRaw, setFiltersRaw] = useQueryStates(filterParsers, { shallow });
 
   const filters = useMemo<Record<string, string>>(() => {
     const out: Record<string, string> = {};

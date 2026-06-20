@@ -9,3 +9,4 @@ export * from "./ledger";
 export * from "./platform";
 export * from "./tenants";
 export * from "./approvals";
+export * from "./audit";

@@ -1,7 +1,8 @@
 // admin/apps/portal/app/platform/(authed)/billing/invoices/[id]/page.tsx
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
-import { AuditBar, Card, FormattedDate, Money, StatusBadge } from "@sacco/ui";
+import { Card, FormattedDate, Money, StatusBadge } from "@sacco/ui";
+import { AuditBarConnected } from "@/components/AuditBarConnected";
 import type { InvoiceDetailOut } from "@sacco/schemas";
 import {
   getPlatformPageContext,
@@ -65,7 +66,7 @@ export default async function InvoiceDetailPage({
         </div>
       </Card>
 
-      <AuditBar entityType="invoice" entityId={data.id} />
+      <AuditBarConnected entityType="invoice" entityId={data.id} />
     </div>
   );
 }

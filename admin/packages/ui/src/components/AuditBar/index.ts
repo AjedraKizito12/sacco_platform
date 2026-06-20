@@ -1,1 +1,1 @@
-export { AuditBar, type AuditBarProps } from "./AuditBar";
+export { AuditBar, type AuditBarProps, type AuditBarEntry } from "./AuditBar";

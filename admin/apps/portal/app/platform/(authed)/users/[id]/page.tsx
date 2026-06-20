@@ -5,6 +5,7 @@ import {
   requirePlatformPermission,
 } from "@/auth/server-page-context";
 import { userHasPermission } from "@/auth/permissions";
+import { AuditBarConnected } from "@/components/AuditBarConnected";
 import { UserDetail } from "./_components/UserDetail";
 
 export const metadata = { title: "Platform User" };
@@ -30,6 +31,7 @@ export default async function PlatformUserDetailPage({
     <UserDetail
       user={data}
       canEdit={userHasPermission(user, "platform.users.write")}
+      auditBar={<AuditBarConnected entityType="platform_user" entityId={data.id} />}
     />
   );
 }

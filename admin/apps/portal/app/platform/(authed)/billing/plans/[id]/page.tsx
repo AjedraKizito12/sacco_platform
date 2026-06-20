@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AuditBar, Button, Card, Count, Money, StatusBadge } from "@sacco/ui";
+import { Button, Card, Count, Money, StatusBadge } from "@sacco/ui";
+import { AuditBarConnected } from "@/components/AuditBarConnected";
 import type { SubscriptionPlanOut } from "@sacco/schemas";
 import {
   getPlatformPageContext,
@@ -72,7 +73,7 @@ export default async function PlanDetailPage({
           <Row label="Description" value={data.description} />
         ) : null}
       </Card>
-      <AuditBar entityType="subscription_plan" entityId={data.id} />
+      <AuditBarConnected entityType="subscription_plan" entityId={data.id} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
-import { AuditBar, Card, FormattedDateTime, StatusBadge } from "@sacco/ui";
+import { Card, FormattedDateTime, StatusBadge } from "@sacco/ui";
+import { AuditBarConnected } from "@/components/AuditBarConnected";
 import type { ApprovalRequestDetailOut, PlatformUserOut } from "@sacco/schemas";
 import { operationLabel } from "@sacco/schemas";
 import {
@@ -124,7 +125,7 @@ export default async function ApprovalDetailPage({
         )}
       </Card>
 
-      <AuditBar entityType="approval_request" entityId={data.id} />
+      <AuditBarConnected entityType="approval_request" entityId={data.id} />
     </div>
   );
 }

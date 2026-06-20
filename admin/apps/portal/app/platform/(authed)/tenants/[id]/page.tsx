@@ -5,6 +5,7 @@ import {
   requirePlatformPermission,
 } from "@/auth/server-page-context";
 import { userHasPermission } from "@/auth/permissions";
+import { AuditBarConnected } from "@/components/AuditBarConnected";
 import { TenantDetail } from "./_components/TenantDetail";
 
 export const metadata = { title: "Tenant" };
@@ -31,6 +32,8 @@ export default async function TenantDetailPage({
       canRetry={userHasPermission(user, "platform.tenants.write")}
       canImpersonate={userHasPermission(user, "impersonation.start")}
       canAssignPlan={userHasPermission(user, "billing.write")}
+      canViewAudit={userHasPermission(user, "audit.read")}
+      auditBar={<AuditBarConnected entityType="tenant" entityId={data.id} />}
     />
   );
 }
