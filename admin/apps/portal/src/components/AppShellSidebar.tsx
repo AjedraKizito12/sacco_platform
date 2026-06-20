@@ -2,6 +2,7 @@
 
 import { Sidebar, SidebarItem } from "@sacco/ui";
 import {
+  Activity,
   Banknote,
   Building2,
   CheckCircle2,
@@ -83,6 +84,14 @@ export function AppShellSidebar({ variant }: AppShellSidebarProps) {
                     icon={<History size={ICON_SIZE} strokeWidth={1.75} />}
                     label="Audit"
                     active={isActive("/platform/audit")}
+                  />
+                </PermissionGuard>
+                <PermissionGuard permission="operations.read">
+                  <SidebarItem
+                    href="/platform/operations"
+                    icon={<Activity size={ICON_SIZE} strokeWidth={1.75} />}
+                    label="Operations"
+                    active={isActive("/platform/operations")}
                   />
                 </PermissionGuard>
                 <SidebarItem
