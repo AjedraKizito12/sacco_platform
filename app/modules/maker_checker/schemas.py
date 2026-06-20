@@ -37,6 +37,7 @@ class ApprovalRequestOut(BaseModel):
     requested_by: uuid.UUID
     requested_at: datetime
     required_approvals: int
+    current_approvals: int = 0
     status: str
     expires_at: datetime | None
     executed_at: datetime | None

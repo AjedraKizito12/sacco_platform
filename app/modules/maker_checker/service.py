@@ -111,7 +111,7 @@ class ApprovalService:
         self._session.add(action)
         await self._session.flush()
 
-        count = await self._approval_count(request.id)
+        count = await self.approval_count(request.id)
         await EventPublisher.publish(
             self._session,
             aggregate_type="approval_request",
@@ -190,7 +190,7 @@ class ApprovalService:
             raise ValueError(f"Request is in status '{row.status}', not 'pending'")
         return row
 
-    async def _approval_count(self, request_id: uuid.UUID) -> int:
+    async def approval_count(self, request_id: uuid.UUID) -> int:
         result = await self._session.execute(
             select(func.count()).where(
                 self._act_cls.approval_request_id == request_id,

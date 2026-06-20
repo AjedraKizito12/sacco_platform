@@ -282,6 +282,27 @@ async def test_reject_and_self_reject_blocked(
         await _cleanup(factory)
 
 
+async def test_list_returns_current_approvals(
+    test_engine: AsyncEngine, client: AsyncClient
+) -> None:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    maker = await _create_platform_user(factory, "maker")
+    try:
+        created = await client.post(
+            "/platform/approvals",
+            json={"operation_type": "platform.test.op", "payload": {"x": 1}},
+            headers=_hdr(maker.id),
+        )
+        assert created.status_code == 201, created.text
+        listed = await client.get("/platform/approvals", headers=_hdr(maker.id))
+        assert listed.status_code == 200, listed.text
+        body = listed.json()
+        assert body[0]["current_approvals"] == 0
+        assert body[0]["required_approvals"] == 1
+    finally:
+        await _cleanup(factory)
+
+
 async def test_cancel_maker_only(
     test_engine: AsyncEngine, client: AsyncClient
 ) -> None:

@@ -75,7 +75,13 @@ async def list_approvals(
     if requested_by is not None:
         q = q.where(PlatformApprovalRequest.requested_by == requested_by)
     rows = (await session.execute(q)).scalars().all()
-    return [ApprovalRequestOut.model_validate(r) for r in rows]
+    svc = ApprovalService(session)
+    out: list[ApprovalRequestOut] = []
+    for r in rows:
+        dto = ApprovalRequestOut.model_validate(r)
+        dto.current_approvals = await svc.approval_count(r.id)
+        out.append(dto)
+    return out
 
 
 @router.get("/{request_id}", response_model=ApprovalRequestOut)
