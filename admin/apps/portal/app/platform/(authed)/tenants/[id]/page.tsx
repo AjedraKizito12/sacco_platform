@@ -31,6 +31,7 @@ export default async function TenantDetailPage({
       canRetry={userHasPermission(user, "platform.tenants.write")}
       canImpersonate={userHasPermission(user, "impersonation.start")}
       canAssignPlan={userHasPermission(user, "billing.write")}
+      canViewAudit={userHasPermission(user, "audit.read")}
     />
   );
 }
