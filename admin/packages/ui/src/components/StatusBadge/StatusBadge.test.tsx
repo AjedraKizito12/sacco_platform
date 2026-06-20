@@ -37,4 +37,9 @@ describe("StatusBadge", () => {
     render(<StatusBadge entity="platform_user" status="inactive" />);
     expect(screen.getByText("Inactive")).toBeInTheDocument();
   });
+
+  it("renders a jwt_key retiring status", () => {
+    render(<StatusBadge entity="jwt_key" status="retiring" />);
+    expect(screen.getByText("Retiring")).toBeInTheDocument();
+  });
 });
