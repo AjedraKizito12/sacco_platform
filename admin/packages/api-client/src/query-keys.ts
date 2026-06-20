@@ -110,6 +110,10 @@ export const queryKeys = {
       ["audit", "tenant", filters ?? {}] as const,
     detail: (id: string) => ["audit", "detail", id] as const,
   },
+  keys: {
+    root: () => ["keys"] as const,
+    list: () => ["keys", "list"] as const,
+  },
   admin: {
     dashboardStats: () => ["admin", "dashboardStats"] as const,
   },

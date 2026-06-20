@@ -48,6 +48,8 @@ export const PERMISSION_MIN_ROLE: Record<
   "audit.read": "admin",
   // Operations
   "operations.read": "admin",
+  // Settings
+  "settings.read": "admin",
   // Impersonation
   "impersonation.start": "support",
   "impersonation.revoke_other": "admin",

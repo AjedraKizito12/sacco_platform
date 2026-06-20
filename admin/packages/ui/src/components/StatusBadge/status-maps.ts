@@ -14,7 +14,8 @@ export type StatusEntity =
   | "subscription_plan"
   | "invoice"
   | "payment"
-  | "platform_user";
+  | "platform_user"
+  | "jwt_key";
 
 interface MapEntry {
   variant: NonNullable<BadgeProps["variant"]>;
@@ -117,6 +118,12 @@ export const PLATFORM_USER_STATUS: StatusMap = {
   inactive: { variant: "neutral", label: "Inactive" },
 };
 
+export const JWT_KEY_STATUS: StatusMap = {
+  active: { variant: "success", label: "Active" },
+  retiring: { variant: "warning", label: "Retiring" },
+  retired: { variant: "neutral", label: "Retired" },
+};
+
 const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   loan: LOAN_STATUS,
   member: MEMBER_STATUS,
@@ -129,6 +136,7 @@ const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   invoice: INVOICE_STATUS,
   payment: PAYMENT_STATUS,
   platform_user: PLATFORM_USER_STATUS,
+  jwt_key: JWT_KEY_STATUS,
 };
 
 export function resolveStatus(
