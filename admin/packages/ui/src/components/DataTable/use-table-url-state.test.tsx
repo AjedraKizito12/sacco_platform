@@ -34,6 +34,32 @@ describe("useTableUrlState – setFilter resets page", () => {
   });
 });
 
+describe("useTableUrlState – shallow:false (server-side mode)", () => {
+  it("still tracks page/sort/filter state when shallow is false", () => {
+    const { result } = renderHook(
+      () =>
+        useTableUrlState({
+          shallow: false,
+          defaultSort: { column: "occurred_at", direction: "desc" },
+          filterKeys: ["table_name"],
+        }),
+      { wrapper },
+    );
+
+    act(() => {
+      result.current.setPage(2);
+    });
+    expect(result.current.page).toBe(2);
+
+    act(() => {
+      result.current.setFilter("table_name", "tenants");
+    });
+    // Applying a filter resets page to 1 and records the value.
+    expect(result.current.page).toBe(1);
+    expect(result.current.filters["table_name"]).toBe("tenants");
+  });
+});
+
 describe("useTableUrlState – setFilters (batch) resets page", () => {
   it("resets page to 1 when batch filters are applied while on page > 1", () => {
     const { result } = renderHook(
