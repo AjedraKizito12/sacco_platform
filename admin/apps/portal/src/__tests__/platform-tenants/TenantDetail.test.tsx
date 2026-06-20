@@ -32,7 +32,7 @@ function renderDetail(t: TenantOut, canRetry = false, canImpersonate = false) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <TenantDetail tenant={t} canRetry={canRetry} canImpersonate={canImpersonate} canAssignPlan={false} canViewAudit={false} />
+      <TenantDetail tenant={t} canRetry={canRetry} canImpersonate={canImpersonate} canAssignPlan={false} canViewAudit={false} auditBar={null} />
     </QueryClientProvider>,
   );
 }

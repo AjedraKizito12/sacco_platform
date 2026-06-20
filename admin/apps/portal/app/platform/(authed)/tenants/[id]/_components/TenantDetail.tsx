@@ -1,7 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
-  AuditBar,
   Card,
   FormattedDateTime,
   ReadOnlyField,
@@ -18,12 +18,14 @@ export function TenantDetail({
   canImpersonate,
   canAssignPlan,
   canViewAudit,
+  auditBar,
 }: {
   tenant: TenantOut;
   canRetry: boolean;
   canImpersonate: boolean;
   canAssignPlan: boolean;
   canViewAudit: boolean;
+  auditBar: ReactNode;
 }) {
   // Live-updates while the tenant is mid-provision; settles once terminal.
   const live = useTenantProvisioning(tenant.id, tenant);
@@ -95,7 +97,7 @@ export function TenantDetail({
         ) : null}
       </Card>
 
-      <AuditBar entityType="tenant" entityId={t.id} />
+      {auditBar}
     </div>
   );
 }

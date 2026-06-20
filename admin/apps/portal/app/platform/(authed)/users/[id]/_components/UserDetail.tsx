@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  AuditBar,
   Button,
   Card,
   FormattedDateTime,
@@ -9,6 +8,7 @@ import {
   StatusBadge,
 } from "@sacco/ui";
 import { PLATFORM_ROLE_LABELS, type PlatformUserOut } from "@sacco/schemas";
+import { AuditBarConnected } from "@/components/AuditBarConnected";
 
 export function UserDetail({
   user,
@@ -41,7 +41,7 @@ export function UserDetail({
         <ReadOnlyField label="Created" value={<FormattedDateTime value={user.created_at} />} />
       </Card>
 
-      <AuditBar entityType="platform_user" entityId={user.id} />
+      <AuditBarConnected entityType="platform_user" entityId={user.id} />
     </div>
   );
 }
