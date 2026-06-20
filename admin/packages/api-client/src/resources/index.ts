@@ -11,6 +11,7 @@ import { reporting } from "./reporting";
 import { makerChecker } from "./makerChecker";
 import { impersonations } from "./impersonations";
 import { audit } from "./audit";
+import { keys } from "./keys";
 import { admin } from "./admin";
 
 export function buildResources(api: FetchClient) {
@@ -27,6 +28,7 @@ export function buildResources(api: FetchClient) {
     makerChecker: makerChecker(api),
     impersonations: impersonations(api),
     audit: audit(api),
+    keys: keys(api),
     admin: admin(api),
   } as const;
 }
