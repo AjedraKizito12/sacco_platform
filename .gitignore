@@ -60,3 +60,6 @@ admin/storybook-static/
 admin/**/dist/
 admin/**/*.tsbuildinfo
 admin/coverage/
+admin/apps/portal/tests/e2e/.auth/
+admin/apps/portal/playwright-report/
+admin/apps/portal/test-results/
