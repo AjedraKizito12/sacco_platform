@@ -49,18 +49,20 @@ async def _seed() -> None:
             # impersonation_id column) rather than a tenant audit table.
             session.sync_session.info["is_platform"] = True
 
-            # 1. Signing key — only if no active aud=platform key exists.
-            active_key = await session.scalar(
-                select(JwtSigningKey).where(
-                    JwtSigningKey.audience == "platform",
-                    JwtSigningKey.status == "active",
+            # 1. Signing keys — one active key per audience (boot check needs
+            #    both 'platform' and 'tenant' in jwt mode).
+            for audience in ("platform", "tenant"):
+                active_key = await session.scalar(
+                    select(JwtSigningKey).where(
+                        JwtSigningKey.audience == audience,
+                        JwtSigningKey.status == "active",
+                    )
                 )
-            )
-            if active_key is None:
-                await KeyService(session).generate_and_insert("platform")
-                print("seed: created platform signing key")
-            else:
-                print("seed: signing key already present")
+                if active_key is None:
+                    await KeyService(session).generate_and_insert(audience)
+                    print(f"seed: created {audience} signing key")
+                else:
+                    print(f"seed: {audience} signing key already present")
 
             # 2. Login-capable superuser.
             user = await session.scalar(
