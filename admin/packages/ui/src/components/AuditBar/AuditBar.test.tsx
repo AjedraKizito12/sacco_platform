@@ -19,4 +19,30 @@ describe("AuditBar", () => {
     expect(section).toHaveAttribute("data-entity-type", "member");
     expect(section).toHaveAttribute("data-entity-id", "M-2026-0042");
   });
+
+  it("renders entries + an enabled View Full History link when entries provided", () => {
+    render(
+      <AuditBar
+        entityType="tenant"
+        entityId="t1"
+        viewAllHref="/platform/audit?f_record_id=t1"
+        entries={[
+          {
+            id: "a1",
+            operation: "update",
+            actorLabel: "op@test",
+            occurredAt: "2026-06-20T10:00:00Z",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/op@test/)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /view full history/i });
+    expect(link).toHaveAttribute("href", "/platform/audit?f_record_id=t1");
+  });
+
+  it("shows an empty hint when entries is an empty array", () => {
+    render(<AuditBar entityType="tenant" entityId="t1" entries={[]} />);
+    expect(screen.getByText(/no recent activity/i)).toBeInTheDocument();
+  });
 });
