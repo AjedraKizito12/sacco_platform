@@ -46,6 +46,8 @@ export const PERMISSION_MIN_ROLE: Record<
   "approvals.approve": "admin",
   // Audit
   "audit.read": "admin",
+  // Operations
+  "operations.read": "admin",
   // Impersonation
   "impersonation.start": "support",
   "impersonation.revoke_other": "admin",
