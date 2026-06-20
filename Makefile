@@ -23,7 +23,7 @@ PYTEST := env -u DATABASE_URL pytest
         materialize-reports test test-fast lint mypy ci provision-tenant \
         platform-token tail-api tail-worker \
         admin-install admin-dev admin-build admin-test admin-lint \
-        admin-typecheck admin-storybook admin-clean
+        admin-typecheck admin-storybook admin-clean admin-e2e
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -149,3 +149,12 @@ admin-storybook: ## Run Storybook against packages/ui (sub-plan 04)
 
 admin-clean: ## Remove node_modules, .turbo, .next, dist/, storybook-static/
 	cd admin && pnpm clean
+
+admin-e2e: ## Seed + run portal Playwright e2e against a local backend on :8001
+	# Prereqs (set in your shell): JWT_KEK (base64 32 bytes), PLATFORM_AUTH_MODE=jwt,
+	# DATABASE_URL pointing at the dev DB, and the backend running on :8001
+	# (e.g. `make api` in another shell). Brings up infra, migrates, seeds, runs e2e.
+	docker compose up -d postgres redis
+	alembic upgrade head
+	PYTHONPATH=$(CURDIR) python scripts/e2e_seed.py
+	cd admin && NEXT_PUBLIC_API_BASE_URL=http://localhost:8001 pnpm --filter @sacco/portal e2e

@@ -21,7 +21,31 @@ test.describe("Auth shell", () => {
     await expect(page.getByText(/valid email/i)).toBeVisible();
   });
 
-  // Note: a full login → me → logout round trip requires a seeded
-  // platform user. That belongs in CI sub-plan 39 against a Docker compose
-  // stack with the real backend. Document here as a follow-up.
+  // The tests below require the seeded backend (scripts/e2e_seed.py) running.
+
+  const EMAIL = process.env["E2E_EMAIL"] ?? "e2e@platform.test";
+  const PASSWORD = process.env["E2E_PASSWORD"] ?? "e2e-Password-123!";
+
+  async function login(page: import("@playwright/test").Page): Promise<void> {
+    await page.goto("/platform/login");
+    await page.getByLabel(/email/i).fill(EMAIL);
+    await page.getByLabel(/password/i).fill(PASSWORD);
+    await page.getByRole("button", { name: /sign in/i }).click();
+    await page.waitForURL(/\/platform(\/|$)/, { timeout: 15_000 });
+  }
+
+  test("logs in with seeded credentials and reaches the dashboard", async ({ page }) => {
+    await login(page);
+    await expect(page).toHaveURL(/\/platform(\/|$)/);
+    await expect(
+      page.getByRole("heading", { name: /platform dashboard/i }),
+    ).toBeVisible();
+  });
+
+  test("logs out back to the login screen", async ({ page }) => {
+    await login(page);
+    await page.getByRole("button", { name: /user menu/i }).click();
+    await page.getByRole("menuitem", { name: /sign out/i }).click();
+    await expect(page).toHaveURL(/\/platform\/login/);
+  });
 });
