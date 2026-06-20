@@ -94,12 +94,14 @@ export function AppShellSidebar({ variant }: AppShellSidebarProps) {
                     active={isActive("/platform/operations")}
                   />
                 </PermissionGuard>
-                <SidebarItem
-                  href="/platform/settings"
-                  icon={<Settings size={ICON_SIZE} strokeWidth={1.75} />}
-                  label="Settings"
-                  active={isActive("/platform/settings")}
-                />
+                <PermissionGuard permission="settings.read">
+                  <SidebarItem
+                    href="/platform/settings"
+                    icon={<Settings size={ICON_SIZE} strokeWidth={1.75} />}
+                    label="Settings"
+                    active={isActive("/platform/settings")}
+                  />
+                </PermissionGuard>
               </>
             ),
           },
