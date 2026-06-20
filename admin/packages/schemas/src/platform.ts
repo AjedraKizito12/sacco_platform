@@ -57,3 +57,17 @@ export interface PlatformUserOut {
   updated_at: string;
   last_login_at: string | null;
 }
+
+// Mirrors app/platform_/admin/schemas.py DashboardStatsOut. Decimal fields
+// arrive as JSON strings (FastAPI serialises Decimal as a string), so the
+// per-currency maps are Record<string, string> — the same shape <Money> reads.
+export interface DashboardStatsOut {
+  tenants: Record<string, number>;
+  subscriptions: Record<string, number>;
+  mrr: Record<string, string>;
+  invoices_outstanding: Record<string, number>;
+  invoices_amount_outstanding: Record<string, string>;
+  approvals_pending: number;
+  active_impersonations: number;
+  last_updated: string;
+}
