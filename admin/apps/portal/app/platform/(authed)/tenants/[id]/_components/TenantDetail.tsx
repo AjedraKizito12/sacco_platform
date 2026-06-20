@@ -19,6 +19,7 @@ export function TenantDetail({
   canAssignPlan,
   canViewAudit,
   auditBar,
+  makerCheckerBanner,
 }: {
   tenant: TenantOut;
   canRetry: boolean;
@@ -26,6 +27,7 @@ export function TenantDetail({
   canAssignPlan: boolean;
   canViewAudit: boolean;
   auditBar: ReactNode;
+  makerCheckerBanner: ReactNode;
 }) {
   // Live-updates while the tenant is mid-provision; settles once terminal.
   const live = useTenantProvisioning(tenant.id, tenant);
@@ -33,6 +35,7 @@ export function TenantDetail({
 
   return (
     <div className="flex flex-col gap-6">
+      {makerCheckerBanner}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-[var(--text-h3)] font-semibold">{t.name}</h1>

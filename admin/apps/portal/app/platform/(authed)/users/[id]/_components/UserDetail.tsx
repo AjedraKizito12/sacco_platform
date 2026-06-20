@@ -14,13 +14,16 @@ export function UserDetail({
   user,
   canEdit,
   auditBar,
+  makerCheckerBanner,
 }: {
   user: PlatformUserOut;
   canEdit: boolean;
   auditBar: ReactNode;
+  makerCheckerBanner: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-6">
+      {makerCheckerBanner}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-[var(--text-h3)] font-semibold">{user.full_name}</h1>

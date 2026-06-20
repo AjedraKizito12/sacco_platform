@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { Card, FormattedDate, Money, StatusBadge } from "@sacco/ui";
 import { AuditBarConnected } from "@/components/AuditBarConnected";
+import { MakerCheckerBannerConnected } from "@/components/MakerCheckerBannerConnected";
 import type { InvoiceDetailOut } from "@sacco/schemas";
 import {
   getPlatformPageContext,
@@ -32,6 +33,7 @@ export default async function InvoiceDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <MakerCheckerBannerConnected entityType="invoice" entityId={data.id} />
       <div className="flex items-center justify-between">
         <h1 className="text-[var(--text-h3)] font-semibold">{data.invoice_number}</h1>
         <InvoiceActions invoice={data} canRecord={canRecord} canVoid={canVoid} />
