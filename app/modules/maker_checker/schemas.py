@@ -45,3 +45,7 @@ class ApprovalRequestOut(BaseModel):
     rejection_reason: str | None
 
     model_config = {"from_attributes": True}
+
+
+class ApprovalRequestDetailOut(ApprovalRequestOut):
+    actions: list[ApprovalActionOut] = []

@@ -199,6 +199,14 @@ class ApprovalService:
         )
         return result.scalar_one()
 
+    async def list_actions(self, request_id: uuid.UUID) -> list[Any]:
+        result = await self._session.execute(
+            select(self._act_cls)
+            .where(self._act_cls.approval_request_id == request_id)
+            .order_by(self._act_cls.acted_at.asc())
+        )
+        return list(result.scalars().all())
+
     async def _execute(self, request: Any) -> None:
         executor = approval_registry[request.operation_type]
         # Inject the request's id into the payload so executors can use it
