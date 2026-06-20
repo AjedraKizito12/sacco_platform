@@ -18,6 +18,7 @@ export function TenantDetail({
   canImpersonate,
   canAssignPlan,
   canViewAudit,
+  canManageUsers,
   auditBar,
   makerCheckerBanner,
 }: {
@@ -26,6 +27,7 @@ export function TenantDetail({
   canImpersonate: boolean;
   canAssignPlan: boolean;
   canViewAudit: boolean;
+  canManageUsers: boolean;
   auditBar: ReactNode;
   makerCheckerBanner: ReactNode;
 }) {
@@ -46,6 +48,14 @@ export function TenantDetail({
             <RetryProvisioningButton tenant={t} />
           ) : null}
           <TenantActions tenant={t} canWrite={canRetry} canImpersonate={canImpersonate} canAssignPlan={canAssignPlan} />
+          {canManageUsers ? (
+            <a
+              href={`/platform/tenants/${t.id}/users`}
+              className="text-[13px] text-[var(--text-link)] hover:underline"
+            >
+              Users
+            </a>
+          ) : null}
           {canViewAudit ? (
             <a
               href={`/platform/tenants/${t.id}/audit`}

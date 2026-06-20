@@ -34,6 +34,7 @@ export default async function TenantDetailPage({
       canImpersonate={userHasPermission(user, "impersonation.start")}
       canAssignPlan={userHasPermission(user, "billing.write")}
       canViewAudit={userHasPermission(user, "audit.read")}
+      canManageUsers={userHasPermission(user, "platform.tenants.users.read")}
       auditBar={<AuditBarConnected entityType="tenant" entityId={data.id} />}
       makerCheckerBanner={<MakerCheckerBannerConnected entityType="tenant" entityId={data.id} />}
     />
