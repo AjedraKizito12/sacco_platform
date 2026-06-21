@@ -15,7 +15,7 @@ export const loanApplicationSchema = z.object({
   requested_term_periods: intString({ min: 1 }),
   purpose: z.string().trim().min(10, "Purpose required").max(500),
   disbursement_destination: disbursementDestinationSchema,
-  disbursement_account_id: uuid.optional(),
+  disbursement_account_id: uuid,
   idempotency_key: idempotencyKey,
 });
 
@@ -150,6 +150,74 @@ export interface GuarantorOut {
   guaranteed_amount: string;
   status: string;
   consented_at: string | null;
+}
+
+export interface LoanOut {
+  id: string;
+  loan_reference: string;
+  loan_application_id: string;
+  loan_product_id: string;
+  member_id: string;
+  status: string;
+  principal_amount: string;
+  outstanding_principal: string;
+  accrued_interest: string;
+  accrued_penalties: string;
+  annual_interest_rate: string;
+  interest_method: string;
+  repayment_frequency: string;
+  term_periods: number;
+  disbursement_destination: string;
+  first_repayment_due: string | null;
+  maturity_date: string | null;
+  disbursed_at: string | null;
+  created_at: string;
+}
+
+export interface LoanInstallmentOut {
+  id: string;
+  loan_id: string;
+  period_number: number;
+  due_date: string;
+  principal_due: string;
+  interest_due: string;
+  total_due: string;
+  principal_paid: string;
+  interest_paid: string;
+  status: string;
+  paid_at: string | null;
+}
+
+export interface LoanRepaymentOut {
+  id: string;
+  loan_id: string;
+  amount: string;
+  principal_applied: string;
+  interest_applied: string;
+  penalties_applied: string;
+  overpayment: string;
+  payment_account_id: string;
+  journal_entry_id: string;
+  posted_by: string;
+  narration: string | null;
+  idempotency_key: string;
+  created_at: string;
+}
+
+export interface StatementLineOut {
+  date: string;
+  line_type: string;
+  description: string;
+  debit: string;
+  credit: string;
+  running_balance: string;
+}
+
+export interface LoanStatementOut {
+  loan_id: string;
+  from_date: string | null;
+  to_date: string | null;
+  lines: StatementLineOut[];
 }
 
 // Mirror app/modules/credit/schemas.py::LoanProductOut. Decimals are JSON strings.
