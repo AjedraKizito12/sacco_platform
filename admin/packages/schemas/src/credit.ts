@@ -41,18 +41,24 @@ export const disburseSchema = z.object({
 
 export const restructuringTypeSchema = z.enum([
   "term_extension",
-  "interest_only_period",
-  "principal_holiday",
+  "payment_holiday",
 ]);
 
 export const loanRestructureSchema = z.object({
   restructuring_type: restructuringTypeSchema,
-  periods_added: z
-    .number()
-    .int()
-    .min(1, "Must add at least one period")
-    .max(120, "Cannot add more than 120 periods"),
+  periods_added: intString({ min: 1 }),
   reason: z.string().trim().min(20, "Reason must be at least 20 chars").max(1000),
+  idempotency_key: idempotencyKey,
+});
+
+export const payrollRowSchema = z.object({
+  member_id: uuid,
+  amount: moneyString({ min: "0.01" }),
+});
+
+export const payrollBatchSchema = z.object({
+  rows: z.array(payrollRowSchema).min(1, "Add at least one row"),
+  clearing_account_id: uuid,
   idempotency_key: idempotencyKey,
 });
 
@@ -218,6 +224,42 @@ export interface LoanStatementOut {
   from_date: string | null;
   to_date: string | null;
   lines: StatementLineOut[];
+}
+
+export type PayrollRowInput = z.infer<typeof payrollRowSchema>;
+export type PayrollBatchInput = z.infer<typeof payrollBatchSchema>;
+
+export interface WriteOffOut {
+  direct: boolean;
+  approval_request_id: string | null;
+  journal_entry_id: string | null;
+}
+
+export interface LoanRecoveryOut {
+  journal_entry_id: string;
+}
+
+export interface RestructuringOut {
+  id: string;
+  loan_id: string;
+  restructuring_type: string;
+  periods_added: number;
+  new_term_periods: number;
+  new_maturity_date: string;
+  reason: string;
+  executed_at: string;
+}
+
+export interface PayrollBatchOut {
+  id: string;
+  reference: string;
+  status: string;
+  total_rows: number;
+  matched_rows: number;
+  unmatched_rows: number;
+  total_amount: string;
+  source_format: string;
+  approval_request_id: string | null;
 }
 
 // Mirror app/modules/credit/schemas.py::LoanProductOut. Decimals are JSON strings.
