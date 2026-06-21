@@ -58,6 +58,27 @@ export const memberStatusChangeSchema = z.object({
 // Tenant id (UUID) helper used by other forms that target a specific member.
 export const memberIdSchema = uuid;
 
+// Mirrors app/modules/members/schemas.py MemberOut. Dates are ISO strings.
+export interface MemberOut {
+  id: string;
+  member_number: string;
+  full_name: string;
+  date_of_birth: string;
+  gender: string;
+  phone: string | null;
+  email: string | null;
+  physical_address: string | null;
+  national_id_number: string | null;
+  id_document_type: string | null;
+  id_document_number: string | null;
+  id_issued_date: string | null;
+  id_expiry_date: string | null;
+  status: string;
+  joined_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type MemberRegistrationInput = z.infer<typeof memberRegistrationSchema>;
 export type MemberStatusChangeInput = z.infer<typeof memberStatusChangeSchema>;
 export type MemberStatus = z.infer<typeof memberStatusSchema>;

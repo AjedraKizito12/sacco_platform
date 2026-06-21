@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   memberRegistrationSchema,
   memberStatusChangeSchema,
+  type MemberOut,
 } from "../member";
 
 describe("memberRegistrationSchema", () => {
@@ -68,5 +69,30 @@ describe("memberStatusChangeSchema", () => {
         idempotency_key: "12345678",
       }),
     ).not.toThrow();
+  });
+});
+
+describe("MemberOut", () => {
+  it("is structurally usable with nullable optional fields", () => {
+    const m: MemberOut = {
+      id: "m1",
+      member_number: "M-0001",
+      full_name: "Ada Loan",
+      date_of_birth: "2000-01-01",
+      gender: "F",
+      phone: null,
+      email: null,
+      physical_address: null,
+      national_id_number: null,
+      id_document_type: null,
+      id_document_number: null,
+      id_issued_date: null,
+      id_expiry_date: null,
+      status: "active",
+      joined_at: "2026-06-01",
+      created_at: "2026-06-01T00:00:00Z",
+      updated_at: "2026-06-01T00:00:00Z",
+    };
+    expect(m.member_number).toBe("M-0001");
   });
 });
