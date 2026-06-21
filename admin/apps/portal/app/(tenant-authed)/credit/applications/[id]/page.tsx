@@ -18,6 +18,7 @@ import type {
 } from "@sacco/schemas";
 import { getTenantPageContext } from "@/auth/server-page-context";
 import { ApplicationActions } from "./_components/ApplicationActions";
+import { DisburseButton } from "./_components/DisburseButton";
 import { GuarantorsSection } from "./_components/GuarantorsSection";
 
 export const metadata = { title: "Loan application" };
@@ -82,7 +83,12 @@ export default async function LoanApplicationDetailPage({
         <h1 className="text-[var(--text-h3)] font-semibold">
           {product?.name ?? "Loan application"}
         </h1>
-        <StatusBadge entity="loan_application" status={application.status} />
+        <div className="flex items-center gap-3">
+          <StatusBadge entity="loan_application" status={application.status} />
+          {application.status === "approved" ? (
+            <DisburseButton applicationId={id} />
+          ) : null}
+        </div>
       </div>
 
       {isPending && approvalRequest ? (

@@ -13,6 +13,10 @@ import {
   type GuarantorOut,
   type LoanApplicationOut,
   type LoanProductOut,
+  type LoanOut,
+  type LoanInstallmentOut,
+  type LoanRepaymentOut,
+  type LoanStatementOut,
 } from "../credit";
 
 describe("loanApplicationSchema", () => {
@@ -176,6 +180,7 @@ describe("application + guarantor schemas (3d-2)", () => {
     requested_amount: "1000000.00",
     purpose: "Working capital for the family shop",
     disbursement_destination: "member_savings",
+    disbursement_account_id: "550e8400-e29b-41d4-a716-446655440002",
     idempotency_key: "1234567890ab",
   };
 
@@ -237,5 +242,62 @@ describe("application + guarantor schemas (3d-2)", () => {
     };
     expect(a.status).toBe("pending");
     expect(g.status).toBe("pending");
+  });
+});
+
+
+describe("loans servicing schemas (3d-3)", () => {
+  const base = {
+    loan_product_id: "550e8400-e29b-41d4-a716-446655440000",
+    member_id: "550e8400-e29b-41d4-a716-446655440001",
+    requested_amount: "1000000.00",
+    requested_term_periods: "12",
+    purpose: "Working capital for the family shop",
+    disbursement_destination: "cash",
+    idempotency_key: "1234567890ab",
+  };
+
+  it("requires disbursement_account_id on an application", () => {
+    expect(loanApplicationSchema.safeParse(base).success).toBe(false);
+    expect(
+      loanApplicationSchema.safeParse({
+        ...base,
+        disbursement_account_id: "550e8400-e29b-41d4-a716-446655440002",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("loan read types are structurally usable", () => {
+    const loan: LoanOut = {
+      id: "l1", loan_reference: "LN-202606-000001", loan_application_id: "a1",
+      loan_product_id: "p1", member_id: "m1", status: "disbursed",
+      principal_amount: "1000000.0000", outstanding_principal: "900000.0000",
+      accrued_interest: "0.0000", accrued_penalties: "0.0000",
+      annual_interest_rate: "18.5000", interest_method: "reducing_balance",
+      repayment_frequency: "monthly", term_periods: 12,
+      disbursement_destination: "cash", first_repayment_due: "2026-07-01",
+      maturity_date: "2027-06-01", disbursed_at: "2026-06-21T00:00:00Z",
+      created_at: "2026-06-21T00:00:00Z",
+    };
+    const inst: LoanInstallmentOut = {
+      id: "i1", loan_id: "l1", period_number: 1, due_date: "2026-07-01",
+      principal_due: "80000.0000", interest_due: "15000.0000", total_due: "95000.0000",
+      principal_paid: "0.0000", interest_paid: "0.0000", status: "pending", paid_at: null,
+    };
+    const rep: LoanRepaymentOut = {
+      id: "r1", loan_id: "l1", amount: "95000.0000", principal_applied: "80000.0000",
+      interest_applied: "15000.0000", penalties_applied: "0.0000", overpayment: "0.0000",
+      payment_account_id: "g1", journal_entry_id: "j1", posted_by: "u1",
+      narration: null, idempotency_key: "k", created_at: "2026-06-21T00:00:00Z",
+    };
+    const st: LoanStatementOut = {
+      loan_id: "l1", from_date: null, to_date: null,
+      lines: [{ date: "2026-06-21", line_type: "disbursement", description: "Disbursed",
+        debit: "1000000.0000", credit: "0.0000", running_balance: "1000000.0000" }],
+    };
+    expect(loan.term_periods).toBe(12);
+    expect(inst.period_number).toBe(1);
+    expect(rep.amount).toBe("95000.0000");
+    expect(st.lines.length).toBe(1);
   });
 });

@@ -3,6 +3,7 @@ import type { LoanProductOut, MemberOut } from "@sacco/schemas";
 import { getTenantPageContext } from "@/auth/server-page-context";
 import {
   CreateApplicationForm,
+  type GlAccountOption,
   type MemberOption,
   type ProductOption,
 } from "./_components/CreateApplicationForm";
@@ -16,13 +17,18 @@ export default async function NewLoanApplicationPage({
 }) {
   const sp = await searchParams;
   const { resources } = await getTenantPageContext();
-  const [{ data: members }, { data: products }] = await Promise.all([
-    resources.members.list({}) as Promise<{ data?: MemberOut[]; error?: unknown }>,
-    resources.credit.listProducts({}) as Promise<{
-      data?: LoanProductOut[];
-      error?: unknown;
-    }>,
-  ]);
+  const [{ data: members }, { data: products }, { data: accounts }] =
+    await Promise.all([
+      resources.members.list({}) as Promise<{ data?: MemberOut[]; error?: unknown }>,
+      resources.credit.listProducts({}) as Promise<{
+        data?: LoanProductOut[];
+        error?: unknown;
+      }>,
+      resources.ledger.listAccounts({}) as Promise<{
+        data?: GlAccountOption[];
+        error?: unknown;
+      }>,
+    ]);
 
   const memberOptions: MemberOption[] = (members ?? []).map((m) => ({
     id: m.id,
@@ -40,6 +46,7 @@ export default async function NewLoanApplicationPage({
       <CreateApplicationForm
         members={memberOptions}
         products={productOptions}
+        glAccounts={accounts ?? []}
         {...(sp.member_id ? { defaultMemberId: sp.member_id } : {})}
       />
     </div>
