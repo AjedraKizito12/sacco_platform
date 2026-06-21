@@ -12,15 +12,19 @@ export const loanApplicationSchema = z.object({
   loan_product_id: uuid,
   member_id: uuid,
   requested_amount: moneyString({ min: "0.01" }),
-  requested_term_periods: z
-    .number()
-    .int("Must be a whole number of periods")
-    .min(1, "At least one period")
-    .max(360, "Term cannot exceed 360 periods"),
+  requested_term_periods: intString({ min: 1 }),
   purpose: z.string().trim().min(10, "Purpose required").max(500),
   disbursement_destination: disbursementDestinationSchema,
   disbursement_account_id: uuid.optional(),
   idempotency_key: idempotencyKey,
+});
+
+export const guarantorNominateSchema = z.object({
+  guarantor_member_ids: z.array(uuid).min(1, "Select at least one guarantor"),
+});
+
+export const loanApplicationRejectSchema = z.object({
+  reason: z.string().trim().min(1, "A reason is required").max(1000),
 });
 
 export const loanRepaymentSchema = z.object({
@@ -112,6 +116,41 @@ export type LoanWriteOffInput = z.infer<typeof loanWriteOffSchema>;
 export type LoanRecoveryInput = z.infer<typeof loanRecoverySchema>;
 export type LoanProductInput = z.infer<typeof loanProductSchema>;
 export type LoanProductPatchInput = z.infer<typeof loanProductPatchSchema>;
+export type GuarantorNominateInput = z.infer<typeof guarantorNominateSchema>;
+export type LoanApplicationRejectInput = z.infer<typeof loanApplicationRejectSchema>;
+
+// Mirror app/modules/credit/schemas.py. Decimals/uuids/datetimes are JSON strings.
+export interface LoanApplicationOut {
+  id: string;
+  loan_product_id: string;
+  member_id: string;
+  requested_amount: string;
+  requested_term_periods: number;
+  approved_amount: string | null;
+  approved_term_periods: number | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  purpose: string | null;
+  disbursement_destination: string;
+  disbursement_account_id: string | null;
+  status: string;
+  rejection_reason: string | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  approval_request_id: string | null;
+  idempotency_key: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GuarantorOut {
+  id: string;
+  loan_application_id: string;
+  guarantor_member_id: string;
+  guaranteed_amount: string;
+  status: string;
+  consented_at: string | null;
+}
 
 // Mirror app/modules/credit/schemas.py::LoanProductOut. Decimals are JSON strings.
 export interface LoanProductOut {

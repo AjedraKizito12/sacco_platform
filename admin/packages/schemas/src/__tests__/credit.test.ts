@@ -8,6 +8,10 @@ import {
   loanRestructureSchema,
   loanWriteOffSchema,
   disbursementDestinationSchema,
+  guarantorNominateSchema,
+  loanApplicationRejectSchema,
+  type GuarantorOut,
+  type LoanApplicationOut,
   type LoanProductOut,
 } from "../credit";
 
@@ -16,7 +20,7 @@ describe("loanApplicationSchema", () => {
     loan_product_id: "550e8400-e29b-41d4-a716-446655440000",
     member_id: "550e8400-e29b-41d4-a716-446655440001",
     requested_amount: "1000000.00",
-    requested_term_periods: 12,
+    requested_term_periods: "12",
     purpose: "Working capital for the family shop",
     disbursement_destination: "member_savings",
     disbursement_account_id: "550e8400-e29b-41d4-a716-446655440002",
@@ -33,18 +37,15 @@ describe("loanApplicationSchema", () => {
     ).toThrow();
   });
 
-  it("rejects fractional term periods", () => {
+  it("rejects a non-numeric term", () => {
     expect(() =>
-      loanApplicationSchema.parse({ ...ok, requested_term_periods: 12.5 }),
+      loanApplicationSchema.parse({ ...ok, requested_term_periods: "12.5" }),
     ).toThrow();
   });
 
-  it("rejects out-of-range term", () => {
+  it("rejects a zero term", () => {
     expect(() =>
-      loanApplicationSchema.parse({ ...ok, requested_term_periods: 0 }),
-    ).toThrow();
-    expect(() =>
-      loanApplicationSchema.parse({ ...ok, requested_term_periods: 400 }),
+      loanApplicationSchema.parse({ ...ok, requested_term_periods: "0" }),
     ).toThrow();
   });
 });
@@ -164,5 +165,77 @@ describe("LoanProductOut", () => {
       updated_at: "2026-06-21T00:00:00Z",
     };
     expect(p.max_term_periods).toBe(24);
+  });
+});
+
+
+describe("application + guarantor schemas (3d-2)", () => {
+  const base = {
+    loan_product_id: "550e8400-e29b-41d4-a716-446655440000",
+    member_id: "550e8400-e29b-41d4-a716-446655440001",
+    requested_amount: "1000000.00",
+    purpose: "Working capital for the family shop",
+    disbursement_destination: "member_savings",
+    idempotency_key: "1234567890ab",
+  };
+
+  it("accepts an integer-string term and rejects a non-numeric one", () => {
+    expect(
+      loanApplicationSchema.safeParse({ ...base, requested_term_periods: "12" }).success,
+    ).toBe(true);
+    expect(
+      loanApplicationSchema.safeParse({ ...base, requested_term_periods: "x" }).success,
+    ).toBe(false);
+  });
+
+  it("guarantorNominateSchema requires at least one member", () => {
+    expect(guarantorNominateSchema.safeParse({ guarantor_member_ids: [] }).success).toBe(false);
+    expect(
+      guarantorNominateSchema.safeParse({
+        guarantor_member_ids: ["550e8400-e29b-41d4-a716-446655440009"],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("loanApplicationRejectSchema requires a reason", () => {
+    expect(loanApplicationRejectSchema.safeParse({ reason: "" }).success).toBe(false);
+    expect(
+      loanApplicationRejectSchema.safeParse({ reason: "Insufficient collateral" }).success,
+    ).toBe(true);
+  });
+
+  it("read types are structurally usable", () => {
+    const a: LoanApplicationOut = {
+      id: "a1",
+      loan_product_id: "p1",
+      member_id: "m1",
+      requested_amount: "1000000.0000",
+      requested_term_periods: 12,
+      approved_amount: null,
+      approved_term_periods: null,
+      reviewed_by: null,
+      reviewed_at: null,
+      purpose: "x",
+      disbursement_destination: "member_savings",
+      disbursement_account_id: null,
+      status: "pending",
+      rejection_reason: null,
+      decided_by: null,
+      decided_at: null,
+      approval_request_id: "r1",
+      idempotency_key: "k",
+      created_at: "t",
+      updated_at: "t",
+    };
+    const g: GuarantorOut = {
+      id: "g1",
+      loan_application_id: "a1",
+      guarantor_member_id: "m2",
+      guaranteed_amount: "500000.0000",
+      status: "pending",
+      consented_at: null,
+    };
+    expect(a.status).toBe("pending");
+    expect(g.status).toBe("pending");
   });
 });
