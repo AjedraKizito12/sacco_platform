@@ -15,23 +15,28 @@ vi.mock("@/auth/use-auth", () => ({
 
 import {
   CreateApplicationForm,
+  type GlAccountOption,
   type MemberOption,
   type ProductOption,
 } from "../../../app/(tenant-authed)/credit/applications/new/_components/CreateApplicationForm";
 
 const MEMBER = "550e8400-e29b-41d4-a716-446655440001";
 const PRODUCT = "550e8400-e29b-41d4-a716-446655440003";
+const GL = "550e8400-e29b-41d4-a716-446655440050";
 const members: MemberOption[] = [
   { id: MEMBER, full_name: "Ada Loan", member_number: "M-0001" },
 ];
 const products: ProductOption[] = [{ id: PRODUCT, name: "Personal Loan" }];
+const glAccounts: GlAccountOption[] = [
+  { id: GL, code: "1010", name: "Cash in Hand", account_type: "asset" },
+];
 
 function renderForm() {
   const qc = new QueryClient();
   return render(
     <QueryClientProvider client={qc}>
       <TenantCurrencyProvider currency="UGX" timeZone="Africa/Kampala">
-        <CreateApplicationForm members={members} products={products} />
+        <CreateApplicationForm members={members} products={products} glAccounts={glAccounts} />
       </TenantCurrencyProvider>
       <Toaster />
     </QueryClientProvider>,
@@ -60,6 +65,8 @@ describe("CreateApplicationForm", () => {
     await userEvent.type(screen.getByLabelText(/requested amount/i), "1000000");
     await userEvent.type(screen.getByLabelText(/term/i), "12");
     await userEvent.type(screen.getByLabelText(/purpose/i), "Working capital for the shop");
+    await userEvent.click(screen.getByLabelText(/disbursement account/i));
+    await userEvent.click(await screen.findByRole("option", { name: /Cash in Hand/ }));
     await userEvent.click(screen.getByRole("button", { name: /submit application/i }));
 
     expect(await screen.findByText(/application submitted/i)).toBeInTheDocument();
@@ -69,7 +76,8 @@ describe("CreateApplicationForm", () => {
         member_id: MEMBER,
         requested_amount: "1000000",
         requested_term_periods: "12",
-        disbursement_destination: "member_savings",
+        disbursement_destination: "cash",
+        disbursement_account_id: GL,
       }),
     );
     expect(push).toHaveBeenCalledWith("/credit/applications/a9");

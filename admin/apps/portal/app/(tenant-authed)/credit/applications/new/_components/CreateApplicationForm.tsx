@@ -36,14 +36,22 @@ export interface ProductOption {
   id: string;
   name: string;
 }
+export interface GlAccountOption {
+  id: string;
+  code: string;
+  name: string;
+  account_type: string;
+}
 
 export function CreateApplicationForm({
   members,
   products,
+  glAccounts,
   defaultMemberId,
 }: {
   members: MemberOption[];
   products: ProductOption[];
+  glAccounts: GlAccountOption[];
   defaultMemberId?: string;
 }) {
   const router = useRouter();
@@ -58,7 +66,8 @@ export function CreateApplicationForm({
       requested_amount: "",
       requested_term_periods: "",
       purpose: "",
-      disbursement_destination: "member_savings",
+      disbursement_destination: "cash",
+      disbursement_account_id: "",
       idempotency_key: idemKey,
     },
   });
@@ -141,9 +150,21 @@ export function CreateApplicationForm({
               <SelectValue placeholder="Choose…" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="member_savings">Member savings</SelectItem>
               <SelectItem value="cash">Cash</SelectItem>
               <SelectItem value="internal_gl">Internal GL</SelectItem>
+            </SelectContent>
+          </Select>
+        )} />
+      <FormField control={form.control} name="disbursement_account_id" label="Disbursement account" required
+        render={({ field, id, describedBy, invalid }) => (
+          <Select value={field.value ?? ""} onValueChange={field.onChange}>
+            <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
+              <SelectValue placeholder="Choose a GL account…" />
+            </SelectTrigger>
+            <SelectContent>
+              {glAccounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>{a.code} — {a.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         )} />
