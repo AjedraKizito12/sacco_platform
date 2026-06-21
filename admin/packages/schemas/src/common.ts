@@ -53,6 +53,19 @@ export const percentageString = (opts?: { min?: number; max?: number }) => {
     .refine((v) => Number.parseFloat(v) <= max, `Must be ≤ ${max}`);
 };
 
+/** Whole-number string (integer-as-string on the wire; Pydantic lax-coerces). */
+export const intString = (opts?: { min?: number }) => {
+  let schema: z.ZodType<string> = z
+    .string()
+    .trim()
+    .regex(/^\d+$/, "Must be a whole number");
+  if (opts?.min !== undefined) {
+    const m = opts.min;
+    schema = schema.refine((v) => Number.parseInt(v, 10) >= m, `Must be ≥ ${m}`);
+  }
+  return schema;
+};
+
 /** ISO-3 currency code, uppercase. UGX-only in v1 but kept flexible. */
 export const currencyCode = z
   .string()
