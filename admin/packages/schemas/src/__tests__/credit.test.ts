@@ -10,6 +10,8 @@ import {
   disbursementDestinationSchema,
   guarantorNominateSchema,
   loanApplicationRejectSchema,
+  payrollBatchSchema,
+  restructuringTypeSchema,
   type GuarantorOut,
   type LoanApplicationOut,
   type LoanProductOut,
@@ -17,6 +19,10 @@ import {
   type LoanInstallmentOut,
   type LoanRepaymentOut,
   type LoanStatementOut,
+  type PayrollBatchOut,
+  type RestructuringOut,
+  type WriteOffOut,
+  type LoanRecoveryOut,
 } from "../credit";
 
 describe("loanApplicationSchema", () => {
@@ -299,5 +305,51 @@ describe("loans servicing schemas (3d-3)", () => {
     expect(inst.period_number).toBe(1);
     expect(rep.amount).toBe("95000.0000");
     expect(st.lines.length).toBe(1);
+  });
+});
+
+
+describe("workout + payroll schemas (3d-4)", () => {
+  it("restructuring type matches the backend (term_extension/payment_holiday)", () => {
+    expect(restructuringTypeSchema.safeParse("payment_holiday").success).toBe(true);
+    expect(restructuringTypeSchema.safeParse("term_extension").success).toBe(true);
+    expect(restructuringTypeSchema.safeParse("principal_holiday").success).toBe(false);
+  });
+  it("loanRestructureSchema accepts an integer-string periods_added", () => {
+    const ok = {
+      restructuring_type: "term_extension",
+      periods_added: "3",
+      reason: "Borrower lost job, extending the term to ease repayment",
+      idempotency_key: "1234567890ab",
+    };
+    expect(loanRestructureSchema.safeParse(ok).success).toBe(true);
+    expect(loanRestructureSchema.safeParse({ ...ok, periods_added: "x" }).success).toBe(false);
+  });
+  it("payrollBatchSchema requires at least one row", () => {
+    const row = { member_id: "550e8400-e29b-41d4-a716-446655440001", amount: "50000" };
+    const cl = "550e8400-e29b-41d4-a716-446655440099";
+    expect(
+      payrollBatchSchema.safeParse({ rows: [], clearing_account_id: cl, idempotency_key: "1234567890ab" }).success,
+    ).toBe(false);
+    expect(
+      payrollBatchSchema.safeParse({ rows: [row], clearing_account_id: cl, idempotency_key: "1234567890ab" }).success,
+    ).toBe(true);
+  });
+  it("read types are structurally usable", () => {
+    const w: WriteOffOut = { direct: true, approval_request_id: null, journal_entry_id: "j1" };
+    const r: LoanRecoveryOut = { journal_entry_id: "j2" };
+    const rs: RestructuringOut = {
+      id: "rs1", loan_id: "l1", restructuring_type: "term_extension", periods_added: 3,
+      new_term_periods: 15, new_maturity_date: "2027-09-01", reason: "x", executed_at: "2026-06-21T00:00:00Z",
+    };
+    const pb: PayrollBatchOut = {
+      id: "b1", reference: "PB-202606-0001", status: "pending_review", total_rows: 2,
+      matched_rows: 2, unmatched_rows: 0, total_amount: "100000.0000", source_format: "json",
+      approval_request_id: null,
+    };
+    expect(w.direct).toBe(true);
+    expect(r.journal_entry_id).toBe("j2");
+    expect(rs.periods_added).toBe(3);
+    expect(pb.status).toBe("pending_review");
   });
 });

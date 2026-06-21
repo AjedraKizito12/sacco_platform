@@ -18,7 +18,8 @@ export type StatusEntity =
   | "jwt_key"
   | "tenant_user"
   | "loan_application"
-  | "guarantor";
+  | "guarantor"
+  | "payroll_batch";
 
 interface MapEntry {
   variant: NonNullable<BadgeProps["variant"]>;
@@ -147,6 +148,12 @@ export const GUARANTOR_STATUS: StatusMap = {
   released: { variant: "neutral", label: "Released" },
 };
 
+export const PAYROLL_BATCH_STATUS: StatusMap = {
+  pending_review: { variant: "info", label: "Pending review" },
+  applied: { variant: "success", label: "Applied" },
+  rejected: { variant: "danger", label: "Rejected" },
+};
+
 const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   loan: LOAN_STATUS,
   member: MEMBER_STATUS,
@@ -163,6 +170,7 @@ const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   tenant_user: TENANT_USER_STATUS,
   loan_application: LOAN_APPLICATION_STATUS,
   guarantor: GUARANTOR_STATUS,
+  payroll_batch: PAYROLL_BATCH_STATUS,
 };
 
 export function resolveStatus(

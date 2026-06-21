@@ -24,6 +24,9 @@ export default async function CreditProductsPage() {
           <Button asChild variant="secondary">
             <Link href="/credit/loans">Loans</Link>
           </Button>
+          <Button asChild variant="secondary">
+            <Link href="/credit/payroll/new">Payroll</Link>
+          </Button>
           <Button asChild>
             <Link href="/credit/products/new">Create product</Link>
           </Button>
