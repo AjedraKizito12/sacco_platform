@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { Card, FormattedDate, StatusBadge } from "@sacco/ui";
 import type {
+  LoanOut,
   MemberOut,
   SavingsAccountOut,
   ShareAccountListItemOut,
@@ -11,6 +12,7 @@ import { getTenantPageContext } from "@/auth/server-page-context";
 import { ChangeMemberStatusButton } from "./_components/ChangeMemberStatusButton";
 import { MemberSavingsSection } from "./_components/MemberSavingsSection";
 import { MemberSharesSection } from "./_components/MemberSharesSection";
+import { MemberLoansSection } from "./_components/MemberLoansSection";
 
 export const metadata = { title: "Member" };
 
@@ -38,17 +40,22 @@ export default async function MemberDetailPage({
 }) {
   const { id } = await params;
   const { resources } = await getTenantPageContext();
-  const [{ data }, { data: accounts }, { data: shareAccounts }] = await Promise.all([
-    resources.members.get(id) as Promise<{ data?: MemberOut; error?: unknown }>,
-    resources.savings.listAccounts({ member_id: id }) as Promise<{
-      data?: SavingsAccountOut[];
-      error?: unknown;
-    }>,
-    resources.shares.listAccounts({ member_id: id }) as Promise<{
-      data?: ShareAccountListItemOut[];
-      error?: unknown;
-    }>,
-  ]);
+  const [{ data }, { data: accounts }, { data: shareAccounts }, { data: loans }] =
+    await Promise.all([
+      resources.members.get(id) as Promise<{ data?: MemberOut; error?: unknown }>,
+      resources.savings.listAccounts({ member_id: id }) as Promise<{
+        data?: SavingsAccountOut[];
+        error?: unknown;
+      }>,
+      resources.shares.listAccounts({ member_id: id }) as Promise<{
+        data?: ShareAccountListItemOut[];
+        error?: unknown;
+      }>,
+      resources.credit.listLoans({ member_id: id }) as Promise<{
+        data?: LoanOut[];
+        error?: unknown;
+      }>,
+    ]);
   if (!data) notFound();
 
   return (
@@ -91,6 +98,7 @@ export default async function MemberDetailPage({
 
       <MemberSavingsSection memberId={data.id} accounts={accounts ?? []} />
       <MemberSharesSection memberId={data.id} accounts={shareAccounts ?? []} />
+      <MemberLoansSection loans={loans ?? []} />
     </div>
   );
 }
