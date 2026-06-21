@@ -4,6 +4,7 @@ import { tenants } from "./tenants";
 import { billing } from "./billing";
 import { members } from "./members";
 import { savings } from "./savings";
+import { shares } from "./shares";
 import { credit } from "./credit";
 import { fees } from "./fees";
 import { ledger } from "./ledger";
@@ -21,6 +22,7 @@ export function buildResources(api: FetchClient) {
     billing: billing(api),
     members: members(api),
     savings: savings(api),
+    shares: shares(api),
     credit: credit(api),
     fees: fees(api),
     ledger: ledger(api),

@@ -2,10 +2,15 @@
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { Card, FormattedDate, StatusBadge } from "@sacco/ui";
-import type { MemberOut, SavingsAccountOut } from "@sacco/schemas";
+import type {
+  MemberOut,
+  SavingsAccountOut,
+  ShareAccountListItemOut,
+} from "@sacco/schemas";
 import { getTenantPageContext } from "@/auth/server-page-context";
 import { ChangeMemberStatusButton } from "./_components/ChangeMemberStatusButton";
 import { MemberSavingsSection } from "./_components/MemberSavingsSection";
+import { MemberSharesSection } from "./_components/MemberSharesSection";
 
 export const metadata = { title: "Member" };
 
@@ -33,10 +38,14 @@ export default async function MemberDetailPage({
 }) {
   const { id } = await params;
   const { resources } = await getTenantPageContext();
-  const [{ data }, { data: accounts }] = await Promise.all([
+  const [{ data }, { data: accounts }, { data: shareAccounts }] = await Promise.all([
     resources.members.get(id) as Promise<{ data?: MemberOut; error?: unknown }>,
     resources.savings.listAccounts({ member_id: id }) as Promise<{
       data?: SavingsAccountOut[];
+      error?: unknown;
+    }>,
+    resources.shares.listAccounts({ member_id: id }) as Promise<{
+      data?: ShareAccountListItemOut[];
       error?: unknown;
     }>,
   ]);
@@ -81,6 +90,7 @@ export default async function MemberDetailPage({
       </Card>
 
       <MemberSavingsSection memberId={data.id} accounts={accounts ?? []} />
+      <MemberSharesSection memberId={data.id} accounts={shareAccounts ?? []} />
     </div>
   );
 }

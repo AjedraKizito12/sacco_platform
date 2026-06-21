@@ -65,6 +65,18 @@ class ShareAccountWithBalanceOut(ShareAccountOut):
     total_value: Decimal
 
 
+class ShareAccountListItemOut(BaseModel):
+    id: uuid.UUID
+    member_id: uuid.UUID
+    share_product_id: uuid.UUID
+    product_name: str
+    par_value: Decimal
+    shares_held: int
+    total_value: Decimal
+
+    model_config = {"from_attributes": True}
+
+
 class ShareTransactionOut(BaseModel):
     id: uuid.UUID
     share_account_id: uuid.UUID
