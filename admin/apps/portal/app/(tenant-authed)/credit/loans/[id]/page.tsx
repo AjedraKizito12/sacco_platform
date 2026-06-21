@@ -16,11 +16,14 @@ import type {
   LoanRepaymentOut,
   LoanStatementOut,
   MemberOut,
+  RestructuringOut,
 } from "@sacco/schemas";
 import { getTenantPageContext } from "@/auth/server-page-context";
 import { RecordRepaymentButton, type GlAccountOption } from "./_components/RecordRepaymentButton";
+import { LoanWorkoutActions } from "./_components/LoanWorkoutActions";
 import { ScheduleTable } from "./_components/ScheduleTable";
 import { RepaymentsTable } from "./_components/RepaymentsTable";
+import { RestructuringsTable } from "./_components/RestructuringsTable";
 import { StatementTable } from "./_components/StatementTable";
 
 export const metadata = { title: "Loan" };
@@ -48,14 +51,21 @@ export default async function LoanDetailPage({
   }>);
   if (!loan) notFound();
 
-  const [{ data: schedule }, { data: repayments }, { data: statement }, { data: members }, { data: accounts }] =
-    await Promise.all([
-      resources.credit.getSchedule(id) as Promise<{ data?: LoanInstallmentOut[]; error?: unknown }>,
-      resources.credit.listRepayments(id) as Promise<{ data?: LoanRepaymentOut[]; error?: unknown }>,
-      resources.credit.getStatement(id) as Promise<{ data?: LoanStatementOut; error?: unknown }>,
-      resources.members.list({}) as Promise<{ data?: MemberOut[]; error?: unknown }>,
-      resources.ledger.listAccounts({}) as Promise<{ data?: GlAccountOption[]; error?: unknown }>,
-    ]);
+  const [
+    { data: schedule },
+    { data: repayments },
+    { data: statement },
+    { data: members },
+    { data: accounts },
+    { data: restructurings },
+  ] = await Promise.all([
+    resources.credit.getSchedule(id) as Promise<{ data?: LoanInstallmentOut[]; error?: unknown }>,
+    resources.credit.listRepayments(id) as Promise<{ data?: LoanRepaymentOut[]; error?: unknown }>,
+    resources.credit.getStatement(id) as Promise<{ data?: LoanStatementOut; error?: unknown }>,
+    resources.members.list({}) as Promise<{ data?: MemberOut[]; error?: unknown }>,
+    resources.ledger.listAccounts({}) as Promise<{ data?: GlAccountOption[]; error?: unknown }>,
+    resources.credit.listRestructurings(id) as Promise<{ data?: RestructuringOut[]; error?: unknown }>,
+  ]);
 
   const m = (members ?? []).find((mm) => mm.id === loan.member_id);
   const memberLabel = m ? `${m.full_name} (${m.member_number})` : loan.member_id;
@@ -67,7 +77,10 @@ export default async function LoanDetailPage({
           <h1 className="text-[var(--text-h3)] font-semibold">{loan.loan_reference}</h1>
           <StatusBadge entity="loan" status={loan.status} />
         </div>
-        <RecordRepaymentButton loanId={id} glAccounts={accounts ?? []} />
+        <div className="flex items-center gap-2">
+          <LoanWorkoutActions loanId={id} status={loan.status} glAccounts={accounts ?? []} />
+          <RecordRepaymentButton loanId={id} glAccounts={accounts ?? []} />
+        </div>
       </div>
 
       <Card className="flex flex-col gap-3 p-6">
@@ -110,6 +123,11 @@ export default async function LoanDetailPage({
       <div className="flex flex-col gap-3">
         <h2 className="text-[var(--text-h5)] font-semibold">Repayments</h2>
         <RepaymentsTable rows={repayments ?? []} />
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <h2 className="text-[var(--text-h5)] font-semibold">Restructurings</h2>
+        <RestructuringsTable rows={restructurings ?? []} />
       </div>
 
       <div className="flex flex-col gap-3">
