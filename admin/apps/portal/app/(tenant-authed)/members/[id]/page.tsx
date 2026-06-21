@@ -2,9 +2,10 @@
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { Card, FormattedDate, StatusBadge } from "@sacco/ui";
-import type { MemberOut } from "@sacco/schemas";
+import type { MemberOut, SavingsAccountOut } from "@sacco/schemas";
 import { getTenantPageContext } from "@/auth/server-page-context";
 import { ChangeMemberStatusButton } from "./_components/ChangeMemberStatusButton";
+import { MemberSavingsSection } from "./_components/MemberSavingsSection";
 
 export const metadata = { title: "Member" };
 
@@ -32,10 +33,13 @@ export default async function MemberDetailPage({
 }) {
   const { id } = await params;
   const { resources } = await getTenantPageContext();
-  const { data } = await (resources.members.get(id) as Promise<{
-    data?: MemberOut;
-    error?: unknown;
-  }>);
+  const [{ data }, { data: accounts }] = await Promise.all([
+    resources.members.get(id) as Promise<{ data?: MemberOut; error?: unknown }>,
+    resources.savings.listAccounts({ member_id: id }) as Promise<{
+      data?: SavingsAccountOut[];
+      error?: unknown;
+    }>,
+  ]);
   if (!data) notFound();
 
   return (
@@ -75,6 +79,8 @@ export default async function MemberDetailPage({
         <Row label="ID issued">{dateOrDash(data.id_issued_date)}</Row>
         <Row label="ID expiry">{dateOrDash(data.id_expiry_date)}</Row>
       </Card>
+
+      <MemberSavingsSection memberId={data.id} accounts={accounts ?? []} />
     </div>
   );
 }
