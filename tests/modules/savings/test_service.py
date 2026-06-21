@@ -206,6 +206,30 @@ async def test_open_account_returns_account_with_snapshots(test_engine):
         await _cleanup(test_engine)
 
 
+async def test_list_accounts_returns_all_and_filters_by_member(test_engine):
+    _, liability_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, liability_id)
+    member_a = await _setup_member(test_engine)
+    member_b = await _setup_member(test_engine)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = SavingsService(session)
+        await svc.open_account(member_id=member_a, savings_product_id=product_id)
+        await svc.open_account(member_id=member_b, savings_product_id=product_id)
+        await session.commit()
+
+        all_accounts = await svc.list_accounts()
+        assert len(all_accounts) >= 2
+
+        only_a = await svc.list_accounts(member_id=member_a)
+        assert len(only_a) == 1
+        assert only_a[0].member_id == member_a
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
 async def test_open_account_duplicate_raises(test_engine):
     _, liability_id = await _setup_gl_accounts(test_engine)
     product_id = await _setup_product(test_engine, liability_id)

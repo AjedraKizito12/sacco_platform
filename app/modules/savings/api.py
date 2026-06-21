@@ -87,6 +87,17 @@ async def open_account(
     return SavingsAccountOut.model_validate(account)
 
 
+@router.get("/accounts", response_model=list[SavingsAccountOut])
+async def list_accounts(
+    session: Session,
+    user: CurrentTenantUser,
+    member_id: uuid.UUID | None = None,
+) -> list[SavingsAccountOut]:
+    svc = SavingsService(session)
+    accounts = await svc.list_accounts(member_id=member_id)
+    return [SavingsAccountOut.model_validate(a) for a in accounts]
+
+
 @router.get("/accounts/{account_id}", response_model=SavingsAccountWithBalanceOut)
 async def get_account(
     account_id: uuid.UUID, session: Session, user: CurrentTenantUser
