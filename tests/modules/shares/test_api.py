@@ -301,3 +301,30 @@ async def test_get_product_returns_200(client):
     data = resp.json()
     assert data["id"] == product_id
     assert data["name"] == "Ordinary Shares"
+
+
+async def test_list_accounts_returns_200_and_filters(client):
+    equity_id = await _create_gl_account(
+        client, f"3-{uuid.uuid4().hex[:6]}", "Share Capital", "equity"
+    )
+    product_id = await _create_product(client, equity_id)
+    member_a = await _create_member(client)
+    member_b = await _create_member(client)
+    await _open_account(client, product_id, member_a)
+    await _open_account(client, product_id, member_b)
+
+    resp = await client.get("/shares/accounts", headers=HEADERS)
+    assert resp.status_code == 200, resp.text
+    assert isinstance(resp.json(), list)
+    assert len(resp.json()) >= 2
+    assert "product_name" in resp.json()[0]
+    assert "shares_held" in resp.json()[0]
+
+    resp_a = await client.get(
+        "/shares/accounts", params={"member_id": member_a}, headers=HEADERS
+    )
+    assert resp_a.status_code == 200, resp_a.text
+    data = resp_a.json()
+    assert len(data) == 1
+    assert data[0]["member_id"] == member_a
+    assert data[0]["product_name"] == "Ordinary Shares"

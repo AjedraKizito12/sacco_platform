@@ -529,3 +529,38 @@ async def test_executor_redeems_shares_and_posts_gl(test_engine):
         await session4.close()
         await _cleanup_approvals(test_engine)
         await _cleanup(test_engine)
+
+
+async def test_list_accounts_returns_holdings_and_filters_by_member(test_engine):
+    cash_id, equity_id = await _setup_gl_accounts(test_engine)
+    product_id = await _setup_product(test_engine, equity_id)
+    member_a = await _setup_member(test_engine)
+    member_b = await _setup_member(test_engine)
+
+    session = await _new_session(test_engine)
+    try:
+        svc = ShareService(session)
+        acct_a = await svc.open_account(member_id=member_a, share_product_id=product_id)
+        await svc.open_account(member_id=member_b, share_product_id=product_id)
+        await svc.purchase_shares(
+            share_account_id=acct_a.id,
+            quantity=5,
+            payment_account_id=cash_id,
+            posted_by=uuid.uuid4(),
+            idempotency_key=uuid.uuid4().hex,
+        )
+        await session.commit()
+
+        all_accounts = await svc.list_accounts()
+        assert len(all_accounts) >= 2
+
+        only_a = await svc.list_accounts(member_id=member_a)
+        assert len(only_a) == 1
+        row = only_a[0]
+        assert row.member_id == member_a
+        assert row.product_name == "Ordinary Shares"
+        assert row.shares_held == 5
+        assert row.total_value == Decimal("5000.00")  # 5 × 1000.00 par
+    finally:
+        await session.close()
+        await _cleanup(test_engine)

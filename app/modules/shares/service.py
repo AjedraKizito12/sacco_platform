@@ -2,15 +2,27 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from decimal import Decimal
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.shares.models import MemberShareAccount, ShareProduct, ShareTransaction
 
 _log = structlog.get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class ShareAccountListItem:
+    id: uuid.UUID
+    member_id: uuid.UUID
+    share_product_id: uuid.UUID
+    product_name: str
+    par_value: Decimal
+    shares_held: int
+    total_value: Decimal
 
 
 class ShareService:
@@ -135,6 +147,59 @@ class ShareService:
         shares_held = int(purchased) - int(redeemed)
         total_value = Decimal(shares_held) * product.par_value
         return shares_held, total_value
+
+    async def list_accounts(
+        self, *, member_id: uuid.UUID | None = None
+    ) -> list[ShareAccountListItem]:
+        net = func.coalesce(
+            func.sum(
+                case(
+                    (
+                        ShareTransaction.transaction_type == "purchase",
+                        ShareTransaction.quantity,
+                    ),
+                    (
+                        ShareTransaction.transaction_type == "redemption",
+                        -ShareTransaction.quantity,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("shares_held")
+        tx = (
+            select(ShareTransaction.share_account_id.label("acct_id"), net)
+            .group_by(ShareTransaction.share_account_id)
+            .subquery()
+        )
+        q = (
+            select(
+                MemberShareAccount.id,
+                MemberShareAccount.member_id,
+                MemberShareAccount.share_product_id,
+                ShareProduct.name.label("product_name"),
+                ShareProduct.par_value,
+                func.coalesce(tx.c.shares_held, 0).label("shares_held"),
+            )
+            .join(ShareProduct, ShareProduct.id == MemberShareAccount.share_product_id)
+            .outerjoin(tx, tx.c.acct_id == MemberShareAccount.id)
+            .order_by(ShareProduct.name, MemberShareAccount.id)
+        )
+        if member_id is not None:
+            q = q.where(MemberShareAccount.member_id == member_id)
+        rows = (await self._session.execute(q)).all()
+        return [
+            ShareAccountListItem(
+                id=r.id,
+                member_id=r.member_id,
+                share_product_id=r.share_product_id,
+                product_name=r.product_name,
+                par_value=r.par_value,
+                shares_held=int(r.shares_held),
+                total_value=Decimal(int(r.shares_held)) * r.par_value,
+            )
+            for r in rows
+        ]
 
     # ── Transactions ──────────────────────────────────────────────────────────
 

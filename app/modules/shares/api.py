@@ -13,6 +13,7 @@ from app.modules.shares.schemas import (
     PurchaseSharesIn,
     RedeemSharesIn,
     RedemptionOut,
+    ShareAccountListItemOut,
     ShareAccountOut,
     ShareAccountWithBalanceOut,
     ShareProductIn,
@@ -86,6 +87,17 @@ async def open_account(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return ShareAccountOut.model_validate(account)
+
+
+@router.get("/accounts", response_model=list[ShareAccountListItemOut])
+async def list_accounts(
+    session: Session,
+    user: CurrentTenantUser,
+    member_id: uuid.UUID | None = None,
+) -> list[ShareAccountListItemOut]:
+    svc = ShareService(session)
+    items = await svc.list_accounts(member_id=member_id)
+    return [ShareAccountListItemOut.model_validate(i) for i in items]
 
 
 @router.get("/accounts/{account_id}", response_model=ShareAccountWithBalanceOut)
