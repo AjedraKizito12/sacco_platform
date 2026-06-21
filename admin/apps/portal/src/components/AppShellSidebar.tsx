@@ -147,9 +147,9 @@ export function AppShellSidebar({ variant }: AppShellSidebarProps) {
                 active={isActive("/shares")}
               />
               <SidebarItem
-                href="/credit/loans"
+                href="/credit"
                 icon={<Banknote size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Loans"
+                label="Credit"
                 active={isActive("/credit")}
               />
               <SidebarItem
