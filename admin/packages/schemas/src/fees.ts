@@ -57,7 +57,7 @@ export const feeAssessmentSchema = z.object({
   target_type: z.enum(["member", "loan", "savings_account", "share_account"]),
   target_id: uuid,
   period_start: isoDate,
-  period_end: isoDate.optional(),
+  period_end: isoDate.optional().or(z.literal("")),
 });
 
 export const feeCollectionSchema = z.object({
