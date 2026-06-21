@@ -16,7 +16,9 @@ export type StatusEntity =
   | "payment"
   | "platform_user"
   | "jwt_key"
-  | "tenant_user";
+  | "tenant_user"
+  | "loan_application"
+  | "guarantor";
 
 interface MapEntry {
   variant: NonNullable<BadgeProps["variant"]>;
@@ -130,6 +132,21 @@ export const TENANT_USER_STATUS: StatusMap = {
   inactive: { variant: "neutral", label: "Inactive" },
 };
 
+export const LOAN_APPLICATION_STATUS: StatusMap = {
+  pending: { variant: "info", label: "Pending" },
+  approved: { variant: "success", label: "Approved" },
+  rejected: { variant: "danger", label: "Rejected" },
+  withdrawn: { variant: "neutral", label: "Withdrawn" },
+  cancelled: { variant: "neutral", label: "Cancelled" },
+};
+
+export const GUARANTOR_STATUS: StatusMap = {
+  pending: { variant: "info", label: "Pending" },
+  accepted: { variant: "success", label: "Accepted" },
+  declined: { variant: "danger", label: "Declined" },
+  released: { variant: "neutral", label: "Released" },
+};
+
 const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   loan: LOAN_STATUS,
   member: MEMBER_STATUS,
@@ -144,6 +161,8 @@ const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   platform_user: PLATFORM_USER_STATUS,
   jwt_key: JWT_KEY_STATUS,
   tenant_user: TENANT_USER_STATUS,
+  loan_application: LOAN_APPLICATION_STATUS,
+  guarantor: GUARANTOR_STATUS,
 };
 
 export function resolveStatus(

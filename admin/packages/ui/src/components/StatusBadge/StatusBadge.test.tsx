@@ -47,4 +47,14 @@ describe("StatusBadge", () => {
     render(<StatusBadge entity="tenant_user" status="inactive" />);
     expect(screen.getByText("Inactive")).toBeInTheDocument();
   });
+
+  it("renders a loan_application status", () => {
+    render(<StatusBadge entity="loan_application" status="pending" />);
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+  });
+
+  it("renders a guarantor status", () => {
+    render(<StatusBadge entity="guarantor" status="accepted" />);
+    expect(screen.getByText("Accepted")).toBeInTheDocument();
+  });
 });
