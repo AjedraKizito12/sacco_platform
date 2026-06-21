@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import "./globals.css";
 import { Toaster } from "@sacco/ui";
 import { AuthProvider } from "@/auth/AuthProvider";
@@ -33,13 +34,15 @@ export default async function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body>
-        <AuthProvider
-          baseUrl={API_BASE}
-          initialTenantSlug={tenantSlug}
-          initialAuthContext={initialAuthContext}
-        >
-          {children}
-        </AuthProvider>
+        <NuqsAdapter>
+          <AuthProvider
+            baseUrl={API_BASE}
+            initialTenantSlug={tenantSlug}
+            initialAuthContext={initialAuthContext}
+          >
+            {children}
+          </AuthProvider>
+        </NuqsAdapter>
         <Toaster />
       </body>
     </html>
