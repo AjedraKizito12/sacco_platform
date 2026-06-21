@@ -1,12 +1,11 @@
 // admin/packages/schemas/src/credit.ts
 import { z } from "zod";
-import { idempotencyKey, moneyString, percentageString, uuid } from "./common";
+import { idempotencyKey, intString, moneyString, percentageString, uuid } from "./common";
 
 export const disbursementDestinationSchema = z.enum([
-  "savings_account",
+  "member_savings",
   "cash",
-  "bank_transfer",
-  "mobile_money",
+  "internal_gl",
 ]);
 
 export const loanApplicationSchema = z.object({
@@ -76,21 +75,33 @@ export const loanProductSchema = z.object({
   description: z.string().trim().max(1000).optional().or(z.literal("")),
   interest_method: z.enum(["flat", "reducing_balance"]),
   annual_interest_rate: percentageString({ max: 100 }),
-  repayment_frequency: z.enum(["monthly", "quarterly", "annual"]),
-  max_term_periods: z.number().int().min(1).max(360),
-  min_amount: moneyString({ min: "0" }),
-  max_amount: moneyString({ min: "0" }),
-  required_approvals: z.number().int().min(1).max(5),
-  // Detail fields (GL account codes, write_off_threshold) accept simple
-  // string IDs from the backend's product service.
+  repayment_frequency: z.enum([
+    "weekly",
+    "biweekly",
+    "monthly",
+    "quarterly",
+    "lump_sum",
+  ]),
+  max_term_periods: intString({ min: 1 }),
+  min_amount: moneyString({ min: "0.01" }),
+  max_amount: moneyString({ min: "0.01" }),
+  required_approvals: intString({ min: 1 }),
+  repayment_allocation: z.enum(["INTEREST_PRINCIPAL"]),
+  disbursement_destinations: z.array(disbursementDestinationSchema).min(1),
+  // GL account codes (strings) from the ledger; write_off_threshold is money.
   gl_principal_receivable_code: z.string().trim().min(1).max(20),
   gl_interest_receivable_code: z.string().trim().min(1).max(20),
   gl_interest_income_code: z.string().trim().min(1).max(20),
-  gl_loan_loss_expense_code: z.string().trim().min(1).max(20),
+  gl_loan_loss_expense_code: z.string().trim().max(20).optional().or(z.literal("")),
   penalty_fee_type_code: z.string().trim().max(40).optional().or(z.literal("")),
-  write_off_threshold: moneyString({ min: "0" }).optional(),
-  disbursement_destinations: z.array(disbursementDestinationSchema).min(1),
-  repayment_allocation: z.enum(["principal_first", "interest_first", "fees_first"]),
+  write_off_threshold: moneyString({ min: "0" }).optional().or(z.literal("")),
+});
+
+export const loanProductPatchSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  description: z.string().trim().max(1000).optional().or(z.literal("")),
+  penalty_fee_type_code: z.string().trim().max(40).optional().or(z.literal("")),
+  write_off_threshold: moneyString({ min: "0" }).optional().or(z.literal("")),
 });
 
 export type LoanApplicationInput = z.infer<typeof loanApplicationSchema>;
@@ -100,3 +111,29 @@ export type LoanRestructureInput = z.infer<typeof loanRestructureSchema>;
 export type LoanWriteOffInput = z.infer<typeof loanWriteOffSchema>;
 export type LoanRecoveryInput = z.infer<typeof loanRecoverySchema>;
 export type LoanProductInput = z.infer<typeof loanProductSchema>;
+export type LoanProductPatchInput = z.infer<typeof loanProductPatchSchema>;
+
+// Mirror app/modules/credit/schemas.py::LoanProductOut. Decimals are JSON strings.
+export interface LoanProductOut {
+  id: string;
+  name: string;
+  description: string | null;
+  interest_method: string;
+  annual_interest_rate: string;
+  repayment_frequency: string;
+  max_term_periods: number;
+  min_amount: string;
+  max_amount: string;
+  required_approvals: number;
+  disbursement_destinations: string[];
+  repayment_allocation: string;
+  gl_principal_receivable_code: string;
+  gl_interest_receivable_code: string;
+  gl_interest_income_code: string;
+  gl_loan_loss_expense_code: string | null;
+  penalty_fee_type_code: string | null;
+  write_off_threshold: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
