@@ -1,6 +1,11 @@
 // admin/packages/schemas/src/__tests__/savings.test.ts
 import { describe, expect, it } from "vitest";
-import { depositSchema, openAccountSchema, withdrawSchema } from "../savings";
+import {
+  depositSchema,
+  openAccountSchema,
+  withdrawSchema,
+  type SavingsAccountWithBalanceOut,
+} from "../savings";
 
 describe("openAccountSchema", () => {
   it("requires both UUIDs", () => {
@@ -42,5 +47,21 @@ describe("depositSchema", () => {
 describe("withdrawSchema", () => {
   it("uses the same shape as deposit", () => {
     expect(withdrawSchema.shape.amount).toBe(depositSchema.shape.amount);
+  });
+});
+
+describe("savings read types", () => {
+  it("SavingsAccountWithBalanceOut is structurally usable", () => {
+    const a: SavingsAccountWithBalanceOut = {
+      id: "a1",
+      member_id: "m1",
+      savings_product_id: "p1",
+      product_name: "Regular",
+      interest_rate: "5.00",
+      minimum_balance: "500.00",
+      liability_account_id: "g1",
+      balance: "1000.00",
+    };
+    expect(a.balance).toBe("1000.00");
   });
 });

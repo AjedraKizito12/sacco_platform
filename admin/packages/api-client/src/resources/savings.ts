@@ -10,6 +10,8 @@ export function savings(api: FetchClient) {
       api.GET("/savings/products/{product_id}" as never, {
         params: { path: { product_id: id } },
       } as never),
+    listAccounts: (query?: Record<string, unknown>) =>
+      api.GET("/savings/accounts" as never, { params: { query } } as never),
     createAccount: (body: Record<string, unknown>) =>
       api.POST("/savings/accounts" as never, { body } as never),
     getAccount: (id: string) =>

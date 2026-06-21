@@ -28,3 +28,37 @@ export type OpenAccountInput = z.infer<typeof openAccountSchema>;
 export type DepositInput = z.infer<typeof depositSchema>;
 export type WithdrawInput = z.infer<typeof withdrawSchema>;
 export type SavingsProductInput = z.infer<typeof savingsProductSchema>;
+
+// Mirror app/modules/savings/schemas.py. Decimals are JSON strings.
+export interface SavingsProductOut {
+  id: string;
+  name: string;
+  interest_rate: string;
+  minimum_balance: string;
+  liability_account_id: string;
+  is_active: boolean;
+}
+
+export interface SavingsAccountOut {
+  id: string;
+  member_id: string;
+  savings_product_id: string;
+  product_name: string;
+  interest_rate: string;
+  minimum_balance: string;
+  liability_account_id: string;
+}
+
+export interface SavingsAccountWithBalanceOut extends SavingsAccountOut {
+  balance: string;
+}
+
+export interface SavingsTransactionOut {
+  id: string;
+  savings_account_id: string;
+  transaction_type: string;
+  amount: string;
+  narration: string | null;
+  journal_entry_id: string;
+  posted_by: string;
+}
