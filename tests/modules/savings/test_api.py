@@ -311,3 +311,27 @@ async def test_submit_withdrawal_returns_202(client):
     data = resp.json()
     assert "approval_request_id" in data
     assert data["status"] == "pending"
+
+
+async def test_list_accounts_returns_200_and_filters(client):
+    liability_id = await _create_gl_account(
+        client, f"2-{uuid.uuid4().hex[:6]}", "Member Savings", "liability"
+    )
+    product_id = await _create_product(client, liability_id)
+    member_a = await _create_member(client)
+    member_b = await _create_member(client)
+    await _open_account(client, product_id, member_a)
+    await _open_account(client, product_id, member_b)
+
+    resp = await client.get("/savings/accounts", headers=HEADERS)
+    assert resp.status_code == 200, resp.text
+    assert isinstance(resp.json(), list)
+    assert len(resp.json()) >= 2
+
+    resp_a = await client.get(
+        "/savings/accounts", params={"member_id": member_a}, headers=HEADERS
+    )
+    assert resp_a.status_code == 200, resp_a.text
+    data = resp_a.json()
+    assert len(data) == 1
+    assert data[0]["member_id"] == member_a

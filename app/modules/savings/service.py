@@ -122,6 +122,17 @@ class SavingsService:
             raise ValueError(f"Savings account '{savings_account_id}' not found")
         return account
 
+    async def list_accounts(
+        self, *, member_id: uuid.UUID | None = None
+    ) -> list[SavingsAccount]:
+        q = select(SavingsAccount).order_by(
+            SavingsAccount.product_name, SavingsAccount.id
+        )
+        if member_id is not None:
+            q = q.where(SavingsAccount.member_id == member_id)
+        result = await self._session.execute(q)
+        return list(result.scalars().all())
+
     # ── Balance ───────────────────────────────────────────────────────────────
 
     async def get_balance(self, savings_account_id: uuid.UUID) -> Decimal:
