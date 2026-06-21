@@ -19,7 +19,8 @@ export type StatusEntity =
   | "tenant_user"
   | "loan_application"
   | "guarantor"
-  | "payroll_batch";
+  | "payroll_batch"
+  | "report_run";
 
 interface MapEntry {
   variant: NonNullable<BadgeProps["variant"]>;
@@ -154,6 +155,12 @@ export const PAYROLL_BATCH_STATUS: StatusMap = {
   rejected: { variant: "danger", label: "Rejected" },
 };
 
+export const REPORT_RUN_STATUS: StatusMap = {
+  running: { variant: "info", label: "Running" },
+  done: { variant: "success", label: "Done" },
+  failed: { variant: "danger", label: "Failed" },
+};
+
 const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   loan: LOAN_STATUS,
   member: MEMBER_STATUS,
@@ -171,6 +178,7 @@ const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   loan_application: LOAN_APPLICATION_STATUS,
   guarantor: GUARANTOR_STATUS,
   payroll_batch: PAYROLL_BATCH_STATUS,
+  report_run: REPORT_RUN_STATUS,
 };
 
 export function resolveStatus(

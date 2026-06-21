@@ -6,6 +6,7 @@ export * from "./shares";
 export * from "./credit";
 export * from "./billing";
 export * from "./fees";
+export * from "./reporting";
 export * from "./ledger";
 export * from "./platform";
 export * from "./tenants";

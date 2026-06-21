@@ -62,4 +62,9 @@ describe("StatusBadge", () => {
     render(<StatusBadge entity="payroll_batch" status="pending_review" />);
     expect(screen.getByText("Pending review")).toBeInTheDocument();
   });
+
+  it("renders a report_run status", () => {
+    render(<StatusBadge entity="report_run" status="done" />);
+    expect(screen.getByText("Done")).toBeInTheDocument();
+  });
 });
