@@ -57,4 +57,9 @@ describe("StatusBadge", () => {
     render(<StatusBadge entity="guarantor" status="accepted" />);
     expect(screen.getByText("Accepted")).toBeInTheDocument();
   });
+
+  it("renders a payroll_batch status", () => {
+    render(<StatusBadge entity="payroll_batch" status="pending_review" />);
+    expect(screen.getByText("Pending review")).toBeInTheDocument();
+  });
 });
