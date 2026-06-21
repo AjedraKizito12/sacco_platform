@@ -17,9 +17,14 @@ export default async function CreditProductsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-[var(--text-h3)] font-semibold">Loan products</h1>
-        <Button asChild>
-          <Link href="/credit/products/new">Create product</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="secondary">
+            <Link href="/credit/applications">Applications</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/credit/products/new">Create product</Link>
+          </Button>
+        </div>
       </div>
       <ProductsTable rows={data ?? []} />
     </div>
