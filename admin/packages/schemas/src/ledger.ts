@@ -68,3 +68,43 @@ export const manualJournalEntrySchema = z
 export type AccountInput = z.infer<typeof accountSchema>;
 export type ManualJournalEntryInput = z.infer<typeof manualJournalEntrySchema>;
 export type AccountType = z.infer<typeof accountTypeSchema>;
+
+// Mirror app/modules/ledger/schemas.py. Decimals are JSON strings.
+export interface AccountOut {
+  id: string;
+  code: string;
+  name: string;
+  account_type: string;
+  parent_id: string | null;
+  is_active: boolean;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccountWithBalanceOut extends AccountOut {
+  balance: string;
+}
+
+export interface JournalLineOut {
+  id: string;
+  account_id: string;
+  debit_amount: string;
+  credit_amount: string;
+  description: string | null;
+}
+
+export interface JournalEntryOut {
+  id: string;
+  reference: string;
+  description: string;
+  posted_by: string;
+  posted_at: string;
+  idempotency_key: string;
+  lines: JournalLineOut[];
+}
+
+export interface ManualGLSubmitOut {
+  approval_request_id: string;
+  status: string;
+}
