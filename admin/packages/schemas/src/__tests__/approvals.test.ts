@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PLATFORM_OPERATION_LABELS,
+  TENANT_OPERATION_LABELS,
   approveActionSchema,
   operationLabel,
   rejectActionSchema,
@@ -15,9 +16,28 @@ describe("PLATFORM_OPERATION_LABELS", () => {
   });
 });
 
+describe("TENANT_OPERATION_LABELS", () => {
+  it("labels every tenant operation", () => {
+    expect(TENANT_OPERATION_LABELS["members.change_status"]).toBe("Change member status");
+    expect(TENANT_OPERATION_LABELS["savings.withdraw"]).toBe("Withdraw from savings");
+    expect(TENANT_OPERATION_LABELS["shares.redeem_shares"]).toBe("Redeem shares");
+    expect(TENANT_OPERATION_LABELS["credit.approve_application"]).toBe("Approve loan application");
+    expect(TENANT_OPERATION_LABELS["credit.write_off"]).toBe("Write off loan");
+    expect(TENANT_OPERATION_LABELS["credit.restructure_schedule"]).toBe(
+      "Restructure loan schedule",
+    );
+    expect(TENANT_OPERATION_LABELS["credit.apply_payroll_batch"]).toBe("Apply payroll batch");
+    expect(TENANT_OPERATION_LABELS["ledger.post_journal_entry"]).toBe("Post manual GL entry");
+  });
+});
+
 describe("operationLabel", () => {
   it("returns the mapped label when known", () => {
     expect(operationLabel("tenant.suspend")).toBe("Suspend tenant");
+  });
+  it("resolves tenant operations too", () => {
+    expect(operationLabel("members.change_status")).toBe("Change member status");
+    expect(operationLabel("ledger.post_journal_entry")).toBe("Post manual GL entry");
   });
   it("humanizes an unknown operation instead of rendering the raw key", () => {
     expect(operationLabel("widget.frobnicate_thing")).toBe("Frobnicate thing");
