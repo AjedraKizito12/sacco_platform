@@ -60,6 +60,11 @@ export async function clearTenantSlugCookie(): Promise<void> {
   jar.delete(TENANT_SLUG_COOKIE);
 }
 
+export async function getTenantSlugCookie(): Promise<string | null> {
+  const jar = await cookies();
+  return jar.get(TENANT_SLUG_COOKIE)?.value ?? null;
+}
+
 export const IMPERSONATION_COOKIE = "sacco_impersonation";
 
 export interface ImpersonationMarker {

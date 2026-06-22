@@ -4,6 +4,7 @@ import { loginSchema } from "@sacco/schemas";
 import {
   TENANT_REFRESH_COOKIE,
   TENANT_REFRESH_MAX_AGE,
+  getTenantSlugCookie,
   setRefreshCookie,
   setTenantSlugCookie,
 } from "@/auth/cookies";
@@ -20,7 +21,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const tenantSlug = request.headers.get("x-sacco-tenant-slug");
+  // The slug arrives as a header injected by middleware on page requests, but
+  // middleware skips /api routes — so fall back to the sacco_tenant_slug cookie
+  // (middleware persists it on first tenant-context resolution).
+  const tenantSlug =
+    request.headers.get("x-sacco-tenant-slug") ?? (await getTenantSlugCookie());
   if (!tenantSlug) {
     return NextResponse.json(
       { error: "Tenant context missing" },
