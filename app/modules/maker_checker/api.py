@@ -11,7 +11,9 @@ from app.core.db import get_tenant_session
 from app.modules.iam.dependencies import CurrentTenantUser
 from app.modules.maker_checker.models.tenant import TenantApprovalRequest
 from app.modules.maker_checker.schemas import (
+    ApprovalActionOut,
     ApprovalActionRequest,
+    ApprovalRequestDetailOut,
     ApprovalRequestOut,
     RejectRequest,
     SubmitApprovalRequest,
@@ -50,20 +52,29 @@ async def list_approvals(
     user: CurrentTenantUser,
     status: str | None = Query(None),
     operation_type: str | None = Query(None),
+    requested_by: uuid.UUID | None = Query(None),
 ) -> list[ApprovalRequestOut]:
-    q = select(TenantApprovalRequest)
+    q = select(TenantApprovalRequest).order_by(TenantApprovalRequest.requested_at.desc())
     if status:
         q = q.where(TenantApprovalRequest.status == status)
     if operation_type:
         q = q.where(TenantApprovalRequest.operation_type == operation_type)
+    if requested_by is not None:
+        q = q.where(TenantApprovalRequest.requested_by == requested_by)
     rows = (await session.execute(q)).scalars().all()
-    return [ApprovalRequestOut.model_validate(r) for r in rows]
+    svc = ApprovalService(session)
+    out: list[ApprovalRequestOut] = []
+    for r in rows:
+        dto = ApprovalRequestOut.model_validate(r)
+        dto.current_approvals = await svc.approval_count(r.id)
+        out.append(dto)
+    return out
 
 
-@router.get("/{request_id}", response_model=ApprovalRequestOut)
+@router.get("/{request_id}", response_model=ApprovalRequestDetailOut)
 async def get_approval(
     request_id: uuid.UUID, session: Session, user: CurrentTenantUser
-) -> ApprovalRequestOut:
+) -> ApprovalRequestDetailOut:
     row = (
         await session.execute(
             select(TenantApprovalRequest).where(TenantApprovalRequest.id == request_id)
@@ -71,7 +82,11 @@ async def get_approval(
     ).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail="Not found")
-    return ApprovalRequestOut.model_validate(row)
+    svc = ApprovalService(session)
+    dto = ApprovalRequestDetailOut.model_validate(row)
+    dto.current_approvals = await svc.approval_count(row.id)
+    dto.actions = [ApprovalActionOut.model_validate(a) for a in await svc.list_actions(row.id)]
+    return dto
 
 
 @router.post("/{request_id}/approve", response_model=ApprovalRequestOut)

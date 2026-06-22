@@ -156,3 +156,76 @@ async def test_unknown_operation_returns_400(client, maker_id):
         headers=_hdr("test-tenant", maker_id),
     )
     assert resp.status_code == 400
+
+
+async def test_list_enriches_current_approvals(client, maker_id, checker_id):
+    post = await client.post(
+        "/approvals",
+        json={"operation_type": "api.test.op", "payload": {}, "required_approvals": 2},
+        headers=_hdr("test-tenant", maker_id),
+    )
+    assert post.status_code == 201, post.text
+    rid = post.json()["id"]
+    approve = await client.post(
+        f"/approvals/{rid}/approve",
+        json={"comment": "ok"},
+        headers=_hdr("test-tenant", checker_id),
+    )
+    assert approve.status_code == 200, approve.text
+    assert approve.json()["status"] == "pending"  # quorum not met
+
+    listed = await client.get("/approvals", headers=_hdr("test-tenant", maker_id))
+    assert listed.status_code == 200, listed.text
+    row = next(r for r in listed.json() if r["id"] == rid)
+    assert row["current_approvals"] == 1
+    assert row["required_approvals"] == 2
+
+
+async def test_get_returns_actions_trail(client, maker_id, checker_id):
+    post = await client.post(
+        "/approvals",
+        json={"operation_type": "api.test.op", "payload": {}, "required_approvals": 2},
+        headers=_hdr("test-tenant", maker_id),
+    )
+    assert post.status_code == 201, post.text
+    rid = post.json()["id"]
+    await client.post(
+        f"/approvals/{rid}/approve",
+        json={"comment": "looks fine"},
+        headers=_hdr("test-tenant", checker_id),
+    )
+
+    detail = await client.get(
+        f"/approvals/{rid}", headers=_hdr("test-tenant", maker_id)
+    )
+    assert detail.status_code == 200, detail.text
+    body = detail.json()
+    assert body["current_approvals"] == 1
+    assert len(body["actions"]) == 1
+    assert body["actions"][0]["action"] == "approve"
+    assert body["actions"][0]["comment"] == "looks fine"
+
+
+async def test_list_filters_by_requested_by(client, maker_id, checker_id):
+    mine = await client.post(
+        "/approvals",
+        json={"operation_type": "api.test.op", "payload": {}, "required_approvals": 2},
+        headers=_hdr("test-tenant", maker_id),
+    )
+    assert mine.status_code == 201, mine.text
+    rid_mine = mine.json()["id"]
+    await client.post(
+        "/approvals",
+        json={"operation_type": "api.test.op", "payload": {}, "required_approvals": 2},
+        headers=_hdr("test-tenant", checker_id),
+    )
+
+    listed = await client.get(
+        f"/approvals?requested_by={maker_id}",
+        headers=_hdr("test-tenant", maker_id),
+    )
+    assert listed.status_code == 200, listed.text
+    rows = listed.json()
+    ids = {r["id"] for r in rows}
+    assert rid_mine in ids
+    assert all(r["requested_by"] == maker_id for r in rows)
