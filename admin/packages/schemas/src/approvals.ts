@@ -41,13 +41,25 @@ export const PLATFORM_OPERATION_LABELS: Record<string, string> = {
   "platform.start_impersonation": "Start impersonation",
 };
 
+export const TENANT_OPERATION_LABELS: Record<string, string> = {
+  "members.change_status": "Change member status",
+  "savings.withdraw": "Withdraw from savings",
+  "shares.redeem_shares": "Redeem shares",
+  "credit.approve_application": "Approve loan application",
+  "credit.write_off": "Write off loan",
+  "credit.restructure_schedule": "Restructure loan schedule",
+  "credit.apply_payroll_batch": "Apply payroll batch",
+  "ledger.post_journal_entry": "Post manual GL entry",
+};
+
 /**
- * Human label for an operation type. Falls back to humanizing the last
- * dot-segment so a new backend operation never renders a raw key badly
+ * Human label for an operation type. Consults the platform + tenant maps
+ * (operation namespaces don't collide), then falls back to humanizing the
+ * last dot-segment so a new backend operation never renders a raw key badly
  * (mirrors StatusBadge unknown-status behavior, CLAUDE.md contract S).
  */
 export function operationLabel(operationType: string): string {
-  const known = PLATFORM_OPERATION_LABELS[operationType];
+  const known = PLATFORM_OPERATION_LABELS[operationType] ?? TENANT_OPERATION_LABELS[operationType];
   if (known) return known;
   const tail = operationType.split(".").pop() ?? operationType;
   const words = tail.replace(/_/g, " ").trim();
