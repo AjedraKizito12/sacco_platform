@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { JsonDiff } from "../../../app/platform/(authed)/audit/_components/JsonDiff";
+import { JsonDiff } from "../../components/audit/JsonDiff";
 
 describe("JsonDiff", () => {
   it("shows old and new for a changed key (update)", () => {

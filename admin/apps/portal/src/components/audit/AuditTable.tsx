@@ -30,10 +30,12 @@ export function AuditTable({
   items,
   total,
   showImpersonation,
+  tableId = "platform-audit",
 }: {
   items: AuditEntryOut[];
   total: number;
   showImpersonation: boolean;
+  tableId?: string;
 }) {
   const [openRow, setOpenRow] = useState<AuditEntryOut | null>(null);
 
@@ -111,7 +113,7 @@ export function AuditTable({
   return (
     <>
       <DataTable<AuditEntryOut>
-        id="platform-audit"
+        id={tableId}
         columns={columns}
         data={items}
         urlState={urlState}
