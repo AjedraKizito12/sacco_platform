@@ -13,3 +13,4 @@ export * from "./tenants";
 export * from "./approvals";
 export * from "./audit";
 export * from "./tenant-users";
+export * from "./dashboard";
