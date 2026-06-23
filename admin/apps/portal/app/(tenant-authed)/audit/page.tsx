@@ -1,8 +1,5 @@
 import type { AuditLogPage } from "@sacco/schemas";
-import {
-  getPlatformPageContext,
-  requirePlatformPermission,
-} from "@/auth/server-page-context";
+import { getTenantPageContext } from "@/auth/server-page-context";
 import { AuditTable } from "@/components/audit/AuditTable";
 
 export const metadata = { title: "Audit" };
@@ -22,8 +19,7 @@ export default async function AuditPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { user, resources } = await getPlatformPageContext();
-  requirePlatformPermission(user, "audit.read");
+  const { resources } = await getTenantPageContext();
 
   const one = (k: string): string | undefined =>
     typeof sp[k] === "string" ? (sp[k] as string) : undefined;
@@ -37,19 +33,18 @@ export default async function AuditPage({
     if (v) query[apiKey] = v;
   }
 
-  const { data } = await (
-    resources.audit.listPlatform(query) as Promise<{
-      data?: AuditLogPage;
-      error?: unknown;
-    }>
-  );
+  const { data } = await (resources.audit.listOperator(query) as Promise<{
+    data?: AuditLogPage;
+    error?: unknown;
+  }>);
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">Audit</h1>
+      <h1 className="text-[var(--text-h3)] font-semibold">Audit log</h1>
       <AuditTable
         items={data?.items ?? []}
         total={data?.total ?? 0}
+        tableId="tenant-audit"
         showImpersonation={false}
       />
     </div>

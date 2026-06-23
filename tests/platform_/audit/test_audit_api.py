@@ -10,7 +10,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.audit.models import PlatformAuditLog, TenantAuditLog
-from app.core.db import get_platform_session, get_session_for_tenant_schema
+from app.core.db import (
+    get_platform_session,
+    get_session_for_tenant_schema,
+    get_tenant_session,
+)
 from app.main import app, lifespan
 from app.platform_.audit.service import AuditQueryService
 from app.platform_.models import PlatformUser
@@ -157,6 +161,76 @@ async def test_platform_audit_endpoint_lists_and_filters(test_engine: AsyncEngin
     finally:
         app.dependency_overrides.clear()
         await _cleanup_platform(factory)
+
+
+async def _seed_tenant_user(factory: async_sessionmaker[AsyncSession]) -> uuid.UUID:
+    async with factory() as s, s.begin():
+        await s.execute(text(f"SET LOCAL search_path TO {TEST_TENANT_SCHEMA}, platform"))
+        uid = uuid.uuid4()
+        await s.execute(
+            text(
+                "INSERT INTO tenant_users "
+                "(id, email, full_name, is_active, is_admin, created_at, updated_at) "
+                "VALUES (:id, :email, 'Op', true, true, now(), now())"
+            ),
+            {"id": uid, "email": f"op-{uid.hex[:6]}@test.example"},
+        )
+    return uid
+
+
+async def test_operator_audit_endpoint_lists_own_tenant(test_engine: AsyncEngine) -> None:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    rid = uuid.uuid4()
+    actor_id = await _seed_tenant_user(factory)
+    try:
+        async with factory() as s, s.begin():
+            await s.execute(text(f"SET LOCAL search_path TO {TEST_TENANT_SCHEMA}, platform"))
+            for op in ("insert", "update"):
+                s.add(
+                    TenantAuditLog(
+                        table_name="members",
+                        record_id=rid,
+                        operation=op,
+                        actor_type="tenant_user",
+                        actor_id=actor_id,
+                        actor_label="op@test",
+                        before_state=None,
+                        after_state={"status": "active"},
+                        occurred_at=datetime.now(UTC),
+                    )
+                )
+        app.dependency_overrides[get_tenant_session] = _make_tenant_schema_override(test_engine)
+        async with lifespan(app):
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                r = await client.get(
+                    f"/audit-log?record_id={rid}&page_size=10",
+                    headers={
+                        "X-Tenant-Slug": "test-tenant",
+                        "X-Tenant-Actor-ID": str(actor_id),
+                    },
+                )
+                assert r.status_code == 200, r.text
+                body = r.json()
+                assert body["total"] == 2
+                assert {i["operation"] for i in body["items"]} == {"insert", "update"}
+                r2 = await client.get(
+                    f"/audit-log?record_id={rid}&operation=update",
+                    headers={
+                        "X-Tenant-Slug": "test-tenant",
+                        "X-Tenant-Actor-ID": str(actor_id),
+                    },
+                )
+                assert r2.json()["total"] == 1
+    finally:
+        app.dependency_overrides.clear()
+        async with factory() as s, s.begin():
+            await s.execute(text(f"SET LOCAL search_path TO {TEST_TENANT_SCHEMA}, platform"))
+            await s.execute(text(f"DELETE FROM {TEST_TENANT_SCHEMA}.audit_log"))  # noqa: S608
+            await s.execute(
+                text(f"DELETE FROM {TEST_TENANT_SCHEMA}.tenant_users WHERE id = :id"),  # noqa: S608
+                {"id": actor_id},
+            )
 
 
 async def test_tenant_audit_endpoint_surfaces_impersonation_id(test_engine: AsyncEngine) -> None:

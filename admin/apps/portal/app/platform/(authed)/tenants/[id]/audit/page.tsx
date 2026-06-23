@@ -3,7 +3,7 @@ import {
   getPlatformPageContext,
   requirePlatformPermission,
 } from "@/auth/server-page-context";
-import { AuditTable } from "../../../audit/_components/AuditTable";
+import { AuditTable } from "@/components/audit/AuditTable";
 
 export const metadata = { title: "Tenant audit" };
 

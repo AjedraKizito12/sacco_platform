@@ -23,7 +23,7 @@ vi.mock("@sacco/ui", async (importActual) => {
   };
 });
 
-import { AuditTable } from "../../../app/platform/(authed)/audit/_components/AuditTable";
+import { AuditTable } from "../../components/audit/AuditTable";
 import type { AuditEntryOut } from "@sacco/schemas";
 
 const rows: AuditEntryOut[] = [
