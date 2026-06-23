@@ -16,8 +16,12 @@ import {
   userHasPermission,
 } from "./permissions";
 
+// Server-to-server: prefer the in-network host (Docker: http://api:8000),
+// fall back to the public URL for local non-docker dev.
 const API_BASE =
-  process.env["NEXT_PUBLIC_API_BASE_URL"] ?? "http://localhost:8001";
+  process.env["API_INTERNAL_URL"] ??
+  process.env["NEXT_PUBLIC_API_BASE_URL"] ??
+  "http://localhost:8000";
 
 export interface PlatformPageContext {
   user: CurrentUserShape;
