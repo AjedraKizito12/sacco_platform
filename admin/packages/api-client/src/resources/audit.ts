@@ -8,5 +8,7 @@ export function audit(api: FetchClient) {
       api.GET("/platform/tenants/{tenant_id}/audit-log" as never, {
         params: { path: { tenant_id: tenantId }, query },
       } as never),
+    listOperator: (query?: Record<string, unknown>) =>
+      api.GET("/audit-log" as never, { params: { query } } as never),
   } as const;
 }

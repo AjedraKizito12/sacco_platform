@@ -201,14 +201,12 @@ export function AppShellSidebar({ variant }: AppShellSidebarProps) {
                 label="Approvals"
                 active={isActive("/approvals")}
               />
-              <PermissionGuard permission="audit.read">
-                <SidebarItem
-                  href="/audit"
-                  icon={<History size={ICON_SIZE} strokeWidth={1.75} />}
-                  label="Audit"
-                  active={isActive("/audit")}
-                />
-              </PermissionGuard>
+              <SidebarItem
+                href="/audit"
+                icon={<History size={ICON_SIZE} strokeWidth={1.75} />}
+                label="Audit"
+                active={isActive("/audit")}
+              />
             </>
           ),
         },
