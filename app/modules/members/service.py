@@ -4,7 +4,7 @@ import uuid
 from datetime import date
 
 import structlog
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.members.models import Member
@@ -22,6 +22,20 @@ _log = structlog.get_logger(__name__)
 class MemberService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    # ── Aggregates (read-only, dashboard) ─────────────────────────────────────
+
+    async def count_by_status(self) -> dict[str, int]:
+        """Return member counts grouped by status (pending/active/suspended/exited).
+
+        Read-only aggregate used by the tenant dashboard. Statuses with no
+        members are simply absent from the dict; callers sum values for the
+        total.
+        """
+        result = await self._session.execute(
+            select(Member.status, func.count()).group_by(Member.status)
+        )
+        return {row[0]: row[1] for row in result.all()}
 
     # ── Member Number ─────────────────────────────────────────────────────────
 

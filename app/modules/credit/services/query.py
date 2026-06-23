@@ -2,7 +2,9 @@
 """Read-only queries used by external callers (fees engine, reporting)."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 import structlog
@@ -13,10 +15,53 @@ from app.modules.credit.models import Loan, LoanInstallment
 
 _log = structlog.get_logger(__name__)
 
+# Loans with a live principal balance — closed/written_off are excluded.
+_ACTIVE_LOAN_STATUSES = ("disbursing", "disbursed", "in_arrears")
+
+
+@dataclass(frozen=True)
+class PortfolioSummary:
+    """Read-only loan portfolio aggregate for the tenant dashboard."""
+
+    outstanding_principal_total: Decimal
+    loans_by_status: dict[str, int]
+    members_in_arrears: int
+
 
 class CreditQueryService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def portfolio_summary(self) -> PortfolioSummary:
+        """Aggregate the loan book for the dashboard in three small queries.
+
+        - outstanding_principal_total: SUM(outstanding_principal) over loans
+          in an active status (disbursing/disbursed/in_arrears). The snapshot
+          column is authoritative for operational balance queries per the
+          credit module contract.
+        - loans_by_status: count grouped by every loans.status.
+        - members_in_arrears: distinct members with at least one in_arrears loan.
+        """
+        outstanding = await self._session.scalar(
+            select(func.coalesce(func.sum(Loan.outstanding_principal), Decimal("0")))
+            .where(Loan.status.in_(_ACTIVE_LOAN_STATUSES))
+        )
+
+        by_status_result = await self._session.execute(
+            select(Loan.status, func.count()).group_by(Loan.status)
+        )
+        loans_by_status = {row[0]: row[1] for row in by_status_result.all()}
+
+        members_in_arrears = await self._session.scalar(
+            select(func.count(func.distinct(Loan.member_id)))
+            .where(Loan.status == "in_arrears")
+        )
+
+        return PortfolioSummary(
+            outstanding_principal_total=Decimal(str(outstanding or 0)),
+            loans_by_status=loans_by_status,
+            members_in_arrears=int(members_in_arrears or 0),
+        )
 
     async def find_loans_eligible_for_fee(
         self,

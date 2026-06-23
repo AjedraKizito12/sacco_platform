@@ -14,6 +14,7 @@ import { impersonations } from "./impersonations";
 import { audit } from "./audit";
 import { keys } from "./keys";
 import { admin } from "./admin";
+import { dashboard } from "./dashboard";
 
 export function buildResources(api: FetchClient) {
   return {
@@ -32,6 +33,7 @@ export function buildResources(api: FetchClient) {
     audit: audit(api),
     keys: keys(api),
     admin: admin(api),
+    dashboard: dashboard(api),
   } as const;
 }
 

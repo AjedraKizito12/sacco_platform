@@ -166,6 +166,38 @@ class SavingsService:
 
         return Decimal(str(deposits)) - Decimal(str(withdrawals))
 
+    async def total_balance_all_accounts(self) -> Decimal:
+        """Net savings balance across every account in the tenant.
+
+        Read-only aggregate for the tenant dashboard. Uses the same
+        credit/debit transaction-type definition as ``get_balance`` so the
+        total equals the sum of the per-account balances shown elsewhere:
+        SUM(deposit + SYSTEM_CREDIT) - SUM(withdrawal + SYSTEM_DEBIT).
+        """
+        from sqlalchemy import case
+
+        signed = func.sum(
+            case(
+                (
+                    SavingsTransaction.transaction_type.in_(
+                        ("deposit", "SYSTEM_CREDIT")
+                    ),
+                    SavingsTransaction.amount,
+                ),
+                (
+                    SavingsTransaction.transaction_type.in_(
+                        ("withdrawal", "SYSTEM_DEBIT")
+                    ),
+                    -SavingsTransaction.amount,
+                ),
+                else_=Decimal("0"),
+            )
+        )
+        total = await self._session.scalar(
+            select(func.coalesce(signed, Decimal("0")))
+        )
+        return Decimal(str(total or 0))
+
     async def get_available_balance(self, savings_account_id: uuid.UUID) -> Decimal:
         """Raw balance minus any active guarantor liens on this account."""
         raw = await self.get_balance(savings_account_id)

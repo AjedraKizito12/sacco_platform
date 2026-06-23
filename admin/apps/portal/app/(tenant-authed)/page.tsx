@@ -1,6 +1,26 @@
-import { Card, FormattedDate, KpiCard, Money, StatusBadge } from "@sacco/ui";
+import {
+  Card,
+  Count,
+  FormattedDateTime,
+  KpiCard,
+  Money,
+  StatusBadge,
+} from "@sacco/ui";
+import type { TenantDashboardStatsOut } from "@sacco/schemas";
+import { getTenantPageContext } from "@/auth/server-page-context";
 
-export default function TenantDashboard() {
+const DASH = "—";
+
+export default async function TenantDashboard() {
+  const { resources } = await getTenantPageContext();
+
+  const { data } = await (
+    resources.dashboard.tenantStats() as Promise<{
+      data?: TenantDashboardStatsOut;
+      error?: unknown;
+    }>
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <Card className="p-6">
@@ -8,21 +28,42 @@ export default function TenantDashboard() {
           Tenant dashboard
         </h1>
         <p className="text-[var(--text-secondary)]">
-          Sub-plan 35 wires the real KPIs, charts, recent activity.
+          {data ? (
+            <>
+              Last refreshed{" "}
+              <FormattedDateTime value={data.last_updated} />
+            </>
+          ) : (
+            "Couldn't load dashboard metrics. Please try again."
+          )}
         </p>
       </Card>
 
       <div className="grid grid-cols-4 gap-4">
-        <KpiCard label="Total members" value="—" />
+        <KpiCard
+          label="Total members"
+          value={data ? <Count value={data.total_members} /> : DASH}
+        />
         <KpiCard
           label="Total savings"
-          value={<Money amount="0" size="large" />}
+          value={
+            data ? <Money amount={data.total_savings} size="large" /> : DASH
+          }
         />
         <KpiCard
           label="Outstanding loans"
-          value={<Money amount="0" size="large" />}
+          value={
+            data ? (
+              <Money amount={data.loans_outstanding_principal} size="large" />
+            ) : (
+              DASH
+            )
+          }
         />
-        <KpiCard label="Members in arrears" value="—" />
+        <KpiCard
+          label="Members in arrears"
+          value={data ? <Count value={data.members_in_arrears} /> : DASH}
+        />
       </div>
 
       <Card className="p-6">
@@ -33,9 +74,6 @@ export default function TenantDashboard() {
           <StatusBadge entity="loan" status="in_arrears" />
           <StatusBadge entity="savings_account" status="frozen" />
         </div>
-        <p className="mt-3 text-[12px] text-[var(--text-tertiary)]">
-          As of <FormattedDate value={new Date().toISOString()} />
-        </p>
       </Card>
     </div>
   );
