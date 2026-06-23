@@ -125,18 +125,24 @@ services:
       - ./admin:/admin
       - admin_node_modules:/admin/node_modules
     environment:
-      # The portal is a BFF: browsers only call the portal's own same-origin
-      # /api/* routes, and the portal SERVER (route handlers + server
-      # components) calls the API. No client component reads
-      # NEXT_PUBLIC_API_BASE_URL, so it must be the in-network hostname the
-      # admin container can reach — http://api:8000. Using localhost here
-      # resolves to the admin container itself and causes
-      # ECONNREFUSED 127.0.0.1 on every server-side fetch.
-      NEXT_PUBLIC_API_BASE_URL: "http://api:8000"
+      # Two API base URLs, because the portal calls the API from two places:
+      #   - The BROWSER: client components mutate via TanStack Query through the
+      #     typed api-client (baseUrl passed to AuthProvider). This must be a
+      #     host-reachable origin allowed by the CSP connect-src —
+      #     http://localhost:8000 (the api service publishes 8000 on the host).
+      #   - The SERVER: route handlers + server components fetch the API from
+      #     inside the container, where it's reachable as http://api:8000.
+      # Server-side code reads API_INTERNAL_URL first; the browser bundle reads
+      # NEXT_PUBLIC_API_BASE_URL. Using one var for both breaks one surface:
+      # localhost:8000 → ECONNREFUSED server-side; api:8000 → CSP-blocked +
+      # unresolvable in the browser.
+      NEXT_PUBLIC_API_BASE_URL: "http://localhost:8000"
+      API_INTERNAL_URL: "http://api:8000"
       # Cookie secret picked up by Next.js middleware (sub-plan 07). Override
       # in a real .env if you want stable sessions across container restarts.
       COOKIE_SECRET: "dev-only-do-not-use-in-production"
       REFRESH_COOKIE_NAME: "sacco_refresh"
+      
     command:
       - sh
       - -c

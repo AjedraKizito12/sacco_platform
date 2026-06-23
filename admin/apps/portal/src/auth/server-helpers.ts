@@ -19,7 +19,12 @@ import {
 } from "./cookies";
 import type { CurrentUserShape } from "./permissions";
 
-const API_BASE = process.env["NEXT_PUBLIC_API_BASE_URL"] ?? "http://localhost:8001";
+// Server-to-server: prefer the in-network host (Docker: http://api:8000),
+// fall back to the public URL for local non-docker dev.
+const API_BASE =
+  process.env["API_INTERNAL_URL"] ??
+  process.env["NEXT_PUBLIC_API_BASE_URL"] ??
+  "http://localhost:8000";
 const HEADER_TENANT_SLUG = "x-sacco-tenant-slug";
 
 export const getServerTenantSlug = cache(
