@@ -125,10 +125,14 @@ services:
       - ./admin:/admin
       - admin_node_modules:/admin/node_modules
     environment:
-      # Inside the docker network, the API is reachable at http://api:8000.
-      # Host browsers hit it via http://localhost:8000 (or 8001 if API_PORT
-      # was overridden — see Makefile).
-      NEXT_PUBLIC_API_BASE_URL: "http://localhost:8001"
+      # The portal is a BFF: browsers only call the portal's own same-origin
+      # /api/* routes, and the portal SERVER (route handlers + server
+      # components) calls the API. No client component reads
+      # NEXT_PUBLIC_API_BASE_URL, so it must be the in-network hostname the
+      # admin container can reach — http://api:8000. Using localhost here
+      # resolves to the admin container itself and causes
+      # ECONNREFUSED 127.0.0.1 on every server-side fetch.
+      NEXT_PUBLIC_API_BASE_URL: "http://api:8000"
       # Cookie secret picked up by Next.js middleware (sub-plan 07). Override
       # in a real .env if you want stable sessions across container restarts.
       COOKIE_SECRET: "dev-only-do-not-use-in-production"
