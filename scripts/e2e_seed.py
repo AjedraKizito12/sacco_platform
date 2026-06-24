@@ -31,7 +31,7 @@ from app.modules.iam.keys.service import KeyService  # noqa: E402
 from app.modules.iam.passwords.service import hash_password  # noqa: E402
 from app.platform_.models import PlatformUser, Tenant  # noqa: E402
 
-E2E_EMAIL = os.environ.get("E2E_EMAIL", "e2e@platform.test")
+E2E_EMAIL = os.environ.get("E2E_EMAIL", "e2e@platform.example.com")
 E2E_PASSWORD = os.environ.get("E2E_PASSWORD", "e2e-Password-123!")
 E2E_TENANT_SLUG = "e2e-sacco"
 E2E_TENANT_SCHEMA = "tenant_e2e_sacco"

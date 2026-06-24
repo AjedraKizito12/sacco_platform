@@ -5,7 +5,7 @@ test.describe("Seeded list data", () => {
   test("users list shows the seeded operator", async ({ page }) => {
     await page.goto("/platform/users");
     await expect(
-      page.getByText(process.env["E2E_EMAIL"] ?? "e2e@platform.test"),
+      page.getByText(process.env["E2E_EMAIL"] ?? "e2e@platform.example.com"),
     ).toBeVisible();
   });
 

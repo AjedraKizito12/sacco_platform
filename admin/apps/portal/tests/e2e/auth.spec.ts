@@ -23,7 +23,7 @@ test.describe("Auth shell", () => {
 
   // The tests below require the seeded backend (scripts/e2e_seed.py) running.
 
-  const EMAIL = process.env["E2E_EMAIL"] ?? "e2e@platform.test";
+  const EMAIL = process.env["E2E_EMAIL"] ?? "e2e@platform.example.com";
   const PASSWORD = process.env["E2E_PASSWORD"] ?? "e2e-Password-123!";
 
   async function login(page: import("@playwright/test").Page): Promise<void> {
