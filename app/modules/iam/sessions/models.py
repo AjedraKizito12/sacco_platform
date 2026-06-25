@@ -76,3 +76,30 @@ class TenantSession(Base):
     expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+
+
+class MemberSession(Base):
+    """Server-side session for a SACCO member (portal login, Phase 4a).
+
+    Identical layout to TenantSession except the user FK column is
+    ``member_id``. Lives in the tenant schema — no ``schema=``; resolved at
+    runtime via ``SET LOCAL search_path``.
+    """
+
+    __tablename__ = "member_sessions"
+    __table_args__ = (
+        Index("ix_member_sessions_member_id", "member_id"),
+        Index("ix_member_sessions_jti", "jti"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    jti: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)

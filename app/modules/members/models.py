@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     TIMESTAMP,
+    Boolean,
     CheckConstraint,
     Date,
     Index,
@@ -51,6 +52,18 @@ class Member(AuditableMixin, Base):
     # Status lifecycle
     status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
     joined_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    # Portal authentication (Phase 4a). hashed_password stays NULL until the
+    # member sets a password via the operator-issued set-password token.
+    # portal_enabled is the operator gate; login requires both set plus
+    # status='active'.
+    hashed_password: Mapped[str | None] = mapped_column(Text, nullable=True)
+    portal_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false", default=False
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
