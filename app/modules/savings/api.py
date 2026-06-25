@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
-from app.modules.iam.dependencies import CurrentTenantUser
+from app.modules.iam.dependencies import CurrentMember, CurrentTenantUser
 from app.modules.savings.schemas import (
     DepositIn,
     OpenAccountIn,
@@ -22,8 +22,36 @@ from app.modules.savings.schemas import (
 from app.modules.savings.service import SavingsService
 
 router = APIRouter(prefix="/savings", tags=["savings"])
+# Member self-service savings (read-only; scoped to the current member).
+member_router = APIRouter(prefix="/member/savings", tags=["member-savings"])
 
 Session = Annotated[AsyncSession, Depends(get_tenant_session)]
+
+
+@member_router.get("", response_model=list[SavingsAccountOut])
+async def member_savings(session: Session, member: CurrentMember) -> list[SavingsAccountOut]:
+    """List the current member's own savings accounts."""
+    svc = SavingsService(session)
+    accounts = await svc.list_accounts(member_id=member.id)
+    return [SavingsAccountOut.model_validate(a) for a in accounts]
+
+
+@member_router.get(
+    "/{account_id}/transactions", response_model=list[SavingsTransactionOut]
+)
+async def member_savings_transactions(
+    account_id: uuid.UUID, session: Session, member: CurrentMember
+) -> list[SavingsTransactionOut]:
+    """List transactions for one of the member's own accounts (404 if not theirs)."""
+    svc = SavingsService(session)
+    try:
+        account = await svc.get_account(account_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Savings account not found") from exc
+    if account.member_id != member.id:
+        raise HTTPException(status_code=404, detail="Savings account not found")
+    txns = await svc.list_transactions(account_id)
+    return [SavingsTransactionOut.model_validate(t) for t in txns]
 
 
 # ── Savings Products ──────────────────────────────────────────────────────────

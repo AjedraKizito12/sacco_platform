@@ -8,16 +8,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_platform_session, get_tenant_session
-from app.modules.iam.dependencies import CurrentTenantUser
+from app.modules.iam.dependencies import CurrentMember, CurrentTenantUser
 from app.modules.iam.keys.service import KeyService
 from app.modules.iam.member_auth.schemas import EnablePortalAccessOut
+from app.modules.iam.member_auth.schemas import MemberOut as MemberSelfOut
 from app.modules.members.schemas import MemberIn, MemberOut, StatusChangeIn, StatusChangeOut
 from app.modules.members.service import MemberService
 
 router = APIRouter(prefix="/members", tags=["members"])
+# Member self-service routes live under /member/* (distinct from operator /members/*).
+member_router = APIRouter(prefix="/member", tags=["member-self"])
 
 Session = Annotated[AsyncSession, Depends(get_tenant_session)]
 PlatformSession = Annotated[AsyncSession, Depends(get_platform_session)]
+
+
+@member_router.get("/me", response_model=MemberSelfOut)
+async def member_self(member: CurrentMember) -> MemberSelfOut:
+    """Return the authenticated member's own profile."""
+    return MemberSelfOut.model_validate(member)
 
 
 @router.post("", response_model=MemberOut, status_code=201)
