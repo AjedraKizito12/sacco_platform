@@ -97,6 +97,11 @@ async def lifespan(app: FastAPI) -> Any:
             "Refusing to boot: TENANT_AUTH_MODE=stub is forbidden in production. "
             "Set TENANT_AUTH_MODE=jwt when IAM ships."
         )
+    if settings.app_env == "production" and settings.member_auth_mode == "stub":
+        raise RuntimeError(
+            "Refusing to boot: MEMBER_AUTH_MODE=stub is forbidden in production. "
+            "Set MEMBER_AUTH_MODE=jwt for the member self-service portal."
+        )
 
     # Verify active signing keys exist when JWT auth is enabled.
     if settings.platform_auth_mode == "jwt" or settings.tenant_auth_mode == "jwt":
