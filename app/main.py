@@ -14,6 +14,7 @@ from redis.asyncio import Redis
 from app.core.config import get_settings
 from app.core.db import engine
 from app.modules.credit import executors as _credit_executors  # noqa: F401
+from app.modules.credit.api import member_router as credit_member_router
 from app.modules.credit.api import router as credit_router
 from app.modules.dashboard.api import router as dashboard_router
 from app.modules.fees.api import router as fees_router
@@ -33,6 +34,7 @@ from app.modules.savings import executors as _savings_executors  # noqa: F401
 from app.modules.savings.api import member_router as savings_member_router
 from app.modules.savings.api import router as savings_router
 from app.modules.shares import executors as _shares_executors  # noqa: F401
+from app.modules.shares.api import member_router as shares_member_router
 from app.modules.shares.api import router as shares_router
 from app.platform_.admin.api import router as platform_admin_router
 from app.platform_.audit.api import router as platform_audit_router
@@ -145,9 +147,11 @@ app.include_router(ledger_router)
 app.include_router(members_router)
 app.include_router(members_self_router)
 app.include_router(shares_router)
+app.include_router(shares_member_router)
 app.include_router(savings_router)
 app.include_router(savings_member_router)
 app.include_router(credit_router)
+app.include_router(credit_member_router)
 app.include_router(fees_router)
 app.include_router(reporting_router)
 app.include_router(dashboard_router)

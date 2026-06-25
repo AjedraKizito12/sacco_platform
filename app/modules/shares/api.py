@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
-from app.modules.iam.dependencies import CurrentTenantUser
+from app.modules.iam.dependencies import CurrentMember, CurrentTenantUser
 from app.modules.shares.schemas import (
     OpenAccountIn,
     PurchaseSharesIn,
@@ -23,8 +23,18 @@ from app.modules.shares.schemas import (
 from app.modules.shares.service import ShareService
 
 router = APIRouter(prefix="/shares", tags=["shares"])
+# Member self-service shares (read-only; scoped to the current member).
+member_router = APIRouter(prefix="/member/shares", tags=["member-shares"])
 
 Session = Annotated[AsyncSession, Depends(get_tenant_session)]
+
+
+@member_router.get("", response_model=list[ShareAccountListItemOut])
+async def member_shares(session: Session, member: CurrentMember) -> list[ShareAccountListItemOut]:
+    """List the current member's own share accounts."""
+    svc = ShareService(session)
+    accounts = await svc.list_accounts(member_id=member.id)
+    return [ShareAccountListItemOut.model_validate(a) for a in accounts]
 
 
 # ── Share Products ────────────────────────────────────────────────────────────
