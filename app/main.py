@@ -17,6 +17,7 @@ from app.modules.credit import executors as _credit_executors  # noqa: F401
 from app.modules.credit.api import member_router as credit_member_router
 from app.modules.credit.api import router as credit_router
 from app.modules.dashboard.api import router as dashboard_router
+from app.modules.fees.api import member_router as fees_member_router
 from app.modules.fees.api import router as fees_router
 from app.modules.iam.keys.api import jwks_router, key_mgmt_router
 from app.modules.iam.member_auth.api import router as member_auth_router
@@ -153,6 +154,7 @@ app.include_router(savings_member_router)
 app.include_router(credit_router)
 app.include_router(credit_member_router)
 app.include_router(fees_router)
+app.include_router(fees_member_router)
 app.include_router(reporting_router)
 app.include_router(dashboard_router)
 app.include_router(platform_auth_router)
