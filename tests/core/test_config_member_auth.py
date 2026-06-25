@@ -15,7 +15,10 @@ def _base_env() -> dict[str, str]:
     }
 
 
-def test_member_auth_mode_defaults_to_jwt() -> None:
+def test_member_auth_mode_defaults_to_jwt(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The test conftest forces MEMBER_AUTH_MODE=stub globally; clear it so the
+    # field default is what we actually exercise here.
+    monkeypatch.delenv("MEMBER_AUTH_MODE", raising=False)
     s = Settings(**_base_env())
     assert s.member_auth_mode == "jwt"
     assert s.jwt_refresh_ttl_member_seconds == 28800

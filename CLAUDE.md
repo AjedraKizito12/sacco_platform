@@ -298,6 +298,40 @@ X. Long forms (loan applications, member onboarding) wire
   the dep level. Choose the lowest tier that is operationally correct —
   raising the bar later requires coordinating with portal permission UX.
 
+## Member auth contracts (Phase 4a — do not violate)
+
+- Member portal credentials live as columns on the tenant-schema `members`
+  table (`hashed_password`, `portal_enabled`, `last_login_at`). There is no
+  separate `member_users` table. Sessions live in `member_sessions`.
+- All member login/password logic lives in `app/modules/iam/member_auth/`
+  (IAM owns credentials). The operator "enable portal access" action lives in
+  the members module but delegates to `MemberAuthService.enable_access()` — the
+  members service never writes credentials directly.
+- Member access/refresh tokens use `aud="member:<slug>"` — a distinct namespace
+  from operators (`tenant:<slug>`) and platform (`platform`). The signing key is
+  reused: `KeyService.get_active_signing_key("tenant")`. The `aud` claim is the
+  isolation boundary; do not add a new signing-key audience for members.
+- Login eligibility = `portal_enabled AND hashed_password IS NOT NULL AND
+  status='active'`. Login returns a generic 401 for unknown/ineligible members
+  (anti-enumeration); `POST /member/auth/password-reset/request` always 204s.
+- Operator-issued set-password tokens have a 24h TTL
+  (`OPERATOR_SET_PASSWORD_TTL`); self-service reset tokens 15min. Both reuse
+  `reset_tokens.py` + the `POST /member/auth/password-reset/confirm` flow.
+- `last_login_at` is written via a targeted UPDATE that bypasses the
+  `AuditableMixin` diff (no audit row per login). Member auth events use
+  `write_member_auth_event` with `actor_type="member"`.
+- `CurrentMember` (from `app.modules.iam.dependencies`) is the only member auth
+  dependency; route handlers import it, never the underlying function.
+  `MEMBER_AUTH_MODE` (default `jwt`) selects jwt vs stub; `stub` is forbidden
+  when `APP_ENV=production` (boot guard in `app/main.py`).
+- Member-scoped read endpoints live per-module under `/member/*`
+  (`/member/me`, `/member/savings`, `/member/shares`, `/member/loans`,
+  `/member/fees`), each gated by `CurrentMember` + the subscription gate
+  (`get_tenant_session`). They reuse existing query services filtered to
+  `current_member.id` and never accept a client-supplied member_id.
+  Cross-member access returns **404**, never 403. Members are **read-only** in
+  v1 — no member mutations, no member-side maker-checker.
+
 ## Impersonation contracts (do not violate)
 
 ### Data layer (from 02a, unchanged)
