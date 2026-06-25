@@ -18,6 +18,7 @@ from app.modules.credit.api import router as credit_router
 from app.modules.dashboard.api import router as dashboard_router
 from app.modules.fees.api import router as fees_router
 from app.modules.iam.keys.api import jwks_router, key_mgmt_router
+from app.modules.iam.member_auth.api import router as member_auth_router
 from app.modules.iam.platform_auth.api import router as platform_auth_router
 from app.modules.iam.tenant_auth.api import router as tenant_auth_router
 from app.modules.ledger import executors as _ledger_executors  # noqa: F401
@@ -148,6 +149,7 @@ app.include_router(reporting_router)
 app.include_router(dashboard_router)
 app.include_router(platform_auth_router)
 app.include_router(tenant_auth_router)
+app.include_router(member_auth_router)
 app.include_router(billing_platform_router)
 app.include_router(billing_tenant_router)
 app.include_router(platform_tenants_router)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+from typing import Any
 
 import structlog
 from sqlalchemy import func, select, text
@@ -22,6 +23,22 @@ _log = structlog.get_logger(__name__)
 class MemberService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def enable_portal_access(
+        self, member_id: uuid.UUID, *, key_service: Any, redis: Any, tenant_slug: str
+    ) -> tuple[str, int]:
+        """Enable member portal access via the IAM MemberAuthService.
+
+        Credential writes are owned by IAM (architectural rule 2 — cross-module
+        work goes through a service interface, not direct model writes here).
+        Returns (set_password_token, ttl_seconds).
+        """
+        from app.modules.iam.member_auth.service import MemberAuthService
+
+        auth_svc = MemberAuthService(
+            db=self._session, key_service=key_service, redis=redis, tenant_slug=tenant_slug
+        )
+        return await auth_svc.enable_access(member_id)
 
     # ── Aggregates (read-only, dashboard) ─────────────────────────────────────
 
