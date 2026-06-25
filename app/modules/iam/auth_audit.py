@@ -46,6 +46,12 @@ def _tenant_table(operation: str, override: str | None) -> str:
     return "tenant_sessions" if operation in _SESSION_OPERATIONS else "tenant_users"
 
 
+def _member_table(operation: str, override: str | None) -> str:
+    if override:
+        return override
+    return "member_sessions" if operation in _SESSION_OPERATIONS else "members"
+
+
 async def write_platform_auth_event(
     *,
     db: AsyncSession,
@@ -107,6 +113,44 @@ async def write_tenant_auth_event(
         record_id=actor_id if actor_id is not None else _NIL_UUID,
         operation=operation,
         actor_type="tenant_user" if actor_id is not None else "anonymous",
+        actor_id=actor_id,
+        actor_label=actor_label,
+        after_state=state if state else None,
+    )
+
+
+async def write_member_auth_event(
+    *,
+    db: AsyncSession,
+    operation: str,
+    actor_id: uuid.UUID | None,
+    actor_label: str | None = None,
+    tenant_slug: str | None = None,
+    after_state: dict[str, Any] | None = None,
+    table_name: str | None = None,
+) -> None:
+    """Write a single member auth audit row to the tenant audit_log.
+
+    actor_type is "member" when actor_id is known, else "anonymous".
+
+    Args:
+        db:           Tenant DB session (search_path set by middleware).
+        operation:    Auth event type, e.g. "login_success", "portal_access_enabled".
+        actor_id:     Member.id. Pass None for anonymous events (failed login).
+        actor_label:  Email/member_number of the actor.
+        tenant_slug:  Tenant slug — appended to after_state for context.
+        after_state:  Optional dict of event context.
+        table_name:   Override the auto-detected table name.
+    """
+    svc = TenantAuditService(db)
+    state: dict[str, Any] = dict(after_state or {})
+    if tenant_slug:
+        state["tenant"] = tenant_slug
+    await svc.record(
+        table_name=_member_table(operation, table_name),
+        record_id=actor_id if actor_id is not None else _NIL_UUID,
+        operation=operation,
+        actor_type="member" if actor_id is not None else "anonymous",
         actor_id=actor_id,
         actor_label=actor_label,
         after_state=state if state else None,

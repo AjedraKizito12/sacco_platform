@@ -25,13 +25,20 @@ import structlog
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 
-from app.modules.iam.sessions.models import PlatformSession, TenantSession
+from app.modules.iam.sessions.models import MemberSession, PlatformSession, TenantSession
 
 _log = structlog.get_logger(__name__)
 
 _CLEANUP_RETENTION_DAYS = 7  # delete expired rows older than this
 
-AnySessionModel = PlatformSession | TenantSession
+AnySessionModel = PlatformSession | TenantSession | MemberSession
+
+# Maps each session model to its user FK column name.
+_USER_ID_ATTR: dict[type[AnySessionModel], str] = {
+    PlatformSession: "platform_user_id",
+    TenantSession: "tenant_user_id",
+    MemberSession: "member_id",
+}
 
 
 class SessionService:
@@ -56,9 +63,7 @@ class SessionService:
         self._model = model_cls
         self._redis: Any = redis
         # Determine the user FK attribute name at construction time.
-        self._user_id_attr = (
-            "platform_user_id" if model_cls is PlatformSession else "tenant_user_id"
-        )
+        self._user_id_attr = _USER_ID_ATTR[model_cls]
 
     async def create(
         self,
@@ -79,24 +84,16 @@ class SessionService:
         now = datetime.now(UTC)
         expires_at = now + timedelta(seconds=refresh_ttl_seconds)
 
-        if self._model is PlatformSession:
-            row: AnySessionModel = PlatformSession(
-                platform_user_id=user_id,
-                jti=jti,
-                user_agent=user_agent,
-                ip_address=ip_address,
-                created_at=now,
-                expires_at=expires_at,
-            )
-        else:
-            row = TenantSession(
-                tenant_user_id=user_id,
-                jti=jti,
-                user_agent=user_agent,
-                ip_address=ip_address,
-                created_at=now,
-                expires_at=expires_at,
-            )
+        # Build the row generically, mapping user_id onto whichever FK column
+        # this model uses (platform_user_id / tenant_user_id / member_id).
+        row: AnySessionModel = self._model(
+            jti=jti,
+            user_agent=user_agent,
+            ip_address=ip_address,
+            created_at=now,
+            expires_at=expires_at,
+            **{self._user_id_attr: user_id},
+        )
 
         self._db.add(row)
 

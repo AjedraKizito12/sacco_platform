@@ -49,11 +49,91 @@ from app.modules.credit.services.product import LoanProductService
 from app.modules.credit.services.repayment import LoanRepaymentService
 from app.modules.credit.services.restructuring import LoanRestructuringService
 from app.modules.credit.services.write_off import LoanWriteOffService
-from app.modules.iam.dependencies import CurrentTenantUser
+from app.modules.iam.dependencies import CurrentMember, CurrentTenantUser
 from app.modules.maker_checker.service import ApprovalService
 
 router = APIRouter(prefix="/credit", tags=["credit"])
+# Member self-service loans (read-only; scoped to the current member).
+member_router = APIRouter(prefix="/member/loans", tags=["member-loans"])
 Session = Annotated[AsyncSession, Depends(get_tenant_session)]
+
+
+async def _member_loan_or_404(
+    session: AsyncSession, loan_id: uuid.UUID, member_id: uuid.UUID
+) -> Loan:
+    """Fetch a loan and verify it belongs to *member_id*, else 404 (no leak)."""
+    loan = await session.get(Loan, loan_id)
+    if loan is None or loan.member_id != member_id:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    return loan
+
+
+@member_router.get("", response_model=list[LoanOut])
+async def member_loans(session: Session, member: CurrentMember) -> list[LoanOut]:
+    """List the current member's own loans."""
+    loans = list(
+        (await session.execute(_select(Loan).where(Loan.member_id == member.id)))
+        .scalars()
+        .all()
+    )
+    return [LoanOut.model_validate(loan) for loan in loans]
+
+
+@member_router.get("/{loan_id}", response_model=LoanOut)
+async def member_loan_detail(
+    loan_id: uuid.UUID, session: Session, member: CurrentMember
+) -> LoanOut:
+    """Return one of the current member's own loans (404 if not theirs)."""
+    loan = await _member_loan_or_404(session, loan_id, member.id)
+    return LoanOut.model_validate(loan)
+
+
+@member_router.get("/{loan_id}/schedule", response_model=list[LoanInstallmentOut])
+async def member_loan_schedule(
+    loan_id: uuid.UUID, session: Session, member: CurrentMember
+) -> list[LoanInstallmentOut]:
+    """Return the repayment schedule for the member's own loan (404 if not theirs)."""
+    await _member_loan_or_404(session, loan_id, member.id)
+    installments = list(
+        (
+            await session.execute(
+                _select(LoanInstallment)
+                .where(LoanInstallment.loan_id == loan_id)
+                .order_by(LoanInstallment.period_number)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [LoanInstallmentOut.model_validate(i) for i in installments]
+
+
+@member_router.get("/{loan_id}/statement", response_model=LoanStatementOut)
+async def member_loan_statement(
+    loan_id: uuid.UUID, session: Session, member: CurrentMember
+) -> LoanStatementOut:
+    """Return a JSON statement for the member's own loan (404 if not theirs)."""
+    await _member_loan_or_404(session, loan_id, member.id)
+    from app.modules.credit.services.statement import LoanStatementService  # noqa: PLC0415
+
+    svc = LoanStatementService(session)
+    lines = await svc.get_statement(loan_id=loan_id, from_date=None, to_date=None)
+    return LoanStatementOut(
+        loan_id=loan_id,
+        from_date=None,
+        to_date=None,
+        lines=[
+            StatementLineOut(
+                date=line.date,
+                line_type=line.line_type,
+                description=line.description,
+                debit=line.debit,
+                credit=line.credit,
+                running_balance=line.running_balance,
+            )
+            for line in lines
+        ],
+    )
 
 
 # ── Loan Products ─────────────────────────────────────────────────────────────

@@ -20,10 +20,20 @@ from app.modules.fees.schemas import (
     FeeTypePatchIn,
 )
 from app.modules.fees.service import FeeAssessmentService, FeeCollectionService
-from app.modules.iam.dependencies import CurrentTenantUser
+from app.modules.iam.dependencies import CurrentMember, CurrentTenantUser
 
 router = APIRouter(prefix="/fees", tags=["fees"])
+# Member self-service fees (read-only; scoped to the current member).
+member_router = APIRouter(prefix="/member/fees", tags=["member-fees"])
 Session = Annotated[AsyncSession, Depends(get_tenant_session)]
+
+
+@member_router.get("", response_model=list[FeeAssessmentOut])
+async def member_fees(session: Session, member: CurrentMember) -> list[FeeAssessmentOut]:
+    """List the current member's own fee assessments (target_type='member')."""
+    svc = FeeAssessmentService(session)
+    assessments = await svc.list_assessments(target_type="member", target_id=member.id)
+    return [FeeAssessmentOut.model_validate(a) for a in assessments]
 
 
 # ── Fee Types ─────────────────────────────────────────────────────────────────

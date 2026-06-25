@@ -14,10 +14,13 @@ from redis.asyncio import Redis
 from app.core.config import get_settings
 from app.core.db import engine
 from app.modules.credit import executors as _credit_executors  # noqa: F401
+from app.modules.credit.api import member_router as credit_member_router
 from app.modules.credit.api import router as credit_router
 from app.modules.dashboard.api import router as dashboard_router
+from app.modules.fees.api import member_router as fees_member_router
 from app.modules.fees.api import router as fees_router
 from app.modules.iam.keys.api import jwks_router, key_mgmt_router
+from app.modules.iam.member_auth.api import router as member_auth_router
 from app.modules.iam.platform_auth.api import router as platform_auth_router
 from app.modules.iam.tenant_auth.api import router as tenant_auth_router
 from app.modules.ledger import executors as _ledger_executors  # noqa: F401
@@ -25,11 +28,14 @@ from app.modules.ledger.api import router as ledger_router
 from app.modules.maker_checker.api import router as maker_checker_router
 from app.modules.maker_checker.platform_api import router as platform_maker_checker_router
 from app.modules.members import executors as _members_executors  # noqa: F401
+from app.modules.members.api import member_router as members_self_router
 from app.modules.members.api import router as members_router
 from app.modules.reporting.api import router as reporting_router
 from app.modules.savings import executors as _savings_executors  # noqa: F401
+from app.modules.savings.api import member_router as savings_member_router
 from app.modules.savings.api import router as savings_router
 from app.modules.shares import executors as _shares_executors  # noqa: F401
+from app.modules.shares.api import member_router as shares_member_router
 from app.modules.shares.api import router as shares_router
 from app.platform_.admin.api import router as platform_admin_router
 from app.platform_.audit.api import router as platform_audit_router
@@ -97,6 +103,11 @@ async def lifespan(app: FastAPI) -> Any:
             "Refusing to boot: TENANT_AUTH_MODE=stub is forbidden in production. "
             "Set TENANT_AUTH_MODE=jwt when IAM ships."
         )
+    if settings.app_env == "production" and settings.member_auth_mode == "stub":
+        raise RuntimeError(
+            "Refusing to boot: MEMBER_AUTH_MODE=stub is forbidden in production. "
+            "Set MEMBER_AUTH_MODE=jwt for the member self-service portal."
+        )
 
     # Verify active signing keys exist when JWT auth is enabled.
     if settings.platform_auth_mode == "jwt" or settings.tenant_auth_mode == "jwt":
@@ -135,14 +146,20 @@ app.include_router(maker_checker_router)
 app.include_router(platform_maker_checker_router)
 app.include_router(ledger_router)
 app.include_router(members_router)
+app.include_router(members_self_router)
 app.include_router(shares_router)
+app.include_router(shares_member_router)
 app.include_router(savings_router)
+app.include_router(savings_member_router)
 app.include_router(credit_router)
+app.include_router(credit_member_router)
 app.include_router(fees_router)
+app.include_router(fees_member_router)
 app.include_router(reporting_router)
 app.include_router(dashboard_router)
 app.include_router(platform_auth_router)
 app.include_router(tenant_auth_router)
+app.include_router(member_auth_router)
 app.include_router(billing_platform_router)
 app.include_router(billing_tenant_router)
 app.include_router(platform_tenants_router)

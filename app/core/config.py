@@ -53,12 +53,16 @@ class Settings(BaseSettings):
     # Tenant auth
     tenant_auth_mode: str = "jwt"  # "stub" | "jwt" — stub requires explicit opt-in
 
+    # Member auth (Phase 4a — member self-service portal)
+    member_auth_mode: str = "jwt"  # "stub" | "jwt" — stub requires explicit opt-in
+
     # JWT signing key infrastructure
     jwt_kek: str = ""  # base64-encoded 32-byte key-encryption-key; required when auth_mode=jwt
     jwt_key_rotation_days: int = 90
     jwt_access_ttl_seconds: int = 900             # 15 min
     jwt_refresh_ttl_platform_seconds: int = 3600  # 1 h
     jwt_refresh_ttl_tenant_seconds: int = 28800   # 8 h
+    jwt_refresh_ttl_member_seconds: int = 28800   # 8 h
 
     # Impersonation
     impersonation_max_minutes: int = 30  # max duration of a single impersonation session
@@ -99,10 +103,13 @@ class Settings(BaseSettings):
             python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"
         """
         if (
-            self.platform_auth_mode == "jwt" or self.tenant_auth_mode == "jwt"
+            self.platform_auth_mode == "jwt"
+            or self.tenant_auth_mode == "jwt"
+            or self.member_auth_mode == "jwt"
         ) and not self.jwt_kek:
             raise ValueError(
-                "JWT_KEK must be set when PLATFORM_AUTH_MODE or TENANT_AUTH_MODE is 'jwt'. "
+                "JWT_KEK must be set when PLATFORM_AUTH_MODE, TENANT_AUTH_MODE, "
+                "or MEMBER_AUTH_MODE is 'jwt'. "
                 "Generate with: "
                 "python -c \"import os,base64; print(base64.b64encode(os.urandom(32)).decode())\""
             )
