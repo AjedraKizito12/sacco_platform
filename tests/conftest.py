@@ -20,6 +20,7 @@ os.environ.setdefault("PLATFORM_BOOTSTRAP_EMAIL", "admin@test.example")
 # Force stub mode regardless of shell env or .env file — tests are written for stub auth.
 os.environ["PLATFORM_AUTH_MODE"] = "stub"
 os.environ["TENANT_AUTH_MODE"] = "stub"
+os.environ["MEMBER_AUTH_MODE"] = "stub"
 os.environ.setdefault("JWT_KEK", base64.b64encode(b"\x01" * 32).decode())
 
 TEST_TENANT_SCHEMA = "tenant_test"
