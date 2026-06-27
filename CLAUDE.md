@@ -331,6 +331,32 @@ X. Long forms (loan applications, member onboarding) wire
   `current_member.id` and never accept a client-supplied member_id.
   Cross-member access returns **404**, never 403. Members are **read-only** in
   v1 — no member mutations, no member-side maker-checker.
+- The `/member/savings` list returns `MemberSavingsAccountOut` (adds derived
+  `balance` + lien-aware `available_balance`). This is the one 4a read-API
+  extension made during the 4b portal build; both figures derive from
+  `SavingsService.get_balance` / `get_available_balance` (never stored).
+
+## Member portal (Phase 4b)
+
+- The member self-service portal is a **fourth audience** inside the existing
+  `admin/apps/portal` Next.js app, under a real `/member/*` path segment with a
+  `(authed)` route group, mirroring the operator (`tenant`) layout. It is a pure
+  client of the 4a `/member/*` API — read-only, no member mutations, no
+  statement PDF; the notification bell stays the empty stub.
+- Auth plumbing clones the operator `tenant` variant with a new `member` variant:
+  `MEMBER_REFRESH_COOKIE = "sacco_refresh_member"` (httpOnly, 8h), the
+  `/api/auth/member-*` route handlers, `getServerAccessToken("member")` /
+  `getServerCurrentUser("member")` (hit `/member/auth/refresh` + `/member/auth/me`
+  with `X-Tenant-Slug`), `getMemberPageContext()`, and the `member`
+  `initialAuthContext` in `AuthProvider` / token-store (refresh →
+  `/api/auth/member-refresh`).
+- `AppShellHeader` / `AppShellSidebar` / `LoginForm` / `ForgotPasswordForm` /
+  `ResetPasswordForm` each gained a `member` variant. The member nav is
+  Dashboard / Savings / Shares / Loans / Fees / Profile. Middleware gates
+  `/member/*` (public: login/set-password/forgot-password/reset-password)
+  on `sacco_refresh_member`, checked before the tenant branch.
+- Set-password reuses the reset form (identical confirm endpoint); the token is
+  read from `?token=` only (contract F).
 
 ## Impersonation contracts (do not violate)
 
