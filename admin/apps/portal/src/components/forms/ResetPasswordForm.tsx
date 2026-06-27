@@ -11,7 +11,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
-type Variant = "platform" | "tenant";
+type Variant = "platform" | "tenant" | "member";
 
 interface Props {
   variant: Variant;
@@ -41,7 +41,9 @@ export function ResetPasswordForm({ variant }: Props) {
     const r = await fetch(
       variant === "platform"
         ? "/api/auth/platform-reset-password"
-        : "/api/auth/tenant-reset-password",
+        : variant === "member"
+          ? "/api/auth/member-reset-password"
+          : "/api/auth/tenant-reset-password",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,7 +83,13 @@ export function ResetPasswordForm({ variant }: Props) {
           Your new password is active. Sign in to continue.
         </p>
         <Link
-          href={variant === "platform" ? "/platform/login" : "/login"}
+          href={
+            variant === "platform"
+              ? "/platform/login"
+              : variant === "member"
+                ? "/member/login"
+                : "/login"
+          }
           className="text-[var(--text-link)] hover:underline"
         >
           Back to sign in

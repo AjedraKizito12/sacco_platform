@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
-type Variant = "platform" | "tenant";
+type Variant = "platform" | "tenant" | "member";
 
 interface Props {
   variant: Variant;
@@ -33,7 +33,9 @@ export function ForgotPasswordForm({ variant }: Props) {
     await fetch(
       variant === "platform"
         ? "/api/auth/platform-forgot-password"
-        : "/api/auth/tenant-forgot-password",
+        : variant === "member"
+          ? "/api/auth/member-forgot-password"
+          : "/api/auth/tenant-forgot-password",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -54,7 +56,13 @@ export function ForgotPasswordForm({ variant }: Props) {
         </p>
         <p className="mt-4">
           <Link
-            href={variant === "platform" ? "/platform/login" : "/login"}
+            href={
+              variant === "platform"
+                ? "/platform/login"
+                : variant === "member"
+                  ? "/member/login"
+                  : "/login"
+            }
             className="text-[var(--text-link)] hover:underline"
           >
             Back to sign in
