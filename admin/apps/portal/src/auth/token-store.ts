@@ -3,13 +3,15 @@
 import type { TenantContext, TokenStore } from "@sacco/api-client";
 import { create } from "zustand";
 
+type AuthContext = "platform" | "tenant" | "member";
+
 interface AuthState {
   accessToken: string | null;
   tenantSlug: string | null;
-  authContext: "platform" | "tenant";
+  authContext: AuthContext;
   setAccessToken(token: string | null): void;
   setTenantSlug(slug: string | null): void;
-  setAuthContext(ctx: "platform" | "tenant"): void;
+  setAuthContext(ctx: AuthContext): void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -32,7 +34,9 @@ export class CookieBackedTokenStore implements TokenStore {
     const ctx = useAuthStore.getState().authContext;
     return ctx === "platform"
       ? "/api/auth/platform-refresh"
-      : "/api/auth/tenant-refresh";
+      : ctx === "tenant"
+        ? "/api/auth/tenant-refresh"
+        : "/api/auth/member-refresh";
   }
   /**
    * Always returns null — refresh token lives in an httpOnly cookie. The

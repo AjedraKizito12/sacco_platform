@@ -8,7 +8,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useAuthStore } from "@/auth/token-store";
 
-type Variant = "platform" | "tenant";
+type Variant = "platform" | "tenant" | "member";
 
 interface LoginFormProps {
   variant: Variant;
@@ -33,7 +33,9 @@ export function LoginForm({ variant }: LoginFormProps) {
   const endpoint =
     variant === "platform"
       ? "/api/auth/platform-login"
-      : "/api/auth/tenant-login";
+      : variant === "tenant"
+        ? "/api/auth/tenant-login"
+        : "/api/auth/member-login";
 
   async function onSubmit(values: LoginInput) {
     setServerError(null);
@@ -75,11 +77,20 @@ export function LoginForm({ variant }: LoginFormProps) {
     };
     setAccessToken(data.access_token);
     setAuthContext(variant);
-    if (variant === "tenant" && data.tenant_slug) {
+    if (
+      (variant === "tenant" || variant === "member") &&
+      data.tenant_slug
+    ) {
       setTenantSlug(data.tenant_slug);
     }
     const next = params.get("next");
-    router.push(next ?? (variant === "platform" ? "/platform" : "/"));
+    const home =
+      variant === "platform"
+        ? "/platform"
+        : variant === "member"
+          ? "/member/dashboard"
+          : "/";
+    router.push(next ?? home);
   }
 
   return (
@@ -143,7 +154,9 @@ export function LoginForm({ variant }: LoginFormProps) {
             href={
               variant === "platform"
                 ? "/platform/forgot-password"
-                : "/forgot-password"
+                : variant === "member"
+                  ? "/member/forgot-password"
+                  : "/forgot-password"
             }
             className="text-[var(--text-link)] hover:underline"
           >

@@ -24,7 +24,7 @@ interface AuthProviderProps {
   baseUrl: string;
   initialAccessToken?: string | null;
   initialTenantSlug?: string | null;
-  initialAuthContext?: "platform" | "tenant";
+  initialAuthContext?: "platform" | "tenant" | "member";
   initialUser?: CurrentUserShape | null;
 }
 
