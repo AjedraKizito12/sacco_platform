@@ -117,4 +117,16 @@ export const queryKeys = {
   admin: {
     dashboardStats: () => ["admin", "dashboardStats"] as const,
   },
+  member: {
+    root: () => ["member"] as const,
+    savings: () => ["member", "savings"] as const,
+    savingsTransactions: (id: string) =>
+      ["member", "savings", id, "transactions"] as const,
+    shares: () => ["member", "shares"] as const,
+    loans: () => ["member", "loans"] as const,
+    loan: (id: string) => ["member", "loan", id] as const,
+    loanSchedule: (id: string) => ["member", "loan", id, "schedule"] as const,
+    loanStatement: (id: string) => ["member", "loan", id, "statement"] as const,
+    fees: () => ["member", "fees"] as const,
+  },
 } as const;
