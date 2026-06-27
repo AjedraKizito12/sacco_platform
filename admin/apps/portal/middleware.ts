@@ -15,9 +15,16 @@ const PUBLIC_PATHS_TENANT = new Set([
   "/forgot-password",
   "/reset-password",
 ]);
+const PUBLIC_PATHS_MEMBER = new Set([
+  "/member/login",
+  "/member/set-password",
+  "/member/forgot-password",
+  "/member/reset-password",
+]);
 
 const PLATFORM_REFRESH_COOKIE = "sacco_refresh_platform";
 const TENANT_REFRESH_COOKIE = "sacco_refresh_tenant";
+const MEMBER_REFRESH_COOKIE = "sacco_refresh_member";
 const TENANT_SLUG_COOKIE = "sacco_tenant_slug";
 
 const ROOT_DOMAIN = process.env["NEXT_PUBLIC_ROOT_DOMAIN"] ?? "";
@@ -32,6 +39,7 @@ export function middleware(request: NextRequest): NextResponse {
   const pathname = url.pathname;
 
   const isPlatformPath = pathname.startsWith("/platform");
+  const isMemberPath = pathname.startsWith("/member");
 
   // 1. Resolve tenant slug
   const slug = resolveTenantSlug({
@@ -45,17 +53,26 @@ export function middleware(request: NextRequest): NextResponse {
   const headers = new Headers(request.headers);
   if (slug) headers.set("x-sacco-tenant-slug", slug);
 
-  // 3. Authentication redirect
+  // 3. Authentication redirect. Member paths are checked first because
+  // "/member/*" otherwise falls into the tenant namespace.
   const isPublic = isPlatformPath
     ? PUBLIC_PATHS_PLATFORM.has(pathname)
-    : PUBLIC_PATHS_TENANT.has(pathname);
+    : isMemberPath
+      ? PUBLIC_PATHS_MEMBER.has(pathname)
+      : PUBLIC_PATHS_TENANT.has(pathname);
 
   if (!isPublic) {
-    const hasRefresh = isPlatformPath
-      ? request.cookies.has(PLATFORM_REFRESH_COOKIE)
-      : request.cookies.has(TENANT_REFRESH_COOKIE);
-    if (!hasRefresh) {
-      const loginPath = isPlatformPath ? "/platform/login" : "/login";
+    const refreshCookie = isPlatformPath
+      ? PLATFORM_REFRESH_COOKIE
+      : isMemberPath
+        ? MEMBER_REFRESH_COOKIE
+        : TENANT_REFRESH_COOKIE;
+    if (!request.cookies.has(refreshCookie)) {
+      const loginPath = isPlatformPath
+        ? "/platform/login"
+        : isMemberPath
+          ? "/member/login"
+          : "/login";
       const redirect = new URL(loginPath, request.url);
       redirect.searchParams.set("next", pathname);
       return NextResponse.redirect(redirect);
