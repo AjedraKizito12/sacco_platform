@@ -15,6 +15,7 @@ import { cookies, headers } from "next/headers";
 import {
   PLATFORM_REFRESH_COOKIE,
   TENANT_REFRESH_COOKIE,
+  MEMBER_REFRESH_COOKIE,
   TENANT_SLUG_COOKIE,
 } from "./cookies";
 import type { CurrentUserShape } from "./permissions";
@@ -46,21 +47,29 @@ export const getServerTenantSlug = cache(
  */
 export const getServerAccessToken = cache(
   async (
-    variant: "platform" | "tenant",
+    variant: "platform" | "tenant" | "member",
   ): Promise<{ accessToken: string | null; expiresIn: number | null }> => {
     const jar = await cookies();
     const refreshCookieName =
-      variant === "platform" ? PLATFORM_REFRESH_COOKIE : TENANT_REFRESH_COOKIE;
+      variant === "platform"
+        ? PLATFORM_REFRESH_COOKIE
+        : variant === "tenant"
+          ? TENANT_REFRESH_COOKIE
+          : MEMBER_REFRESH_COOKIE;
     const refreshToken = jar.get(refreshCookieName)?.value;
     if (!refreshToken) return { accessToken: null, expiresIn: null };
 
     const endpoint =
-      variant === "platform" ? "/platform/auth/refresh" : "/auth/refresh";
+      variant === "platform"
+        ? "/platform/auth/refresh"
+        : variant === "tenant"
+          ? "/auth/refresh"
+          : "/member/auth/refresh";
 
     const headersInit: Record<string, string> = {
       "Content-Type": "application/json",
     };
-    if (variant === "tenant") {
+    if (variant === "tenant" || variant === "member") {
       const slug = await getServerTenantSlug();
       if (!slug) return { accessToken: null, expiresIn: null };
       headersInit["X-Tenant-Slug"] = slug;
@@ -89,14 +98,19 @@ export const getServerAccessToken = cache(
  */
 export const getServerCurrentUser = cache(
   async (
-    variant: "platform" | "tenant",
+    variant: "platform" | "tenant" | "member",
     accessToken: string,
   ): Promise<CurrentUserShape | null> => {
-    const endpoint = variant === "platform" ? "/platform/auth/me" : "/auth/me";
+    const endpoint =
+      variant === "platform"
+        ? "/platform/auth/me"
+        : variant === "tenant"
+          ? "/auth/me"
+          : "/member/auth/me";
     const headersInit: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
     };
-    if (variant === "tenant") {
+    if (variant === "tenant" || variant === "member") {
       const slug = await getServerTenantSlug();
       if (slug) headersInit["X-Tenant-Slug"] = slug;
     }

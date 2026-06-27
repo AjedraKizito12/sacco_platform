@@ -81,6 +81,53 @@ export async function getTenantPageContext(): Promise<TenantPageContext> {
   return { user, slug, resources: buildResources(client) };
 }
 
+export interface MemberSelf {
+  id: string;
+  member_number: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  status: string;
+  date_of_birth: string;
+  gender: string;
+  joined_at: string | null;
+  last_login_at: string | null;
+}
+
+export interface MemberPageContext {
+  member: MemberSelf;
+  slug: string;
+  resources: Resources;
+}
+
+/**
+ * Server-component entrypoint for /member/(authed) pages. Mirrors
+ * getTenantPageContext but uses the member refresh cookie + the
+ * /member/auth/* endpoints. Redirects to /member/login when
+ * unauthenticated. `getServerCurrentUser` returns `CurrentUserShape`;
+ * the member /me shape differs, so we cast through `unknown` to
+ * MemberSelf — the runtime payload is the 4a MemberOut.
+ */
+export async function getMemberPageContext(): Promise<MemberPageContext> {
+  const slug = await getServerTenantSlug();
+  const { accessToken } = await getServerAccessToken("member");
+  if (!slug || !accessToken) redirect("/member/login");
+  const member = (await getServerCurrentUser(
+    "member",
+    accessToken,
+  )) as unknown as MemberSelf | null;
+  if (!member) redirect("/member/login");
+
+  const store = new InMemoryTokenStore("/member/auth/refresh");
+  store.setAccessToken(accessToken);
+  const client = createApiClient({
+    baseUrl: API_BASE,
+    tokenStore: store,
+    tenantContext: new FixedTenantContext(slug),
+  });
+  return { member, slug, resources: buildResources(client) };
+}
+
 /**
  * UX-layer permission gate for server components. Redirects to the
  * permission-denied page when the user lacks `permission`. The API is the

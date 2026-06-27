@@ -2,15 +2,22 @@ import { cookies } from "next/headers";
 
 export const PLATFORM_REFRESH_COOKIE = "sacco_refresh_platform";
 export const TENANT_REFRESH_COOKIE = "sacco_refresh_tenant";
+export const MEMBER_REFRESH_COOKIE = "sacco_refresh_member";
 export const TENANT_SLUG_COOKIE = "sacco_tenant_slug";
 
 const isProd = process.env.NODE_ENV === "production";
 
 export const PLATFORM_REFRESH_MAX_AGE = 60 * 60; // 1 hour
 export const TENANT_REFRESH_MAX_AGE = 60 * 60 * 8; // 8 hours
+export const MEMBER_REFRESH_MAX_AGE = 60 * 60 * 8; // 8 hours
+
+type RefreshCookieName =
+  | typeof PLATFORM_REFRESH_COOKIE
+  | typeof TENANT_REFRESH_COOKIE
+  | typeof MEMBER_REFRESH_COOKIE;
 
 interface SetRefreshArgs {
-  name: typeof PLATFORM_REFRESH_COOKIE | typeof TENANT_REFRESH_COOKIE;
+  name: RefreshCookieName;
   value: string;
   maxAgeSeconds: number;
 }
@@ -29,14 +36,14 @@ export async function setRefreshCookie(args: SetRefreshArgs): Promise<void> {
 }
 
 export async function clearRefreshCookie(
-  name: typeof PLATFORM_REFRESH_COOKIE | typeof TENANT_REFRESH_COOKIE,
+  name: RefreshCookieName,
 ): Promise<void> {
   const jar = await cookies();
   jar.delete(name);
 }
 
 export async function readRefreshCookie(
-  name: typeof PLATFORM_REFRESH_COOKIE | typeof TENANT_REFRESH_COOKIE,
+  name: RefreshCookieName,
 ): Promise<string | null> {
   const jar = await cookies();
   return jar.get(name)?.value ?? null;
