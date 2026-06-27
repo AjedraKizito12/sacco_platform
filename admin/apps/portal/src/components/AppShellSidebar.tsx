@@ -11,14 +11,16 @@ import {
   Landmark,
   LayoutGrid,
   PieChart,
+  Receipt,
   Settings,
+  User,
   Users,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { PermissionGuard } from "@/auth/PermissionGuard";
 
 interface AppShellSidebarProps {
-  variant: "platform" | "tenant";
+  variant: "platform" | "tenant" | "member";
 }
 
 const ICON_SIZE = 18;
@@ -102,6 +104,61 @@ export function AppShellSidebar({ variant }: AppShellSidebarProps) {
                     active={isActive("/platform/settings")}
                   />
                 </PermissionGuard>
+              </>
+            ),
+          },
+        ]}
+      />
+    );
+  }
+
+  if (variant === "member") {
+    return (
+      <Sidebar
+        groups={[
+          {
+            items: (
+              <SidebarItem
+                href="/member/dashboard"
+                icon={<LayoutGrid size={ICON_SIZE} strokeWidth={1.75} />}
+                label="Dashboard"
+                active={pathname === "/member/dashboard"}
+              />
+            ),
+          },
+          {
+            items: (
+              <>
+                <SidebarItem
+                  href="/member/savings"
+                  icon={<Landmark size={ICON_SIZE} strokeWidth={1.75} />}
+                  label="Savings"
+                  active={isActive("/member/savings")}
+                />
+                <SidebarItem
+                  href="/member/shares"
+                  icon={<PieChart size={ICON_SIZE} strokeWidth={1.75} />}
+                  label="Shares"
+                  active={isActive("/member/shares")}
+                />
+                <SidebarItem
+                  href="/member/loans"
+                  icon={<Banknote size={ICON_SIZE} strokeWidth={1.75} />}
+                  label="Loans"
+                  active={isActive("/member/loans")}
+                />
+                <SidebarItem
+                  href="/member/fees"
+                  icon={<Receipt size={ICON_SIZE} strokeWidth={1.75} />}
+                  label="Fees"
+                  active={isActive("/member/fees")}
+                />
+                <SidebarItem
+                  href="/member/profile"
+                  icon={<User size={ICON_SIZE} strokeWidth={1.75} />}
+                  label="Profile"
+                  active={isActive("/member/profile")}
+                />
               </>
             ),
           },

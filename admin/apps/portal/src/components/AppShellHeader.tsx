@@ -10,7 +10,7 @@ import {
 import { useCurrentUser } from "@/auth/use-current-user";
 
 interface AppShellHeaderProps {
-  variant: "platform" | "tenant";
+  variant: "platform" | "tenant" | "member";
   tenantName?: string;
 }
 
@@ -29,28 +29,38 @@ export function AppShellHeader({ variant, tenantName }: AppShellHeaderProps) {
     const endpoint =
       variant === "platform"
         ? "/api/auth/platform-logout"
-        : "/api/auth/tenant-logout";
+        : variant === "member"
+          ? "/api/auth/member-logout"
+          : "/api/auth/tenant-logout";
     await fetch(endpoint, {
       method: "POST",
       credentials: "include",
     }).catch(() => {});
-    window.location.assign(variant === "platform" ? "/platform/login" : "/login");
+    const loginUrl =
+      variant === "platform"
+        ? "/platform/login"
+        : variant === "member"
+          ? "/member/login"
+          : "/login";
+    window.location.assign(loginUrl);
   }
 
   return (
     <Header
       logo={<PortalLogo />}
       start={
-        variant === "tenant" && tenantName ? (
+        (variant === "tenant" || variant === "member") && tenantName ? (
           <TenantIndicator tenantName={tenantName} />
         ) : null
       }
       center={
-        <CommandPaletteTrigger
-          onActivate={() => {
-            // Real palette ships in sub-plan 36
-          }}
-        />
+        variant === "member" ? null : (
+          <CommandPaletteTrigger
+            onActivate={() => {
+              // Real palette ships in sub-plan 36
+            }}
+          />
+        )
       }
       end={
         <>
@@ -60,9 +70,11 @@ export function AppShellHeader({ variant, tenantName }: AppShellHeaderProps) {
               fullName={user.full_name}
               email={user.email}
               contextLabel={
-                user.is_superuser
-                  ? "Superuser"
-                  : (user.role ?? "support").toUpperCase()
+                variant === "member"
+                  ? "Member"
+                  : user.is_superuser
+                    ? "Superuser"
+                    : (user.role ?? "support").toUpperCase()
               }
               onSignOut={onSignOut}
             />
