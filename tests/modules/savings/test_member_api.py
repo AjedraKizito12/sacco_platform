@@ -142,6 +142,49 @@ async def test_member_savings_lists_only_own(client, test_engine: AsyncEngine) -
     assert account_id in ids
 
 
+async def _create_cash_account(client) -> str:  # noqa: ANN001
+    resp = await client.post(
+        "/ledger/accounts",
+        json={
+            "code": f"1-{uuid.uuid4().hex[:6]}",
+            "name": "Cash",
+            "account_type": "asset",
+        },
+        headers=HEADERS,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+async def test_member_savings_list_includes_balance(
+    client, test_engine: AsyncEngine
+) -> None:  # noqa: ANN001
+    from decimal import Decimal
+
+    member_id = await _create_member(client)
+    account_id = await _create_account(client, member_id)
+    cash_id = await _create_cash_account(client)
+
+    deposit = await client.post(
+        f"/savings/accounts/{account_id}/deposit",
+        json={
+            "amount": "1000.00",
+            "payment_account_id": cash_id,
+            "idempotency_key": uuid.uuid4().hex,
+        },
+        headers=HEADERS,
+    )
+    assert deposit.status_code == 201, deposit.text
+
+    await _activate(test_engine, member_id)
+
+    resp = await client.get("/member/savings", headers=_member_headers(member_id))
+    assert resp.status_code == 200, resp.text
+    row = next(a for a in resp.json() if a["id"] == account_id)
+    assert Decimal(str(row["balance"])) == Decimal("1000")
+    assert Decimal(str(row["available_balance"])) == Decimal("1000")
+
+
 async def test_member_cannot_read_other_members_account_txns(
     client, test_engine: AsyncEngine
 ) -> None:  # noqa: ANN001

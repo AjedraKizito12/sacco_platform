@@ -215,6 +215,23 @@ class SavingsService:
         total_lien: Decimal = result.scalar_one()
         return raw - total_lien
 
+    async def list_accounts_with_balances(
+        self, *, member_id: uuid.UUID
+    ) -> list[tuple[SavingsAccount, Decimal, Decimal]]:
+        """List a member's accounts each with (gross balance, available balance).
+
+        Available balance is lien-aware (``get_available_balance``). Read-only
+        helper for the member self-service portal; a member holds only a handful
+        of accounts so the per-account derivation is acceptable.
+        """
+        accounts = await self.list_accounts(member_id=member_id)
+        out: list[tuple[SavingsAccount, Decimal, Decimal]] = []
+        for account in accounts:
+            balance = await self.get_balance(account.id)
+            available = await self.get_available_balance(account.id)
+            out.append((account, balance, available))
+        return out
+
     # ── Transactions ──────────────────────────────────────────────────────────
 
     async def list_transactions(

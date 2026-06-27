@@ -10,6 +10,7 @@ from app.core.db import get_tenant_session
 from app.modules.iam.dependencies import CurrentMember, CurrentTenantUser
 from app.modules.savings.schemas import (
     DepositIn,
+    MemberSavingsAccountOut,
     OpenAccountIn,
     SavingsAccountOut,
     SavingsAccountWithBalanceOut,
@@ -28,12 +29,20 @@ member_router = APIRouter(prefix="/member/savings", tags=["member-savings"])
 Session = Annotated[AsyncSession, Depends(get_tenant_session)]
 
 
-@member_router.get("", response_model=list[SavingsAccountOut])
-async def member_savings(session: Session, member: CurrentMember) -> list[SavingsAccountOut]:
-    """List the current member's own savings accounts."""
+@member_router.get("", response_model=list[MemberSavingsAccountOut])
+async def member_savings(
+    session: Session, member: CurrentMember
+) -> list[MemberSavingsAccountOut]:
+    """List the current member's own savings accounts with derived balances."""
     svc = SavingsService(session)
-    accounts = await svc.list_accounts(member_id=member.id)
-    return [SavingsAccountOut.model_validate(a) for a in accounts]
+    rows = await svc.list_accounts_with_balances(member_id=member.id)
+    out: list[MemberSavingsAccountOut] = []
+    for account, balance, available in rows:
+        account_dict = SavingsAccountOut.model_validate(account).model_dump()
+        account_dict["balance"] = balance
+        account_dict["available_balance"] = available
+        out.append(MemberSavingsAccountOut.model_validate(account_dict))
+    return out
 
 
 @member_router.get(

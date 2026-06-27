@@ -45,6 +45,19 @@ class SavingsAccountWithBalanceOut(SavingsAccountOut):
     balance: Decimal
 
 
+class MemberSavingsAccountOut(SavingsAccountOut):
+    """Member self-service savings account view.
+
+    Adds the derived gross ``balance`` and the lien-aware ``available_balance``
+    (what the member can actually withdraw) so the member portal can show
+    balances without a second round trip. Both are derived from
+    savings_transactions / active liens — never stored.
+    """
+
+    balance: Decimal
+    available_balance: Decimal
+
+
 class DepositIn(BaseModel):
     amount: Decimal
     payment_account_id: uuid.UUID
