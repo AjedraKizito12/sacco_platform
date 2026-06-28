@@ -39,7 +39,10 @@ export function middleware(request: NextRequest): NextResponse {
   const pathname = url.pathname;
 
   const isPlatformPath = pathname.startsWith("/platform");
-  const isMemberPath = pathname.startsWith("/member");
+  // Exact "/member" or "/member/..." only — must NOT match the operator
+  // "/members" route (which startsWith("/member") would wrongly catch).
+  const isMemberPath =
+    pathname === "/member" || pathname.startsWith("/member/");
 
   // 1. Resolve tenant slug
   const slug = resolveTenantSlug({
