@@ -1,14 +1,10 @@
 import type { ReactNode } from "react";
-import {
-  Card,
-  Count,
-  FormattedDateTime,
-  KpiCard,
-  Money,
-  StatusBadge,
-} from "@sacco/ui";
+import { Building2, FileText, Wallet } from "lucide-react";
+import { Count, FormattedDateTime, Money } from "@sacco/ui";
 import type { DashboardStatsOut } from "@sacco/schemas";
 import { getPlatformPageContext } from "@/auth/server-page-context";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { StatTile, StatTileGrid } from "@/components/dashboard/StatTile";
 
 const DASH = "—";
 
@@ -16,23 +12,24 @@ function sumValues(d: Record<string, number>): number {
   return Object.values(d).reduce((a, b) => a + b, 0);
 }
 
-function MoneyList({ amounts }: { amounts: Record<string, string> }): ReactNode {
-  const entries = Object.entries(amounts);
-  if (entries.length === 0) return <>{DASH}</>;
+/** MRR can span currencies — the first is the headline, the rest list below. */
+function HeroMrr({ mrr }: { mrr: Record<string, string> }): ReactNode {
+  const entries = Object.entries(mrr);
+  const first = entries[0];
+  // No active/trialing subscriptions → MRR is genuinely zero (billing is
+  // UGX-only in v1). A real zero reads better than a bare dash in the hero.
+  if (!first) return <Money amount="0" currency="UGX" />;
   return (
-    <span className="flex flex-col">
-      {entries.map(([currency, amount], i) =>
-        i === 0 ? (
-          <Money key={currency} amount={amount} currency={currency} size="large" />
-        ) : (
-          <Money
-            key={currency}
-            amount={amount}
-            currency={currency}
-            className="text-[13px] text-[var(--text-secondary)]"
-          />
-        ),
-      )}
+    <span className="flex flex-col gap-1">
+      <Money amount={first[1]} currency={first[0]} />
+      {entries.slice(1).map(([currency, amount]) => (
+        <Money
+          key={currency}
+          amount={amount}
+          currency={currency}
+          className="text-[14px] font-normal text-white/70"
+        />
+      ))}
     </span>
   );
 }
@@ -52,48 +49,43 @@ export default async function PlatformDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Card className="p-6">
-        <h1 className="mb-2 text-[var(--text-h3)] font-semibold">
+      <div>
+        <h1 className="text-[length:var(--text-h4)] font-semibold">
           Platform dashboard
         </h1>
-        <p className="text-[var(--text-secondary)]">
+        <p className="mt-1 text-[13px] text-[var(--text-tertiary)]">
           {data ? (
             <>
-              Last refreshed{" "}
-              <FormattedDateTime value={data.last_updated} />
+              Last refreshed <FormattedDateTime value={data.last_updated} />
             </>
           ) : (
             "Platform-wide metrics are available to admins."
           )}
         </p>
-      </Card>
-
-      <div className="grid grid-cols-3 gap-4">
-        <KpiCard
-          label="Total tenants"
-          value={data ? <Count value={sumValues(data.tenants)} /> : DASH}
-        />
-        <KpiCard
-          label="Monthly recurring revenue"
-          value={data ? <MoneyList amounts={data.mrr} /> : DASH}
-        />
-        <KpiCard
-          label="Outstanding invoices"
-          value={
-            data ? <Count value={sumValues(data.invoices_outstanding)} /> : DASH
-          }
-        />
       </div>
 
-      <Card className="p-6">
-        <h2 className="mb-3 text-[18px] font-semibold">Sample status row</h2>
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge entity="tenant" status="active" />
-          <StatusBadge entity="tenant" status="provisioning" />
-          <StatusBadge entity="invoice" status="overdue" />
-          <StatusBadge entity="approval_request" status="pending" />
-        </div>
-      </Card>
+      <DashboardHero label="Monthly recurring revenue" icon={<Wallet size={18} />}>
+        {data ? <HeroMrr mrr={data.mrr} /> : DASH}
+      </DashboardHero>
+
+      <StatTileGrid>
+        <StatTile
+          label="Total tenants"
+          icon={<Building2 size={18} />}
+          href="/platform/tenants"
+          hint="All SACCOs"
+        >
+          {data ? <Count value={sumValues(data.tenants)} /> : DASH}
+        </StatTile>
+        <StatTile
+          label="Outstanding invoices"
+          icon={<FileText size={18} />}
+          href="/platform/billing/invoices"
+          hint="Awaiting payment"
+        >
+          {data ? <Count value={sumValues(data.invoices_outstanding)} /> : DASH}
+        </StatTile>
+      </StatTileGrid>
     </div>
   );
 }
