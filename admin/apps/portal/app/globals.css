@@ -1,1 +1,10 @@
 @import "@sacco/ui/globals.css";
+
+/* Tailwind v4 auto-detects content from the app root but ignores node_modules.
+ * @sacco/ui is a workspace package symlinked under node_modules, so utility
+ * classes used only inside its components (e.g. the primary button background,
+ * the active-nav pill) never compile unless we point Tailwind at the source
+ * explicitly. The app's own files are covered by the first glob; the UI package
+ * by the second. Paths are relative to this file. */
+@source "../**/*.{ts,tsx}";
+@source "../../../packages/ui/src/**/*.{ts,tsx}";

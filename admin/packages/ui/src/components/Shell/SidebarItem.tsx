@@ -26,15 +26,23 @@ export function SidebarItem({
       aria-current={active ? "page" : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "flex h-10 items-center gap-3 rounded-[var(--radius-md)] px-3 text-[14px] font-medium",
-        "text-[var(--text-secondary)] transition-colors",
-        "hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
-        "focus-visible:outline-2 focus-visible:outline-[var(--border-focus)]",
-        active && "bg-[var(--surface-sunken)] text-[var(--text-primary)]",
+        "flex h-11 items-center gap-3 rounded-[var(--radius-lg)] px-3 text-[14px] font-medium",
+        "text-[color:var(--text-secondary)] transition-colors duration-150",
+        "hover:bg-[var(--surface-hover)] hover:text-[color:var(--text-primary)]",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--border-focus)]",
+        active &&
+          "bg-[var(--nav-item-active-bg)] font-semibold text-[color:var(--nav-item-active-text)] hover:bg-[var(--nav-item-active-bg)] hover:text-[color:var(--nav-item-active-text)]",
         className,
       )}
     >
-      <span className="inline-flex shrink-0 items-center text-[var(--icon-default)]">
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center transition-colors",
+          active
+            ? "text-[var(--nav-item-active-icon)]"
+            : "text-[var(--icon-default)]",
+        )}
+      >
         {icon}
       </span>
       {collapsed ? null : (

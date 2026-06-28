@@ -23,9 +23,11 @@ describe("SummaryTiles", () => {
         feesOutstanding="20000.00"
       />,
     );
-    expect(screen.getByText(/Savings/i)).toBeInTheDocument();
-    expect(screen.getByText(/Shares/i)).toBeInTheDocument();
-    expect(screen.getByText(/Loans/i)).toBeInTheDocument();
-    expect(screen.getByText(/Fees/i)).toBeInTheDocument();
+    expect(screen.getByText("Total savings")).toBeInTheDocument();
+    expect(screen.getByText("Shares")).toBeInTheDocument();
+    expect(screen.getByText("Active loans")).toBeInTheDocument();
+    expect(screen.getByText("Fees outstanding")).toBeInTheDocument();
+    // hero links to the savings page
+    expect(screen.getByText("View savings")).toBeInTheDocument();
   });
 });

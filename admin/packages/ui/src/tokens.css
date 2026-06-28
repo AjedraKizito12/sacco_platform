@@ -73,6 +73,21 @@
   /* === Accent (non-semantic emphasis: restructured, waived) === */
   --color-accent-100: #EDE9FE;
   --color-accent-700: #5B21B6;
+
+  /* === Brand (violet — primary actions, active nav, focus) ===
+   * Distinct from the semantic --color-accent-* used for statuses. This is
+   * the product's identity color: primary CTAs, the active sidebar item, and
+   * focus rings. Tuned for AA contrast with white text at -600/-700. */
+  --color-brand-50:  #F5F3FF;
+  --color-brand-100: #ECE8FE;
+  --color-brand-200: #DAD2FD;
+  --color-brand-300: #C0B1FB;
+  --color-brand-400: #A488F6;
+  --color-brand-500: #7C5CF0;
+  --color-brand-600: #6A45E0;  /* primary button bg (white text ~5.6:1) */
+  --color-brand-700: #5733C2;  /* primary hover/active, active-nav text */
+  --color-brand-800: #46299C;
+  --color-brand-900: #2E1A66;
 }
 
 /* -----------------------------------------------------------------------------
@@ -83,15 +98,21 @@
  * ---------------------------------------------------------------------------*/
 :root {
   /* === Surface (backgrounds, layered top to bottom) === */
-  --surface-base:        var(--color-gray-50);   /* page background */
+  --color-canvas:        #F4F3F9;                /* soft violet-tinted page bg */
+  --surface-base:        var(--color-canvas);    /* page background */
   --surface-elevated:    var(--color-white);     /* cards, modals */
   --surface-overlay:     var(--color-white);     /* dropdowns, popovers */
   --surface-sunken:      var(--color-gray-100);  /* table header, code blocks */
   --surface-hover:       var(--color-gray-100);
   --surface-active:      var(--color-gray-200);
-  --surface-selected:    var(--color-info-100);
+  --surface-selected:    var(--color-brand-100);
   --surface-disabled:    var(--color-gray-100);
   --surface-readonly:    var(--color-gray-50);
+
+  /* === Navigation (active sidebar item — brand-tinted pill) === */
+  --nav-item-active-bg:   var(--color-brand-50);
+  --nav-item-active-text: var(--color-brand-700);
+  --nav-item-active-icon: var(--color-brand-600);
 
   /* === Text === */
   --text-primary:    var(--color-gray-900);  /* default body, headings */
@@ -113,7 +134,7 @@
   --border-subtle:   var(--color-gray-200);  /* default card, divider */
   --border-default:  var(--color-gray-300);  /* input border */
   --border-strong:   var(--color-gray-400);  /* input hover */
-  --border-focus:    var(--color-info-500);
+  --border-focus:    var(--color-brand-500);
   --border-success:  var(--color-success-700);
   --border-warning:  var(--color-warning-700);
   --border-danger:   var(--color-danger-700);
@@ -125,9 +146,9 @@
   --icon-inverse:    var(--color-white);
 
   /* === Interactive (buttons, links) === */
-  --interactive-primary-bg:           var(--color-primary-800);
-  --interactive-primary-bg-hover:     var(--color-primary-700);
-  --interactive-primary-bg-active:    var(--color-primary-900);
+  --interactive-primary-bg:           var(--color-brand-600);
+  --interactive-primary-bg-hover:     var(--color-brand-700);
+  --interactive-primary-bg-active:    var(--color-brand-800);
   --interactive-primary-bg-disabled:  var(--color-gray-400);
   --interactive-primary-text:         var(--color-white);
 
@@ -234,8 +255,8 @@
   --radius-sm:    8px;   /* badges, chips, small controls */
   --radius-md:    12px;  /* buttons, inputs, selects */
   --radius-lg:    16px;  /* dropdowns, popovers, sidebar items */
-  --radius-xl:    20px;  /* modals, sheets */
-  --radius-card:  18px;  /* standard cards */
+  --radius-xl:    22px;  /* modals, sheets */
+  --radius-card:  20px;  /* standard cards */
   --radius-full:  9999px;
 }
 
@@ -243,14 +264,17 @@
  * 6. Shadows & Elevation
  * ---------------------------------------------------------------------------*/
 :root {
+  /* Soft, layered, low-contrast — cards float on the canvas rather than
+   * sitting in a hard box. Tinted toward ink (deep indigo-black) not pure
+   * black so shadows read warm-neutral, not grey. */
   --shadow-none:   none;
-  --shadow-sm:     0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md:     0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg:     0 8px 24px rgba(0, 0, 0, 0.12);
-  --shadow-xl:     0 16px 48px rgba(0, 0, 0, 0.16);
+  --shadow-sm:     0 1px 2px rgba(23, 21, 38, 0.04), 0 1px 3px rgba(23, 21, 38, 0.04);
+  --shadow-md:     0 2px 4px rgba(23, 21, 38, 0.04), 0 8px 20px rgba(23, 21, 38, 0.06);
+  --shadow-lg:     0 4px 8px rgba(23, 21, 38, 0.05), 0 16px 36px rgba(23, 21, 38, 0.10);
+  --shadow-xl:     0 8px 16px rgba(23, 21, 38, 0.06), 0 28px 56px rgba(23, 21, 38, 0.14);
 
   /* Focus halo — softer than the outline ring */
-  --shadow-focus:        0 0 0 3px rgba(59, 130, 246, 0.25);
+  --shadow-focus:        0 0 0 3px rgba(106, 69, 224, 0.22);
   --shadow-focus-danger: 0 0 0 3px rgba(185, 28, 28, 0.15);
 }
 
@@ -375,7 +399,19 @@
   --color-accent-100: var(--color-accent-100);
   --color-accent-700: var(--color-accent-700);
 
+  --color-brand-50:  var(--color-brand-50);
+  --color-brand-100: var(--color-brand-100);
+  --color-brand-200: var(--color-brand-200);
+  --color-brand-300: var(--color-brand-300);
+  --color-brand-400: var(--color-brand-400);
+  --color-brand-500: var(--color-brand-500);
+  --color-brand-600: var(--color-brand-600);
+  --color-brand-700: var(--color-brand-700);
+  --color-brand-800: var(--color-brand-800);
+  --color-brand-900: var(--color-brand-900);
+
   /* === Colors — semantic === */
+  --color-canvas:           var(--color-canvas);
   --color-surface-base:     var(--surface-base);
   --color-surface-elevated: var(--surface-elevated);
   --color-surface-overlay:  var(--surface-overlay);
@@ -486,13 +522,39 @@ html {
   text-rendering: optimizeLegibility;
 }
 
-body {
-  font-family: var(--font-sans);
-  font-size: var(--text-body);
-  font-weight: var(--font-weight-regular);
-  line-height: var(--leading-body);
-  color: var(--text-primary);
-  background-color: var(--surface-base);
+/* Element defaults live in @layer base so component text-color utilities
+ * (e.g. a sidebar link's text-[color:var(--text-secondary)] or white text on
+ * the dark hero card) override them. Unlayered rules beat every Tailwind
+ * layer, which would otherwise pin all anchors to the link color. */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    font-weight: var(--font-weight-regular);
+    line-height: var(--leading-body);
+    color: var(--text-primary);
+    background-color: var(--surface-base);
+  }
+
+  /* Default headings use heading line-height and tracking */
+  h1, h2, h3, h4, h5, h6 {
+    line-height: var(--leading-heading);
+    letter-spacing: var(--tracking-tight);
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  /* Links — plain anchors get the link color; anchors carrying a text-color
+   * utility (nav items, the dark hero card) override it from the utilities
+   * layer. */
+  a {
+    color: var(--text-link);
+    text-decoration: none;
+  }
+  a:hover {
+    color: var(--text-link-hover);
+    text-decoration: underline;
+  }
 }
 
 /* All numeric displays use tabular figures so columns of numbers align.
@@ -501,24 +563,6 @@ body {
 .font-tabular {
   font-feature-settings: "tnum" 1, "lnum" 1;
   font-variant-numeric: tabular-nums lining-nums;
-}
-
-/* Default headings use heading line-height and tracking */
-h1, h2, h3, h4, h5, h6 {
-  line-height: var(--leading-heading);
-  letter-spacing: var(--tracking-tight);
-  color: var(--text-primary);
-  margin: 0;
-}
-
-/* Links */
-a {
-  color: var(--text-link);
-  text-decoration: none;
-}
-a:hover {
-  color: var(--text-link-hover);
-  text-decoration: underline;
 }
 
 /* =============================================================================
