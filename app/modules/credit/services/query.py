@@ -11,12 +11,16 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.credit.models import Loan, LoanInstallment
+from app.modules.credit.models import Loan, LoanApplication, LoanInstallment
 
 _log = structlog.get_logger(__name__)
 
 # Loans with a live principal balance — closed/written_off are excluded.
 _ACTIVE_LOAN_STATUSES = ("disbursing", "disbursed", "in_arrears")
+
+# Applications sitting in an operator's review queue (a draft isn't submitted
+# yet; approved/rejected/withdrawn are already decided).
+_AWAITING_DECISION_STATUSES = ("submitted", "under_review")
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,19 @@ class CreditQueryService:
             loans_by_status=loans_by_status,
             members_in_arrears=int(members_in_arrears or 0),
         )
+
+    async def count_applications_awaiting_decision(self) -> int:
+        """Count loan applications in an operator's review queue.
+
+        Used by the tenant dashboard's "needs attention" panel. Only
+        'submitted' and 'under_review' applications await a decision.
+        """
+        count = await self._session.scalar(
+            select(func.count())
+            .select_from(LoanApplication)
+            .where(LoanApplication.status.in_(_AWAITING_DECISION_STATUSES))
+        )
+        return int(count or 0)
 
     async def find_loans_eligible_for_fee(
         self,

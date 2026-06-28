@@ -24,6 +24,10 @@ class TenantDashboardStatsOut(BaseModel):
                                      authoritative for operational queries.
     - loans_by_status:               counts by `loans.status`
     - members_in_arrears:            distinct members with an in_arrears loan
+    - approvals_pending:             count of pending tenant-scoped
+                                     approval_requests (the operator's queue)
+    - applications_pending:          count of loan applications awaiting an
+                                     operator decision (submitted/under_review)
     - last_updated:                  generation timestamp (portal freshness hint)
 
     Money is single-currency per tenant (UGX); amounts are rendered by the
@@ -36,4 +40,6 @@ class TenantDashboardStatsOut(BaseModel):
     loans_outstanding_principal: Decimal
     loans_by_status: dict[str, int]
     members_in_arrears: int
+    approvals_pending: int
+    applications_pending: int
     last_updated: datetime

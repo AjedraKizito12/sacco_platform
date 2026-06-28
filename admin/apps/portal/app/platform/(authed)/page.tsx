@@ -1,9 +1,20 @@
 import type { ReactNode } from "react";
-import { Building2, FileText, Wallet } from "lucide-react";
+import {
+  AlertTriangle,
+  Building2,
+  CreditCard,
+  FileText,
+  Receipt,
+  ShieldAlert,
+  UserCog,
+  Wallet,
+} from "lucide-react";
 import { Count, FormattedDateTime, Money } from "@sacco/ui";
 import type { DashboardStatsOut } from "@sacco/schemas";
 import { getPlatformPageContext } from "@/auth/server-page-context";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { NeedsAttention } from "@/components/dashboard/NeedsAttention";
+import { QuickLinks } from "@/components/dashboard/QuickLinks";
 import { StatTile, StatTileGrid } from "@/components/dashboard/StatTile";
 
 const DASH = "—";
@@ -47,6 +58,13 @@ export default async function PlatformDashboard() {
     }>
   );
 
+  const activeSubs = data
+    ? (data.subscriptions["active"] ?? 0) + (data.subscriptions["trialing"] ?? 0)
+    : 0;
+  const pastDueSubs = data?.subscriptions["past_due"] ?? 0;
+  const suspendedTenants = data?.tenants["suspended"] ?? 0;
+  const overdueInvoices = data?.invoices_outstanding["overdue"] ?? 0;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -78,6 +96,14 @@ export default async function PlatformDashboard() {
           {data ? <Count value={sumValues(data.tenants)} /> : DASH}
         </StatTile>
         <StatTile
+          label="Active subscriptions"
+          icon={<CreditCard size={18} />}
+          href="/platform/billing/subscriptions"
+          hint="Active + trialing"
+        >
+          {data ? <Count value={activeSubs} /> : DASH}
+        </StatTile>
+        <StatTile
           label="Outstanding invoices"
           icon={<FileText size={18} />}
           href="/platform/billing/invoices"
@@ -86,6 +112,82 @@ export default async function PlatformDashboard() {
           {data ? <Count value={sumValues(data.invoices_outstanding)} /> : DASH}
         </StatTile>
       </StatTileGrid>
+
+      {data ? (
+        <NeedsAttention
+          items={[
+            {
+              icon: <FileText size={16} />,
+              label: "Platform approvals pending",
+              href: "/platform/approvals",
+              count: data.approvals_pending,
+              value: <Count value={data.approvals_pending} />,
+              tone: "info",
+            },
+            {
+              icon: <ShieldAlert size={16} />,
+              label: "Active impersonation sessions",
+              href: "/platform/operations",
+              count: data.active_impersonations,
+              value: <Count value={data.active_impersonations} />,
+              tone: "warning",
+            },
+            {
+              icon: <Receipt size={16} />,
+              label: "Subscriptions past due",
+              href: "/platform/billing/subscriptions",
+              count: pastDueSubs,
+              value: <Count value={pastDueSubs} />,
+              tone: "warning",
+            },
+            {
+              icon: <AlertTriangle size={16} />,
+              label: "Suspended tenants",
+              href: "/platform/tenants",
+              count: suspendedTenants,
+              value: <Count value={suspendedTenants} />,
+              tone: "danger",
+            },
+            {
+              icon: <AlertTriangle size={16} />,
+              label: "Overdue invoices",
+              href: "/platform/billing/invoices",
+              count: overdueInvoices,
+              value: <Count value={overdueInvoices} />,
+              tone: "danger",
+            },
+          ]}
+        />
+      ) : null}
+
+      <QuickLinks
+        items={[
+          {
+            icon: <Building2 size={18} />,
+            label: "Tenants",
+            description: "SACCOs & lifecycle",
+            href: "/platform/tenants",
+          },
+          {
+            icon: <UserCog size={18} />,
+            label: "Users",
+            description: "Platform staff & roles",
+            href: "/platform/users",
+          },
+          {
+            icon: <Receipt size={18} />,
+            label: "Billing",
+            description: "Invoices & payments",
+            href: "/platform/billing/invoices",
+          },
+          {
+            icon: <FileText size={18} />,
+            label: "Approvals",
+            description: "Maker-checker queue",
+            href: "/platform/approvals",
+          },
+        ]}
+      />
     </div>
   );
 }
