@@ -15,7 +15,7 @@ from sqlalchemy import select as _select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
-from app.modules.credit.models import Loan, LoanInstallment
+from app.modules.credit.models import Loan, LoanApplication, LoanInstallment
 from app.modules.credit.schemas import (
     DisburseIn,
     GuarantorConsentIn,
@@ -55,6 +55,8 @@ from app.modules.maker_checker.service import ApprovalService
 router = APIRouter(prefix="/credit", tags=["credit"])
 # Member self-service loans (read-only; scoped to the current member).
 member_router = APIRouter(prefix="/member/loans", tags=["member-loans"])
+# Member self-service loan applications (read-only; scoped to the current member).
+member_app_router = APIRouter(prefix="/member/loan-applications", tags=["member-loans"])
 Session = Annotated[AsyncSession, Depends(get_tenant_session)]
 
 
@@ -134,6 +136,39 @@ async def member_loan_statement(
             for line in lines
         ],
     )
+
+
+async def _member_application_or_404(
+    session: AsyncSession, application_id: uuid.UUID, member_id: uuid.UUID
+) -> LoanApplication:
+    """Fetch an application and verify it belongs to *member_id*, else 404."""
+    svc = LoanApplicationService(session)
+    try:
+        application = await svc.get(application_id=application_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Application not found") from exc
+    if application.member_id != member_id:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return application
+
+
+@member_app_router.get("", response_model=list[LoanApplicationOut])
+async def member_loan_applications(
+    session: Session, member: CurrentMember
+) -> list[LoanApplicationOut]:
+    """List the current member's own loan applications."""
+    svc = LoanApplicationService(session)
+    applications = await svc.list(member_id=member.id, status=None)
+    return [LoanApplicationOut.model_validate(a) for a in applications]
+
+
+@member_app_router.get("/{application_id}", response_model=LoanApplicationOut)
+async def member_loan_application_detail(
+    application_id: uuid.UUID, session: Session, member: CurrentMember
+) -> LoanApplicationOut:
+    """Return one of the current member's own applications (404 if not theirs)."""
+    application = await _member_application_or_404(session, application_id, member.id)
+    return LoanApplicationOut.model_validate(application)
 
 
 # ── Loan Products ─────────────────────────────────────────────────────────────
