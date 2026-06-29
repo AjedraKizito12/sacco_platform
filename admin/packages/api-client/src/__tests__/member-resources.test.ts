@@ -19,4 +19,24 @@ describe("member resource", () => {
       expect.anything(),
     );
   });
+
+  it("listLoanApplications hits /member/loan-applications", () => {
+    const api = { GET: vi.fn() } as never;
+    member(api).listLoanApplications();
+    expect((api as { GET: ReturnType<typeof vi.fn> }).GET).toHaveBeenCalledWith(
+      "/member/loan-applications",
+      expect.anything(),
+    );
+  });
+
+  it("getLoanApplication hits /member/loan-applications/{application_id}", () => {
+    const api = { GET: vi.fn() } as never;
+    member(api).getLoanApplication("abc");
+    expect((api as { GET: ReturnType<typeof vi.fn> }).GET).toHaveBeenCalledWith(
+      "/member/loan-applications/{application_id}",
+      expect.objectContaining({
+        params: { path: { application_id: "abc" } },
+      }),
+    );
+  });
 });
