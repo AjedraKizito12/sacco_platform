@@ -406,8 +406,8 @@ function renderTable(rows: MemberApplicationRow[]) {
 }
 
 describe("MemberApplicationsTable", () => {
-  it("renders the status badge and links to the application detail", () => {
-    renderTable([
+  it("links each row to the application detail page", () => {
+    const { container } = renderTable([
       {
         id: "app-1",
         loan_product_id: "p-1",
@@ -416,9 +416,10 @@ describe("MemberApplicationsTable", () => {
         status: "under_review",
       },
     ]);
+    // Query by href, not by the rendered Money text (currency formatting varies).
     expect(
-      screen.getByRole("link", { name: /view|track|application|1000/i }),
-    ).toHaveAttribute("href", "/member/loans/applications/app-1");
+      container.querySelector('a[href="/member/loans/applications/app-1"]'),
+    ).not.toBeNull();
   });
 
   it("shows an empty state when there are no applications", () => {
