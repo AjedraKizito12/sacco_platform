@@ -10,60 +10,65 @@ import {
   useTableUrlState,
 } from "@sacco/ui";
 
-export interface MemberLoanRow {
+export interface MemberApplicationRow {
   id: string;
-  loan_reference: string;
+  loan_product_id: string;
+  requested_amount: string;
+  requested_term_periods: number;
   status: string;
-  outstanding_principal: string;
 }
 
-const columns: DataTableProps<MemberLoanRow>["columns"] = [
+const columns: DataTableProps<MemberApplicationRow>["columns"] = [
   {
-    id: "loan_reference",
-    accessorKey: "loan_reference",
-    header: "Reference",
+    id: "requested_amount",
+    accessorKey: "requested_amount",
+    header: "Requested",
     cell: ({ row }) => (
       <Link
-        href={`/member/loans/${row.original.id}`}
+        href={`/member/loans/applications/${row.original.id}`}
         className="font-medium text-[var(--text-link)]"
       >
-        {row.original.loan_reference}
+        <Money amount={row.original.requested_amount} />
       </Link>
     ),
   },
   {
-    id: "outstanding_principal",
-    accessorKey: "outstanding_principal",
-    header: "Outstanding",
-    cell: ({ row }) => <Money amount={row.original.outstanding_principal} />,
+    id: "requested_term_periods",
+    accessorKey: "requested_term_periods",
+    header: "Term",
+    cell: ({ row }) => <span>{row.original.requested_term_periods} periods</span>,
   },
   {
     id: "status",
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => (
-      <StatusBadge entity="loan" status={row.original.status} />
+      <StatusBadge entity="loan_application" status={row.original.status} />
     ),
   },
 ];
 
 function sortRows(
-  rows: MemberLoanRow[],
+  rows: MemberApplicationRow[],
   column: string | null,
   dir: "asc" | "desc",
-): MemberLoanRow[] {
+): MemberApplicationRow[] {
   if (!column) return rows;
   const sorted = [...rows].sort((a, b) => {
-    const av = a[column as keyof MemberLoanRow];
-    const bv = b[column as keyof MemberLoanRow];
+    const av = a[column as keyof MemberApplicationRow];
+    const bv = b[column as keyof MemberApplicationRow];
     return String(av ?? "").localeCompare(String(bv ?? ""));
   });
   return dir === "desc" ? sorted.reverse() : sorted;
 }
 
-export function MemberLoansTable({ rows }: { rows: MemberLoanRow[] }) {
+export function MemberApplicationsTable({
+  rows,
+}: {
+  rows: MemberApplicationRow[];
+}) {
   const urlState = useTableUrlState({
-    defaultSort: { column: "loan_reference", direction: "asc" },
+    defaultSort: { column: "requested_amount", direction: "desc" },
     defaultPageSize: 25,
   });
 
@@ -77,19 +82,15 @@ export function MemberLoansTable({ rows }: { rows: MemberLoanRow[] }) {
   }, [sorted, urlState.page, urlState.pageSize]);
 
   return (
-    <DataTable<MemberLoanRow>
-      id="member-loans"
+    <DataTable<MemberApplicationRow>
+      id="member-loan-applications"
       columns={columns}
       data={pageRows}
       urlState={urlState}
-      state={{
-        totalRows: rows.length,
-        isError: false,
-        isPermissionDenied: false,
-      }}
+      state={{ totalRows: rows.length, isError: false, isPermissionDenied: false }}
       emptyState={{
-        title: "No loans",
-        description: "Your loans will appear here.",
+        title: "No loan applications",
+        description: "Applications you submit will appear here.",
       }}
     />
   );
