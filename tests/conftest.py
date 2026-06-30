@@ -56,6 +56,7 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     import app.modules.shares.models  # noqa: F401 — registers shares tables in Base.metadata
     import app.platform_.billing.models  # noqa: F401 — registers billing tables in Base.metadata
     import app.platform_.impersonations.models  # noqa: F401 — registers SupportImpersonation in Base.metadata
+    import app.platform_.kyc.models  # noqa: F401 — registers SaccoKycRequirement in Base.metadata
     import app.platform_.models  # noqa: F401 — registers Tenant, PlatformUser in Base.metadata
     from app.core.db import Base  # noqa: F401 — triggers metadata registration
 
