@@ -31,6 +31,7 @@ from app.modules.maker_checker.platform_api import router as platform_maker_chec
 from app.modules.members import executors as _members_executors  # noqa: F401
 from app.modules.members.api import member_router as members_self_router
 from app.modules.members.api import router as members_router
+from app.modules.organization.api import router as organization_router
 from app.modules.reporting.api import router as reporting_router
 from app.modules.savings import executors as _savings_executors  # noqa: F401
 from app.modules.savings.api import member_router as savings_member_router
@@ -148,6 +149,7 @@ app.include_router(platform_maker_checker_router)
 app.include_router(ledger_router)
 app.include_router(members_router)
 app.include_router(members_self_router)
+app.include_router(organization_router)
 app.include_router(shares_router)
 app.include_router(shares_member_router)
 app.include_router(savings_router)
