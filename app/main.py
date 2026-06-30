@@ -52,6 +52,7 @@ from app.platform_.billing.api import (
 )
 from app.platform_.impersonations import executors as _impersonation_executors  # noqa: F401
 from app.platform_.impersonations.api import router as impersonations_router
+from app.platform_.kyc.api import router as platform_kyc_router
 from app.platform_.tenant_users_admin.api import (
     router as tenant_users_admin_router,
 )
@@ -169,6 +170,7 @@ app.include_router(billing_tenant_router)
 app.include_router(platform_tenants_router)
 app.include_router(platform_users_router)
 app.include_router(impersonations_router)
+app.include_router(platform_kyc_router)
 app.include_router(tenant_users_admin_router)
 app.include_router(platform_admin_router)
 app.include_router(platform_audit_router)
