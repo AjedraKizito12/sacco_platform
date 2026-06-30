@@ -51,6 +51,7 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     import app.modules.maker_checker.models.platform  # noqa: F401 — registers platform approval_requests in Base.metadata
     import app.modules.maker_checker.models.tenant  # noqa: F401 — registers approval_requests in Base.metadata
     import app.modules.members.models  # noqa: F401 — registers members table in Base.metadata
+    import app.modules.organization.models  # noqa: F401 — registers OrganizationProfile in Base.metadata
     import app.modules.reporting.models  # noqa: F401 — registers reporting tables in Base.metadata
     import app.modules.savings.models  # noqa: F401 — registers savings tables in Base.metadata
     import app.modules.shares.models  # noqa: F401 — registers shares tables in Base.metadata
