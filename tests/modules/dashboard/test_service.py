@@ -8,7 +8,7 @@ there is irrelevant to what they compute.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import UTC, date
 from decimal import Decimal
 
 import pytest
@@ -239,6 +239,103 @@ async def test_portfolio_summary(test_engine):
         await _cleanup(test_engine)
 
 
+# ── CreditQueryService.count_applications_awaiting_decision ──────────────────
+
+
+async def _insert_application(session: AsyncSession, *, status: str) -> None:
+    """Insert a bare LoanApplication (+ product) in the given status."""
+    product = LoanProduct(
+        name=f"P-{uuid.uuid4()}",
+        interest_method="flat",
+        annual_interest_rate=Decimal("18.0000"),
+        repayment_frequency="monthly",
+        max_term_periods=12,
+        min_amount=Decimal("1000"),
+        max_amount=Decimal("1000000"),
+        required_approvals=1,
+        disbursement_destinations=["cash"],
+        gl_principal_receivable_code="1300",
+        gl_interest_receivable_code="1310",
+        gl_interest_income_code="4100",
+    )
+    session.add(product)
+    await session.flush()
+    session.add(
+        LoanApplication(
+            loan_product_id=product.id,
+            member_id=uuid.uuid4(),
+            requested_amount=Decimal("10000"),
+            requested_term_periods=12,
+            disbursement_destination="cash",
+            status=status,
+            idempotency_key=str(uuid.uuid4()),
+        )
+    )
+    await session.flush()
+
+
+async def test_count_applications_awaiting_decision(test_engine):
+    session = await _new_session(test_engine)
+    try:
+        # Only 'submitted' and 'under_review' await an operator decision.
+        await _insert_application(session, status="submitted")
+        await _insert_application(session, status="under_review")
+        await _insert_application(session, status="under_review")
+        await _insert_application(session, status="draft")  # not submitted yet
+        await _insert_application(session, status="approved")  # already decided
+        await _insert_application(session, status="rejected")  # already decided
+        await session.commit()
+
+        count = await CreditQueryService(session).count_applications_awaiting_decision()
+        assert count == 3
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+# ── ApprovalService.count_pending (tenant scope) ─────────────────────────────
+
+
+async def _insert_approval(session: AsyncSession, *, status: str) -> None:
+    from datetime import datetime
+
+    from app.modules.maker_checker.models.tenant import TenantApprovalRequest
+
+    session.add(
+        TenantApprovalRequest(
+            operation_type="loans.approve_application",
+            payload={},
+            requested_by=uuid.uuid4(),
+            requested_at=datetime.now(UTC),
+            required_approvals=1,
+            status=status,
+        )
+    )
+    await session.flush()
+
+
+async def test_count_pending_approvals(test_engine):
+    session = await _new_session(test_engine)
+    try:
+        from app.modules.maker_checker.service import ApprovalService
+
+        await _insert_approval(session, status="pending")
+        await _insert_approval(session, status="pending")
+        await _insert_approval(session, status="approved")  # already decided
+        await _insert_approval(session, status="rejected")  # already decided
+        await session.commit()
+
+        count = await ApprovalService(session).count_pending()
+        assert count == 2
+    finally:
+        await session.execute(
+            text("DELETE FROM approval_requests")  # noqa: S608
+        )
+        await session.commit()
+        await session.close()
+        await _cleanup(test_engine)
+
+
 # ── SavingsService.total_balance_all_accounts ───────────────────────────────
 
 
@@ -276,6 +373,8 @@ async def test_compute_empty_schema(test_engine):
         assert stats.loans_outstanding_principal == Decimal("0")
         assert stats.loans_by_status == {}
         assert stats.members_in_arrears == 0
+        assert stats.approvals_pending == 0
+        assert stats.applications_pending == 0
         assert stats.last_updated is not None
     finally:
         await session.close()

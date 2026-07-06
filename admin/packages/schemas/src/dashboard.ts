@@ -9,5 +9,7 @@ export interface TenantDashboardStatsOut {
   loans_outstanding_principal: string;
   loans_by_status: Record<string, number>;
   members_in_arrears: number;
+  approvals_pending: number;
+  applications_pending: number;
   last_updated: string;
 }

@@ -14,6 +14,7 @@ from redis.asyncio import Redis
 from app.core.config import get_settings
 from app.core.db import engine
 from app.modules.credit import executors as _credit_executors  # noqa: F401
+from app.modules.credit.api import member_app_router as credit_member_app_router
 from app.modules.credit.api import member_router as credit_member_router
 from app.modules.credit.api import router as credit_router
 from app.modules.dashboard.api import router as dashboard_router
@@ -30,6 +31,7 @@ from app.modules.maker_checker.platform_api import router as platform_maker_chec
 from app.modules.members import executors as _members_executors  # noqa: F401
 from app.modules.members.api import member_router as members_self_router
 from app.modules.members.api import router as members_router
+from app.modules.organization.api import router as organization_router
 from app.modules.reporting.api import router as reporting_router
 from app.modules.savings import executors as _savings_executors  # noqa: F401
 from app.modules.savings.api import member_router as savings_member_router
@@ -50,6 +52,7 @@ from app.platform_.billing.api import (
 )
 from app.platform_.impersonations import executors as _impersonation_executors  # noqa: F401
 from app.platform_.impersonations.api import router as impersonations_router
+from app.platform_.kyc.api import router as platform_kyc_router
 from app.platform_.tenant_users_admin.api import (
     router as tenant_users_admin_router,
 )
@@ -147,12 +150,14 @@ app.include_router(platform_maker_checker_router)
 app.include_router(ledger_router)
 app.include_router(members_router)
 app.include_router(members_self_router)
+app.include_router(organization_router)
 app.include_router(shares_router)
 app.include_router(shares_member_router)
 app.include_router(savings_router)
 app.include_router(savings_member_router)
 app.include_router(credit_router)
 app.include_router(credit_member_router)
+app.include_router(credit_member_app_router)
 app.include_router(fees_router)
 app.include_router(fees_member_router)
 app.include_router(reporting_router)
@@ -165,6 +170,7 @@ app.include_router(billing_tenant_router)
 app.include_router(platform_tenants_router)
 app.include_router(platform_users_router)
 app.include_router(impersonations_router)
+app.include_router(platform_kyc_router)
 app.include_router(tenant_users_admin_router)
 app.include_router(platform_admin_router)
 app.include_router(platform_audit_router)

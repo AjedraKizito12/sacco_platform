@@ -51,11 +51,13 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     import app.modules.maker_checker.models.platform  # noqa: F401 — registers platform approval_requests in Base.metadata
     import app.modules.maker_checker.models.tenant  # noqa: F401 — registers approval_requests in Base.metadata
     import app.modules.members.models  # noqa: F401 — registers members table in Base.metadata
+    import app.modules.organization.models  # noqa: F401 — registers OrganizationProfile in Base.metadata
     import app.modules.reporting.models  # noqa: F401 — registers reporting tables in Base.metadata
     import app.modules.savings.models  # noqa: F401 — registers savings tables in Base.metadata
     import app.modules.shares.models  # noqa: F401 — registers shares tables in Base.metadata
     import app.platform_.billing.models  # noqa: F401 — registers billing tables in Base.metadata
     import app.platform_.impersonations.models  # noqa: F401 — registers SupportImpersonation in Base.metadata
+    import app.platform_.kyc.models  # noqa: F401 — registers SaccoKycRequirement in Base.metadata
     import app.platform_.models  # noqa: F401 — registers Tenant, PlatformUser in Base.metadata
     from app.core.db import Base  # noqa: F401 — triggers metadata registration
 

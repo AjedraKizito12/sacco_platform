@@ -190,6 +190,18 @@ class ApprovalService:
             raise ValueError(f"Request is in status '{row.status}', not 'pending'")
         return row
 
+    async def count_pending(self) -> int:
+        """Count approval requests awaiting a decision in the current scope.
+
+        Schema-agnostic: counts platform or tenant requests depending on the
+        session (per `_request_models`). Used by the dashboard "needs
+        attention" panels.
+        """
+        result = await self._session.execute(
+            select(func.count()).where(self._req_cls.status == "pending")
+        )
+        return int(result.scalar_one())
+
     async def approval_count(self, request_id: uuid.UUID) -> int:
         result = await self._session.execute(
             select(func.count()).where(

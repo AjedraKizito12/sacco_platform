@@ -26,5 +26,11 @@ export function member(api: FetchClient) {
       } as never),
     listFees: (query?: Record<string, unknown>) =>
       api.GET("/member/fees" as never, { params: { query } } as never),
+    listLoanApplications: (query?: Record<string, unknown>) =>
+      api.GET("/member/loan-applications" as never, { params: { query } } as never),
+    getLoanApplication: (applicationId: string) =>
+      api.GET("/member/loan-applications/{application_id}" as never, {
+        params: { path: { application_id: applicationId } },
+      } as never),
   } as const;
 }
