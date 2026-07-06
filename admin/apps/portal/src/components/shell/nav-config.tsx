@@ -11,6 +11,7 @@ import {
   PieChart,
   Receipt,
   Settings,
+  ShieldCheck,
   User,
   Users,
   Wallet,
@@ -118,6 +119,12 @@ const TENANT_NAV: NavGroup[] = [
     ],
   },
   { label: "Billing", items: [{ label: "Billing", href: "/billing", icon: Wallet }] },
+  {
+    label: "Organization",
+    items: [
+      { label: "Organization KYC", href: "/organization/kyc", icon: ShieldCheck },
+    ],
+  },
   {
     label: "Approvals & Audit",
     items: [
