@@ -13,7 +13,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.platform_.admin.service import DashboardStatsService
-from app.platform_.billing.models import Invoice, Subscription, SubscriptionPlan
+from app.platform_.billing.models import (
+    Invoice,
+    Payment,
+    Subscription,
+    SubscriptionPlan,
+)
 from app.platform_.impersonations.models import SupportImpersonation
 from app.platform_.models import PlatformUser, Tenant
 
@@ -174,6 +179,52 @@ async def _create_actor_for_followup(
         )
         s.add(u)
     return u
+
+
+async def _seed_tenant_at(
+    factory: async_sessionmaker, *, created_at: datetime
+) -> None:
+    async with factory() as s, s.begin():
+        await s.execute(text("SET LOCAL search_path TO platform"))
+        s.add(
+            Tenant(
+                slug=f"t-{uuid.uuid4().hex[:8]}",
+                schema_name=f"tenant_t_{uuid.uuid4().hex[:8]}",
+                name="T", status="active", is_active=True,
+                created_at=created_at, updated_at=created_at,
+            )
+        )
+
+
+async def _seed_confirmed_payment(
+    factory: async_sessionmaker,
+    *,
+    amount: str,
+    confirmed_at: datetime,
+    status: str = "confirmed",
+) -> None:
+    """Seed one payment against the first existing invoice + platform user."""
+    async with factory() as s, s.begin():
+        await s.execute(text("SET LOCAL search_path TO platform"))
+        invoice_id = (
+            await s.execute(text("SELECT id FROM platform.invoices LIMIT 1"))
+        ).scalar()
+        user_id = (
+            await s.execute(text("SELECT id FROM platform.platform_users LIMIT 1"))
+        ).scalar()
+        s.add(
+            Payment(
+                invoice_id=invoice_id,
+                amount=Decimal(amount),
+                currency="UGX",
+                payment_method="bank_transfer",
+                idempotency_key=f"pay-{uuid.uuid4().hex}",
+                recorded_by=user_id,
+                recorded_at=confirmed_at,
+                status=status,
+                confirmed_at=confirmed_at if status == "confirmed" else None,
+            )
+        )
 
 
 async def _cleanup(factory: async_sessionmaker) -> None:
@@ -364,6 +415,54 @@ async def test_active_impersonations_excludes_revoked(test_engine: AsyncEngine) 
         await _cleanup(factory)
 
 
+async def test_revenue_trend_sums_confirmed_payments_by_month(
+    test_engine: AsyncEngine,
+) -> None:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    plan = await _seed_plan(factory, base_price="100", period="monthly")
+    await _seed_subscription(factory, plan_id=plan.id)
+    await _seed_invoice(factory, status="issued", amount_total="5000")
+    await _create_actor_for_followup(factory)
+    now = datetime.now(UTC)
+    await _seed_confirmed_payment(factory, amount="600", confirmed_at=now)
+    await _seed_confirmed_payment(factory, amount="400", confirmed_at=now)
+    # a still-pending payment must not count toward collected revenue
+    await _seed_confirmed_payment(factory, amount="999", confirmed_at=now, status="pending")
+    try:
+        async with factory() as s:
+            await s.execute(text("SET LOCAL search_path TO platform"))
+            s.sync_session.info["is_platform"] = True
+            stats = await DashboardStatsService(s).compute()
+            assert len(stats.revenue_trend) == 6
+            current = stats.revenue_trend[-1]
+            assert current.month == now.strftime("%Y-%m")
+            assert current.value == Decimal("1000")  # 600 + 400, pending excluded
+    finally:
+        await _cleanup(factory)
+
+
+async def test_tenants_trend_is_cumulative_and_new_this_month(
+    test_engine: AsyncEngine,
+) -> None:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    now = datetime.now(UTC)
+    # two created this month, one created ~4 months ago
+    await _seed_tenant_at(factory, created_at=now)
+    await _seed_tenant_at(factory, created_at=now)
+    await _seed_tenant_at(factory, created_at=now - timedelta(days=120))
+    try:
+        async with factory() as s:
+            await s.execute(text("SET LOCAL search_path TO platform"))
+            s.sync_session.info["is_platform"] = True
+            stats = await DashboardStatsService(s).compute()
+            assert len(stats.tenants_trend) == 6
+            # cumulative: the latest month-end equals the total tenant count
+            assert stats.tenants_trend[-1].value == Decimal("3")
+            assert stats.tenants_new_this_month == 2
+    finally:
+        await _cleanup(factory)
+
+
 async def test_zero_state(test_engine: AsyncEngine) -> None:
     factory = async_sessionmaker(test_engine, expire_on_commit=False)
     try:
@@ -378,5 +477,10 @@ async def test_zero_state(test_engine: AsyncEngine) -> None:
             assert stats.invoices_amount_outstanding == {}
             assert stats.approvals_pending == 0
             assert stats.active_impersonations == 0
+            assert len(stats.revenue_trend) == 6
+            assert len(stats.tenants_trend) == 6
+            assert all(p.value == Decimal("0") for p in stats.revenue_trend)
+            assert all(p.value == Decimal("0") for p in stats.tenants_trend)
+            assert stats.tenants_new_this_month == 0
     finally:
         await _cleanup(factory)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 import structlog
@@ -53,6 +53,16 @@ class MemberService:
             select(Member.status, func.count()).group_by(Member.status)
         )
         return {row[0]: row[1] for row in result.all()}
+
+    async def count_created_since(self, since: datetime) -> int:
+        """Count members registered on or after ``since``.
+
+        Read-only aggregate for the dashboard's "new this month" metric.
+        """
+        count = await self._session.scalar(
+            select(func.count()).select_from(Member).where(Member.created_at >= since)
+        )
+        return int(count or 0)
 
     # ── Member Number ─────────────────────────────────────────────────────────
 

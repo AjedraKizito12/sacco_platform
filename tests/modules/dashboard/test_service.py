@@ -8,7 +8,7 @@ there is irrelevant to what they compute.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -80,7 +80,13 @@ def _member_kwargs(**overrides) -> dict:
 
 
 async def _insert_loan(
-    session: AsyncSession, *, status: str, outstanding: Decimal, member_id: uuid.UUID
+    session: AsyncSession,
+    *,
+    status: str,
+    outstanding: Decimal,
+    member_id: uuid.UUID,
+    disbursed_at: datetime | None = None,
+    principal_amount: Decimal | None = None,
 ) -> Loan:
     """Insert a minimal Loan (+ product + application) for portfolio tests."""
     product = LoanProduct(
@@ -118,7 +124,7 @@ async def _insert_loan(
         loan_product_id=product.id,
         member_id=member_id,
         status=status,
-        principal_amount=outstanding,
+        principal_amount=principal_amount if principal_amount is not None else outstanding,
         outstanding_principal=outstanding,
         interest_method="flat",
         annual_interest_rate=Decimal("18.0000"),
@@ -133,6 +139,8 @@ async def _insert_loan(
         disbursed_by=uuid.uuid4(),
         idempotency_key=str(uuid.uuid4()),
     )
+    if disbursed_at is not None:
+        loan.disbursed_at = disbursed_at
     session.add(loan)
     await session.flush()
     return loan
@@ -162,7 +170,12 @@ async def _insert_savings_account(session: AsyncSession, member_id: uuid.UUID) -
 
 
 async def _insert_txn(
-    session: AsyncSession, account_id: uuid.UUID, ttype: str, amount: Decimal
+    session: AsyncSession,
+    account_id: uuid.UUID,
+    ttype: str,
+    amount: Decimal,
+    *,
+    posted_at: datetime | None = None,
 ) -> None:
     entry = JournalEntry(
         reference=f"JE-{uuid.uuid4().hex[:8]}",
@@ -172,16 +185,17 @@ async def _insert_txn(
     )
     session.add(entry)
     await session.flush()
-    session.add(
-        SavingsTransaction(
-            savings_account_id=account_id,
-            transaction_type=ttype,
-            amount=amount,
-            journal_entry_id=entry.id,
-            posted_by=uuid.uuid4(),
-            idempotency_key=str(uuid.uuid4()),
-        )
+    txn = SavingsTransaction(
+        savings_account_id=account_id,
+        transaction_type=ttype,
+        amount=amount,
+        journal_entry_id=entry.id,
+        posted_by=uuid.uuid4(),
+        idempotency_key=str(uuid.uuid4()),
     )
+    if posted_at is not None:
+        txn.posted_at = posted_at
+    session.add(txn)
     await session.flush()
 
 
@@ -205,6 +219,29 @@ async def test_count_by_status(test_engine):
 
         counts = await svc.count_by_status()
         assert counts == {"pending": 1, "active": 2, "suspended": 1}
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
+# ── MemberService.count_created_since ───────────────────────────────────────
+
+
+async def test_count_created_since(test_engine):
+    session = await _new_session(test_engine)
+    try:
+        svc = MemberService(session)
+        old = await svc.register_member(**_member_kwargs(email="old@x.com"))
+        new1 = await svc.register_member(**_member_kwargs(email="n1@x.com"))
+        new2 = await svc.register_member(**_member_kwargs(email="n2@x.com"))
+        # backdate one member before the cutoff
+        old.created_at = datetime(2026, 4, 1, tzinfo=UTC)
+        new1.created_at = datetime(2026, 6, 10, tzinfo=UTC)
+        new2.created_at = datetime(2026, 6, 20, tzinfo=UTC)
+        await session.commit()
+
+        count = await svc.count_created_since(datetime(2026, 6, 1, tzinfo=UTC))
+        assert count == 2
     finally:
         await session.close()
         await _cleanup(test_engine)
@@ -297,8 +334,6 @@ async def test_count_applications_awaiting_decision(test_engine):
 
 
 async def _insert_approval(session: AsyncSession, *, status: str) -> None:
-    from datetime import datetime
-
     from app.modules.maker_checker.models.tenant import TenantApprovalRequest
 
     session.add(
@@ -336,7 +371,80 @@ async def test_count_pending_approvals(test_engine):
         await _cleanup(test_engine)
 
 
+# ── CreditQueryService.monthly_disbursements ────────────────────────────────
+
+
+async def test_monthly_disbursements(test_engine):
+    session = await _new_session(test_engine)
+    try:
+        member = uuid.uuid4()
+        await _insert_loan(
+            session, status="disbursed", outstanding=Decimal("40000"),
+            principal_amount=Decimal("40000"), member_id=member,
+            disbursed_at=datetime(2026, 5, 3, tzinfo=UTC),
+        )
+        await _insert_loan(
+            session, status="disbursed", outstanding=Decimal("10000"),
+            principal_amount=Decimal("10000"), member_id=member,
+            disbursed_at=datetime(2026, 5, 25, tzinfo=UTC),
+        )
+        await _insert_loan(
+            session, status="in_arrears", outstanding=Decimal("30000"),
+            principal_amount=Decimal("30000"), member_id=member,
+            disbursed_at=datetime(2026, 6, 9, tzinfo=UTC),
+        )
+        # not yet disbursed (disbursed_at IS NULL) → excluded
+        await _insert_loan(
+            session, status="disbursing", outstanding=Decimal("99999"),
+            principal_amount=Decimal("99999"), member_id=member, disbursed_at=None,
+        )
+        await session.commit()
+
+        disb = await CreditQueryService(session).monthly_disbursements(
+            since=datetime(2026, 5, 1, tzinfo=UTC)
+        )
+        assert disb == {"2026-05": Decimal("50000"), "2026-06": Decimal("30000")}
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
+
+
 # ── SavingsService.total_balance_all_accounts ───────────────────────────────
+
+
+async def test_monthly_net_movements(test_engine):
+    session = await _new_session(test_engine)
+    try:
+        member = await MemberService(session).register_member(**_member_kwargs())
+        await session.flush()
+        account = await _insert_savings_account(session, member.id)
+        # May: +1000 deposit, -200 withdrawal => +800 net
+        await _insert_txn(
+            session, account.id, "deposit", Decimal("1000"),
+            posted_at=datetime(2026, 5, 10, tzinfo=UTC),
+        )
+        await _insert_txn(
+            session, account.id, "withdrawal", Decimal("200"),
+            posted_at=datetime(2026, 5, 20, tzinfo=UTC),
+        )
+        # June: +500 deposit; EXTERNAL_CREDIT excluded (mirrors balance formula)
+        await _insert_txn(
+            session, account.id, "deposit", Decimal("500"),
+            posted_at=datetime(2026, 6, 5, tzinfo=UTC),
+        )
+        await _insert_txn(
+            session, account.id, "EXTERNAL_CREDIT", Decimal("999"),
+            posted_at=datetime(2026, 6, 6, tzinfo=UTC),
+        )
+        await session.commit()
+
+        movements = await SavingsService(session).monthly_net_movements(
+            since=datetime(2026, 5, 1, tzinfo=UTC)
+        )
+        assert movements == {"2026-05": Decimal("800"), "2026-06": Decimal("500")}
+    finally:
+        await session.close()
+        await _cleanup(test_engine)
 
 
 async def test_total_balance_all_accounts(test_engine):
@@ -375,6 +483,12 @@ async def test_compute_empty_schema(test_engine):
         assert stats.members_in_arrears == 0
         assert stats.approvals_pending == 0
         assert stats.applications_pending == 0
+        # trends are dense 6-month series even on an empty schema
+        assert len(stats.savings_trend) == 6
+        assert len(stats.disbursement_trend) == 6
+        assert all(p.value == Decimal("0") for p in stats.savings_trend)
+        assert all(p.value == Decimal("0") for p in stats.disbursement_trend)
+        assert stats.members_new_this_month == 0
         assert stats.last_updated is not None
     finally:
         await session.close()
