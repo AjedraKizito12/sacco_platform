@@ -188,6 +188,7 @@ const PLATFORM_NAV: NavGroup[] = [
         children: [
           { label: "Billing", href: "/platform/settings/billing" },
           { label: "Notifications", href: "/platform/settings/notifications" },
+          { label: "SACCO KYC", href: "/platform/settings/kyc" },
           { label: "Security", href: "/platform/settings/security" },
         ],
       },
