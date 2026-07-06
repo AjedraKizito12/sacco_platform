@@ -19,7 +19,7 @@ const incomplete: KycCompletionOut = {
 describe("KycCompletionCard", () => {
   it("renders the percent, progress bar, and required-progress summary", () => {
     render(<KycCompletionCard completion={incomplete} />);
-    expect(screen.getByText(/50(?:\.\d+)?%/)).toBeInTheDocument();
+    expect(screen.getByText("50.00%")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
     expect(screen.getByText(/1 of 2 required items complete/i)).toBeInTheDocument();
   });
@@ -45,7 +45,7 @@ describe("KycCompletionCard", () => {
         }}
       />,
     );
-    expect(screen.getByText(/100(?:\.\d+)?%/)).toBeInTheDocument();
+    expect(screen.getByText("100.00%")).toBeInTheDocument();
     expect(screen.getByText(/all required items are complete/i)).toBeInTheDocument();
   });
 });
