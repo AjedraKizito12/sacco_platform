@@ -21,6 +21,7 @@ export const queryKeys = {
       ["tenants", "list", filters ?? {}] as const,
     detail: (id: string) => ["tenants", "detail", id] as const,
     users: (id: string) => ["tenants", "users", id] as const,
+    kyc: (id: string) => ["tenants", "kyc", id] as const,
   },
   billing: {
     root: () => ["billing"] as const,
@@ -130,5 +131,13 @@ export const queryKeys = {
     fees: () => ["member", "fees"] as const,
     loanApplications: () => ["member", "loan-applications"] as const,
     loanApplication: (id: string) => ["member", "loan-applications", id] as const,
+  },
+  organization: {
+    root: () => ["organization"] as const,
+    kyc: () => ["organization", "kyc"] as const,
+  },
+  kyc: {
+    root: () => ["kyc"] as const,
+    saccoRequirements: () => ["kyc", "saccoRequirements"] as const,
   },
 } as const;

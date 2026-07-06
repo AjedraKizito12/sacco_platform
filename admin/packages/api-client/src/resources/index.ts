@@ -17,6 +17,8 @@ import { admin } from "./admin";
 import { dashboard } from "./dashboard";
 import { member } from "./member";
 import { memberAuth } from "./memberAuth";
+import { organization } from "./organization";
+import { kyc } from "./kyc";
 
 export function buildResources(api: FetchClient) {
   return {
@@ -38,6 +40,8 @@ export function buildResources(api: FetchClient) {
     dashboard: dashboard(api),
     member: member(api),
     memberAuth: memberAuth(api),
+    organization: organization(api),
+    kyc: kyc(api),
   } as const;
 }
 
