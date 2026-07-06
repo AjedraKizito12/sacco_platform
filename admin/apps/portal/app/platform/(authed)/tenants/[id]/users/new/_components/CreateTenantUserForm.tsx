@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Checkbox, FormField, Input, toast } from "@sacco/ui";
+import { Button, Checkbox, FormDialog, FormField, Input, toast } from "@sacco/ui";
 import { useTypedMutation, queryKeys } from "@sacco/api-client";
 import {
   tenantUserCreateSchema,
@@ -61,10 +61,31 @@ export function CreateTenantUserForm({ tenantId }: { tenantId: string }) {
 
   return (
     <>
-      <form
-        noValidate
-        className="flex max-w-xl flex-col gap-5"
+      <FormDialog
+        title="Add user"
+        description="Invite a user to this tenant. A one-time set-password link is issued on creation."
+        className="max-w-lg"
+        open={created === null}
+        onDismiss={() => {
+          // Closing because the token modal opened is not a dismissal — only
+          // navigate when the user actually closes the empty form.
+          if (created === null) router.back();
+        }}
         onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => router.back()}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              Create user
+            </Button>
+          </>
+        }
       >
         <FormField
           control={form.control}
@@ -98,17 +119,7 @@ export function CreateTenantUserForm({ tenantId }: { tenantId: string }) {
             />
           )}
         />
-        <div className="flex gap-3">
-          <Button type="submit" disabled={mutation.isPending}>Create user</Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => router.push(`/platform/tenants/${tenantId}/users`)}
-          >
-            Cancel
-          </Button>
-        </div>
-      </form>
+      </FormDialog>
 
       <OneTimeModal
         open={created !== null}

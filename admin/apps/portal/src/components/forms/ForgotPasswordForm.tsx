@@ -63,7 +63,7 @@ export function ForgotPasswordForm({ variant }: Props) {
                   ? "/member/login"
                   : "/login"
             }
-            className="text-[var(--text-link)] hover:underline"
+            className="text-[var(--text-link)]"
           >
             Back to sign in
           </Link>

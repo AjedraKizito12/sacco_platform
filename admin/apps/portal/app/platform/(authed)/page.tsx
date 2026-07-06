@@ -9,13 +9,27 @@ import {
   UserCog,
   Wallet,
 } from "lucide-react";
-import { Count, FormattedDateTime, Money } from "@sacco/ui";
-import type { DashboardStatsOut } from "@sacco/schemas";
+import {
+  ChartCard,
+  CompositionBar,
+  CompositionDonut,
+  Count,
+  FormattedDateTime,
+  Money,
+  StatusBadge,
+  TrendAreaChart,
+} from "@sacco/ui";
+import type {
+  DashboardStatsOut,
+  InvoiceOut,
+  TenantOut,
+} from "@sacco/schemas";
 import { getPlatformPageContext } from "@/auth/server-page-context";
-import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { NeedsAttention } from "@/components/dashboard/NeedsAttention";
 import { QuickLinks } from "@/components/dashboard/QuickLinks";
+import { RecentList } from "@/components/dashboard/RecentList";
 import { StatTile, StatTileGrid } from "@/components/dashboard/StatTile";
+import { deltaPct, toChartData } from "@/components/dashboard/trend";
 
 const DASH = "—";
 
@@ -23,22 +37,24 @@ function sumValues(d: Record<string, number>): number {
   return Object.values(d).reduce((a, b) => a + b, 0);
 }
 
+function statusSegments(byStatus: Record<string, number>) {
+  return Object.entries(byStatus).map(([label, value]) => ({ label, value }));
+}
+
 /** MRR can span currencies — the first is the headline, the rest list below. */
 function HeroMrr({ mrr }: { mrr: Record<string, string> }): ReactNode {
   const entries = Object.entries(mrr);
   const first = entries[0];
-  // No active/trialing subscriptions → MRR is genuinely zero (billing is
-  // UGX-only in v1). A real zero reads better than a bare dash in the hero.
   if (!first) return <Money amount="0" currency="UGX" />;
   return (
-    <span className="flex flex-col gap-1">
+    <span className="flex items-baseline gap-2">
       <Money amount={first[1]} currency={first[0]} />
       {entries.slice(1).map(([currency, amount]) => (
         <Money
           key={currency}
           amount={amount}
           currency={currency}
-          className="text-[14px] font-normal text-white/70"
+          className="text-[14px] font-normal text-[var(--text-tertiary)]"
         />
       ))}
     </span>
@@ -48,15 +64,21 @@ function HeroMrr({ mrr }: { mrr: Record<string, string> }): ReactNode {
 export default async function PlatformDashboard() {
   const { resources } = await getPlatformPageContext();
 
-  // dashboard-stats is admin-gated at the API. The dashboard is the landing
-  // page for every authenticated platform user, so a support/finance user
-  // gets no data here — fall back to placeholders rather than failing.
-  const { data } = await (
+  // dashboard-stats is admin-gated; support/finance users get no data — fall
+  // back to placeholders rather than failing. The list calls are best-effort
+  // for the same reason.
+  const [statsRes, tenantsRes, invoicesRes] = await Promise.all([
     resources.admin.dashboardStats() as Promise<{
       data?: DashboardStatsOut;
       error?: unknown;
-    }>
-  );
+    }>,
+    resources.tenants.list() as Promise<{ data?: TenantOut[]; error?: unknown }>,
+    resources.billing.listInvoices() as Promise<{
+      data?: InvoiceOut[];
+      error?: unknown;
+    }>,
+  ]);
+  const data = statsRes.data;
 
   const activeSubs = data
     ? (data.subscriptions["active"] ?? 0) + (data.subscriptions["trialing"] ?? 0)
@@ -64,6 +86,27 @@ export default async function PlatformDashboard() {
   const pastDueSubs = data?.subscriptions["past_due"] ?? 0;
   const suspendedTenants = data?.tenants["suspended"] ?? 0;
   const overdueInvoices = data?.invoices_outstanding["overdue"] ?? 0;
+  const revenueDelta = data ? deltaPct(data.revenue_trend) : null;
+
+  const recentTenants = [...(tenantsRes.data ?? [])]
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 5)
+    .map((t) => ({
+      id: t.id,
+      primary: t.name,
+      secondary: t.slug,
+      trailing: <StatusBadge entity="tenant" status={t.status} />,
+      href: `/platform/tenants/${t.id}`,
+    }));
+  const recentInvoices = [...(invoicesRes.data ?? [])]
+    .slice(0, 5)
+    .map((inv) => ({
+      id: inv.id,
+      primary: inv.invoice_number,
+      secondary: <StatusBadge entity="invoice" status={inv.status} />,
+      trailing: <Money amount={inv.amount_total} currency={inv.currency} />,
+      href: `/platform/billing/invoices/${inv.id}`,
+    }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -82,16 +125,19 @@ export default async function PlatformDashboard() {
         </p>
       </div>
 
-      <DashboardHero label="Monthly recurring revenue" icon={<Wallet size={18} />}>
-        {data ? <HeroMrr mrr={data.mrr} /> : DASH}
-      </DashboardHero>
-
       <StatTileGrid>
+        <StatTile
+          label="Monthly recurring revenue"
+          icon={<Wallet size={18} />}
+          href="/platform/billing/subscriptions"
+        >
+          {data ? <HeroMrr mrr={data.mrr} /> : DASH}
+        </StatTile>
         <StatTile
           label="Total tenants"
           icon={<Building2 size={18} />}
           href="/platform/tenants"
-          hint="All SACCOs"
+          hint={data ? `+${data.tenants_new_this_month} this month` : undefined}
         >
           {data ? <Count value={sumValues(data.tenants)} /> : DASH}
         </StatTile>
@@ -159,6 +205,59 @@ export default async function PlatformDashboard() {
           ]}
         />
       ) : null}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <ChartCard
+          title="Revenue collected"
+          subtitle="Last 6 months"
+          seeAllHref="/platform/billing/invoices"
+          action={
+            revenueDelta !== null ? (
+              <span className="text-[13px] font-medium text-[var(--text-tertiary)]">
+                {revenueDelta >= 0 ? "+" : ""}
+                {revenueDelta.toFixed(1)}% vs last month
+              </span>
+            ) : undefined
+          }
+        >
+          <TrendAreaChart
+            data={toChartData(data?.revenue_trend ?? [])}
+            ariaLabel="Revenue collected over the last six months"
+            valueFormat={{ kind: "money", currency: "UGX" }}
+          />
+        </ChartCard>
+        <ChartCard title="Tenant growth" subtitle="Last 6 months" seeAllHref="/platform/tenants">
+          <TrendAreaChart
+            data={toChartData(data?.tenants_trend ?? [])}
+            ariaLabel="Cumulative tenant count over the last six months"
+            valueFormat={{ kind: "number" }}
+          />
+        </ChartCard>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <ChartCard title="Subscriptions by status" seeAllHref="/platform/billing/subscriptions">
+          <CompositionDonut
+            data={statusSegments(data?.subscriptions ?? {})}
+            emptyLabel="No subscriptions yet"
+          />
+        </ChartCard>
+        <ChartCard title="Tenants by status" seeAllHref="/platform/tenants">
+          <CompositionBar
+            data={statusSegments(data?.tenants ?? {})}
+            emptyLabel="No tenants yet"
+          />
+        </ChartCard>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <ChartCard title="Recent tenants" seeAllHref="/platform/tenants">
+          <RecentList items={recentTenants} emptyLabel="No tenants yet" />
+        </ChartCard>
+        <ChartCard title="Recent invoices" seeAllHref="/platform/billing/invoices">
+          <RecentList items={recentInvoices} emptyLabel="No invoices yet" />
+        </ChartCard>
+      </div>
 
       <QuickLinks
         items={[

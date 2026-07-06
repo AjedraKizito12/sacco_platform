@@ -12,6 +12,11 @@ import {
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import { cn } from "../../utils/cn";
+import {
+  calendarPopoverClass,
+  fieldInputClass,
+  fieldShellClass,
+} from "../../utils/field-shell";
 import { Popover, PopoverContent, PopoverTrigger } from "../Popover";
 import { formatDateForInput, parseTypedDate } from "./parse-date";
 
@@ -61,18 +66,10 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(
     };
 
     return (
-      <div
-        className={cn(
-          "flex h-[var(--height-control-md)] items-center gap-2 rounded-[var(--radius-md)]",
-          "border border-[var(--border-default)] bg-[var(--surface-elevated)]",
-          "focus-within:border-[var(--border-focus)] focus-within:shadow-[var(--shadow-focus)]",
-          "px-3",
-          className,
-        )}
-      >
+      <div className={cn(fieldShellClass, className)}>
         <input
           ref={ref}
-          className="h-full flex-1 bg-transparent text-[14px] outline-none [font-feature-settings:'tnum'_1,'lnum'_1]"
+          className={fieldInputClass}
           placeholder="DD/MM/YYYY"
           value={typed}
           onChange={onTypedChange}
@@ -89,7 +86,7 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(
               <CalendarDays size={16} strokeWidth={1.75} />
             </button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="p-2">
+          <PopoverContent align="end" className={calendarPopoverClass}>
             <DayPicker
               mode="single"
               selected={value ? new Date(`${value}T00:00:00`) : undefined}

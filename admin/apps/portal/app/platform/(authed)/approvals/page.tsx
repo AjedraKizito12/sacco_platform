@@ -45,7 +45,7 @@ export default async function ApprovalsInboxPage() {
         <h1 className="text-[var(--text-h3)] font-semibold">Approvals</h1>
         <a
           href="/platform/approvals/my-submissions"
-          className="text-[var(--text-link)] hover:underline"
+          className="text-[var(--text-link)]"
         >
           My submissions
         </a>

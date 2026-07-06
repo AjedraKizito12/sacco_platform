@@ -25,10 +25,5 @@ export default async function NewPayrollBatchPage() {
     member_number: m.member_number,
   }));
 
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">New payroll batch</h1>
-      <CreatePayrollBatchForm members={memberOptions} glAccounts={accounts ?? []} />
-    </div>
-  );
+  return <CreatePayrollBatchForm members={memberOptions} glAccounts={accounts ?? []} />;
 }

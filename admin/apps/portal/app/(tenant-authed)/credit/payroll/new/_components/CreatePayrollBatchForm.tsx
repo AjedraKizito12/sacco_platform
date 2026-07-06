@@ -7,6 +7,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  FormDialog,
   FormField,
   MoneyInput,
   Select,
@@ -83,10 +84,22 @@ export function CreatePayrollBatchForm({
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-2xl flex-col gap-5"
+    <FormDialog
+      title="New payroll batch"
+      description="Capture per-member repayment amounts to apply as a batch."
+      className="max-w-2xl"
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Create batch
+          </Button>
+        </>
+      }
     >
       <div className="flex flex-col gap-4">
         {fields.map((f, i) => (
@@ -145,10 +158,6 @@ export function CreatePayrollBatchForm({
           </Select>
         )} />
 
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>Create batch</Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/credit")}>Cancel</Button>
-      </div>
-    </form>
+    </FormDialog>
   );
 }

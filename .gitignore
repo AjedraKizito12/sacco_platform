@@ -63,3 +63,5 @@ admin/coverage/
 admin/apps/portal/tests/e2e/.auth/
 admin/apps/portal/playwright-report/
 admin/apps/portal/test-results/
+images/
+docker-compose.override.yml

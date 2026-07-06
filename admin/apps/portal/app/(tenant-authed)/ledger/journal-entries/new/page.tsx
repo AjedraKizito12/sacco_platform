@@ -10,10 +10,5 @@ export default async function NewJournalEntryPage() {
     data?: AccountOption[];
     error?: unknown;
   }>);
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">Post manual GL entry</h1>
-      <ManualGLForm accounts={data ?? []} />
-    </div>
-  );
+  return <ManualGLForm accounts={data ?? []} />;
 }

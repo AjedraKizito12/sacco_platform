@@ -15,10 +15,5 @@ export default async function NewTenantUserPage({
   const { user } = await getPlatformPageContext();
   requirePlatformPermission(user, "platform.tenants.users.write");
 
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">Add user</h1>
-      <CreateTenantUserForm tenantId={id} />
-    </div>
-  );
+  return <CreateTenantUserForm tenantId={id} />;
 }

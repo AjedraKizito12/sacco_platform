@@ -28,7 +28,7 @@ const columns: DataTableProps<LoanRow>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/credit/loans/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.loan_reference}
       </Link>

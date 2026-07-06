@@ -10,10 +10,5 @@ export default async function NewLoanProductPage() {
     data?: GlAccountOption[];
     error?: unknown;
   }>);
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">Create loan product</h1>
-      <CreateProductForm glAccounts={data ?? []} />
-    </div>
-  );
+  return <CreateProductForm glAccounts={data ?? []} />;
 }

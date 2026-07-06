@@ -20,7 +20,7 @@ const columns: DataTableProps<LoanProductOut>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/credit/products/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.name}
       </Link>

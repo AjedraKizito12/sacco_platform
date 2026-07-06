@@ -120,7 +120,7 @@ export default async function OperationsPage() {
         )}
         <a
           href="/platform/billing/invoices"
-          className="self-start text-[13px] text-[var(--text-link)] hover:underline"
+          className="self-start text-[13px] text-[var(--text-link)]"
         >
           View invoices
         </a>

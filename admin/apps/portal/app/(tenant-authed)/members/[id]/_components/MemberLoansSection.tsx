@@ -23,7 +23,7 @@ export function MemberLoansSection({ loans }: { loans: LoanOut[] }) {
                 <StatusBadge entity="loan" status={l.status} />
                 <Link
                   href={`/credit/loans/${l.id}`}
-                  className="text-[var(--text-link)] hover:underline"
+                  className="text-[var(--text-link)]"
                 >
                   View
                 </Link>

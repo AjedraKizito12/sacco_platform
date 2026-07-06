@@ -8,6 +8,7 @@ import {
   type InputHTMLAttributes,
 } from "react";
 import { cn } from "../../utils/cn";
+import { fieldNumericInputClass, fieldShellClass } from "../../utils/field-shell";
 
 export interface PercentageInputProps
   extends Omit<
@@ -74,25 +75,12 @@ export const PercentageInput = forwardRef<
   );
 
   return (
-    <div
-      className={cn(
-        "flex h-[var(--height-control-md)] items-center gap-2 rounded-[var(--radius-md)]",
-        "border border-[var(--border-default)] bg-[var(--surface-elevated)]",
-        "focus-within:border-[var(--border-focus)] focus-within:shadow-[var(--shadow-focus)]",
-        "px-3",
-        className,
-      )}
-    >
+    <div className={cn(fieldShellClass, className)}>
       <input
         ref={ref}
         inputMode="decimal"
         autoComplete="off"
-        className={cn(
-          "h-full flex-1 bg-transparent text-right text-[14px] outline-none",
-          "[font-feature-settings:'tnum'_1,'lnum'_1]",
-          "[appearance:textfield] [-webkit-appearance:textfield]",
-          "[&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-        )}
+        className={fieldNumericInputClass}
         value={value}
         onChange={onChange}
         onBlur={handleBlur}

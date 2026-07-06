@@ -181,6 +181,22 @@
   --status-dark-text:         var(--color-white);
   --status-danger-solid-bg:   var(--color-danger-700);
   --status-danger-solid-text: var(--color-white);
+
+  /* === Data-visualisation palette (dashboards / Recharts) ===
+   * A categorical series palette mapped onto the existing brand + semantic
+   * hues so charts stay on-system. --chart-1 is the primary (brand) series;
+   * the rest are distinct enough to read side by side in a donut/legend.
+   * Supporting tokens style the grid, axes, and the dark tooltip. */
+  --chart-1: var(--color-brand-500);    /* violet — primary series */
+  --chart-2: var(--color-info-500);     /* blue */
+  --chart-3: var(--color-success-500);  /* green */
+  --chart-4: var(--color-warning-500);  /* amber */
+  --chart-5: var(--color-danger-500);   /* red */
+  --chart-6: var(--color-accent-700);   /* deep violet */
+  --chart-grid:         var(--border-subtle);
+  --chart-axis:         var(--text-tertiary);
+  --chart-tooltip-bg:   var(--status-dark-bg);
+  --chart-tooltip-text: var(--color-white);
 }
 
 /* -----------------------------------------------------------------------------
@@ -495,12 +511,16 @@
   --shadow-lg: var(--shadow-lg);
   --shadow-xl: var(--shadow-xl);
 
-  /* === Breakpoints === */
-  --breakpoint-sm:  var(--breakpoint-sm);
-  --breakpoint-md:  var(--breakpoint-md);
-  --breakpoint-lg:  var(--breakpoint-lg);
-  --breakpoint-xl:  var(--breakpoint-xl);
-  --breakpoint-2xl: var(--breakpoint-2xl);
+  /* === Breakpoints ===
+   * MUST be literal lengths, not var() references. Tailwind v4 inlines these
+   * into media-query conditions (e.g. `@media (width >= 768px)`), and `var()`
+   * is invalid inside a media-query feature — using it silently disables every
+   * responsive variant (sm:/md:/lg:…). Keep in sync with the :root values above. */
+  --breakpoint-sm:  640px;
+  --breakpoint-md:  768px;
+  --breakpoint-lg:  1024px;
+  --breakpoint-xl:  1280px;
+  --breakpoint-2xl: 1440px;
 }
 
 /* =============================================================================
@@ -553,7 +573,7 @@ html {
   }
   a:hover {
     color: var(--text-link-hover);
-    text-decoration: underline;
+    text-decoration: none;
   }
 }
 

@@ -7,7 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   DateInput,
+  FormDialog,
   FormField,
+  FormSection,
   Input,
   Select,
   SelectContent,
@@ -81,159 +83,172 @@ export function CreateMemberForm() {
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-xl flex-col gap-5"
+    <FormDialog
+      title="Register member"
+      description="Add a new member to the SACCO."
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Register member
+          </Button>
+        </>
+      }
     >
-      <FormField
-        control={form.control}
-        name="full_name"
-        label="Full name"
-        required
-        render={({ field, id, describedBy, invalid }) => (
-          <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="date_of_birth"
-        label="Date of birth"
-        required
-        render={({ field, id, describedBy, invalid }) => (
-          <DateInput
-            id={id}
-            aria-describedby={describedBy}
-            aria-invalid={invalid}
-            value={field.value ?? ""}
-            onValueChange={field.onChange}
-            onBlur={field.onBlur}
-            name={field.name}
-            ref={field.ref}
-          />
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="gender"
-        label="Gender"
-        required
-        render={({ field, id, describedBy, invalid }) => (
-          <Select value={field.value ?? ""} onValueChange={field.onChange}>
-            <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
-              <SelectValue placeholder="Select gender…" />
-            </SelectTrigger>
-            <SelectContent>
-              {GENDER_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="phone"
-        label="Phone"
-        render={({ field, id, describedBy, invalid }) => (
-          <Input id={id} type="tel" aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="email"
-        label="Email"
-        render={({ field, id, describedBy, invalid }) => (
-          <Input id={id} type="email" aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="physical_address"
-        label="Physical address"
-        render={({ field, id, describedBy, invalid }) => (
-          <Textarea id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="national_id_number"
-        label="National ID number"
-        render={({ field, id, describedBy, invalid }) => (
-          <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="id_document_type"
-        label="ID document type"
-        render={({ field, id, describedBy, invalid }) => (
-          <Select value={field.value ?? ""} onValueChange={field.onChange}>
-            <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
-              <SelectValue placeholder="Select document type…" />
-            </SelectTrigger>
-            <SelectContent>
-              {ID_DOCUMENT_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="id_document_number"
-        label="ID document number"
-        render={({ field, id, describedBy, invalid }) => (
-          <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="id_issued_date"
-        label="ID issued date"
-        render={({ field, id, describedBy, invalid }) => (
-          <DateInput
-            id={id}
-            aria-describedby={describedBy}
-            aria-invalid={invalid}
-            value={field.value ?? ""}
-            onValueChange={field.onChange}
-            onBlur={field.onBlur}
-            name={field.name}
-            ref={field.ref}
-          />
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="id_expiry_date"
-        label="ID expiry date"
-        render={({ field, id, describedBy, invalid }) => (
-          <DateInput
-            id={id}
-            aria-describedby={describedBy}
-            aria-invalid={invalid}
-            value={field.value ?? ""}
-            onValueChange={field.onChange}
-            onBlur={field.onBlur}
-            name={field.name}
-            ref={field.ref}
-          />
-        )}
-      />
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>
-          Register member
-        </Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/members")}>
-          Cancel
-        </Button>
-      </div>
-    </form>
+      <FormSection title="Personal details" columns={2}>
+        <FormField
+          control={form.control}
+          name="full_name"
+          label="Full name"
+          required
+          className="sm:col-span-2"
+          render={({ field, id, describedBy, invalid }) => (
+            <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="date_of_birth"
+          label="Date of birth"
+          required
+          render={({ field, id, describedBy, invalid }) => (
+            <DateInput
+              id={id}
+              aria-describedby={describedBy}
+              aria-invalid={invalid}
+              value={field.value ?? ""}
+              onValueChange={field.onChange}
+              onBlur={field.onBlur}
+              name={field.name}
+              ref={field.ref}
+            />
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="gender"
+          label="Gender"
+          required
+          render={({ field, id, describedBy, invalid }) => (
+            <Select value={field.value ?? ""} onValueChange={field.onChange}>
+              <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
+                <SelectValue placeholder="Select gender…" />
+              </SelectTrigger>
+              <SelectContent>
+                {GENDER_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+      </FormSection>
+
+      <FormSection title="Contact" columns={2}>
+        <FormField
+          control={form.control}
+          name="phone"
+          label="Phone"
+          render={({ field, id, describedBy, invalid }) => (
+            <Input id={id} type="tel" aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="email"
+          label="Email"
+          render={({ field, id, describedBy, invalid }) => (
+            <Input id={id} type="email" aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="physical_address"
+          label="Physical address"
+          className="sm:col-span-2"
+          render={({ field, id, describedBy, invalid }) => (
+            <Textarea id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+          )}
+        />
+      </FormSection>
+
+      <FormSection title="Identification" columns={2}>
+        <FormField
+          control={form.control}
+          name="national_id_number"
+          label="National ID number"
+          render={({ field, id, describedBy, invalid }) => (
+            <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="id_document_type"
+          label="ID document type"
+          render={({ field, id, describedBy, invalid }) => (
+            <Select value={field.value ?? ""} onValueChange={field.onChange}>
+              <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
+                <SelectValue placeholder="Select document type…" />
+              </SelectTrigger>
+              <SelectContent>
+                {ID_DOCUMENT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="id_document_number"
+          label="ID document number"
+          render={({ field, id, describedBy, invalid }) => (
+            <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="id_issued_date"
+          label="ID issued date"
+          render={({ field, id, describedBy, invalid }) => (
+            <DateInput
+              id={id}
+              aria-describedby={describedBy}
+              aria-invalid={invalid}
+              value={field.value ?? ""}
+              onValueChange={field.onChange}
+              onBlur={field.onBlur}
+              name={field.name}
+              ref={field.ref}
+            />
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="id_expiry_date"
+          label="ID expiry date"
+          render={({ field, id, describedBy, invalid }) => (
+            <DateInput
+              id={id}
+              aria-describedby={describedBy}
+              aria-invalid={invalid}
+              value={field.value ?? ""}
+              onValueChange={field.onChange}
+              onBlur={field.onBlur}
+              name={field.name}
+              ref={field.ref}
+            />
+          )}
+        />
+      </FormSection>
+    </FormDialog>
   );
 }

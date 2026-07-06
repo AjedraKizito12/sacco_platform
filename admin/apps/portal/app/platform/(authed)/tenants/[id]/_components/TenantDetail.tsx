@@ -51,7 +51,7 @@ export function TenantDetail({
           {canManageUsers ? (
             <a
               href={`/platform/tenants/${t.id}/users`}
-              className="text-[13px] text-[var(--text-link)] hover:underline"
+              className="text-[13px] text-[var(--text-link)]"
             >
               Users
             </a>
@@ -59,7 +59,7 @@ export function TenantDetail({
           {canViewAudit ? (
             <a
               href={`/platform/tenants/${t.id}/audit`}
-              className="text-[13px] text-[var(--text-link)] hover:underline"
+              className="text-[13px] text-[var(--text-link)]"
             >
               Audit log
             </a>

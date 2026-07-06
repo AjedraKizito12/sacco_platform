@@ -8,3 +8,30 @@
  * by the second. Paths are relative to this file. */
 @source "../**/*.{ts,tsx}";
 @source "../../../packages/ui/src/**/*.{ts,tsx}";
+
+/* Global navigation progress bar (see NavigationProgress.tsx). Sits above every
+ * stacking layer, including toasts and tooltips, and fades out when idle. */
+.nav-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 3px;
+  z-index: calc(var(--z-tooltip) + 10);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.nav-progress[data-active="true"] {
+  opacity: 1;
+}
+.nav-progress__bar {
+  height: 100%;
+  background: var(--color-brand-500);
+  box-shadow: 0 0 8px 0 var(--color-brand-400);
+  border-radius: 0 2px 2px 0;
+  transition: width 200ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-progress__bar {
+    transition: none;
+  }
+}

@@ -41,14 +41,11 @@ export default async function NewLoanApplicationPage({
   }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">New loan application</h1>
-      <CreateApplicationForm
-        members={memberOptions}
-        products={productOptions}
-        glAccounts={accounts ?? []}
-        {...(sp.member_id ? { defaultMemberId: sp.member_id } : {})}
-      />
-    </div>
+    <CreateApplicationForm
+      members={memberOptions}
+      products={productOptions}
+      glAccounts={accounts ?? []}
+      {...(sp.member_id ? { defaultMemberId: sp.member_id } : {})}
+    />
   );
 }

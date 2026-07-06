@@ -43,7 +43,7 @@ export function TenantUsersTable({
       cell: ({ row }) => (
         <Link
           href={`/platform/tenants/${tenantId}/users/${row.original.id}`}
-          className="font-medium text-[var(--text-link)] hover:underline"
+          className="font-medium text-[var(--text-link)]"
         >
           {row.original.email}
         </Link>

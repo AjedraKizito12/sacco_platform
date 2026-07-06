@@ -158,7 +158,7 @@ export function LoginForm({ variant }: LoginFormProps) {
                   ? "/member/forgot-password"
                   : "/forgot-password"
             }
-            className="text-[var(--text-link)] hover:underline"
+            className="text-[var(--text-link)]"
           >
             Forgot password?
           </a>

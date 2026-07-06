@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  FormDialog,
   FormField,
   Select,
   SelectContent,
@@ -78,10 +79,22 @@ export function OpenAccountForm({
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-xl flex-col gap-5"
+    <FormDialog
+      title="Open share account"
+      description="Open a share account for a member under a product."
+      className="max-w-lg"
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Open account
+          </Button>
+        </>
+      }
     >
       <FormField control={form.control} name="member_id" label="Member" required
         render={({ field, id, describedBy, invalid }) => (
@@ -109,10 +122,6 @@ export function OpenAccountForm({
             </SelectContent>
           </Select>
         )} />
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>Open account</Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/shares/accounts")}>Cancel</Button>
-      </div>
-    </form>
+    </FormDialog>
   );
 }

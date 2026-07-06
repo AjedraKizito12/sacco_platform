@@ -1,273 +1,74 @@
 "use client";
 
-import { Sidebar, SidebarItem } from "@sacco/ui";
-import {
-  Activity,
-  Banknote,
-  Building2,
-  CheckCircle2,
-  FileText,
-  History,
-  Landmark,
-  LayoutGrid,
-  PieChart,
-  Receipt,
-  Settings,
-  User,
-  Users,
-} from "lucide-react";
-import { usePathname } from "next/navigation";
-import { PermissionGuard } from "@/auth/PermissionGuard";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { cn } from "@sacco/ui";
+import { navForVariant, type ShellVariant } from "./shell/nav-config";
+import { SidebarNav } from "./shell/SidebarNav";
 
 interface AppShellSidebarProps {
-  variant: "platform" | "tenant" | "member";
+  variant: ShellVariant;
+  /** Icons-only rail when true. */
+  collapsed?: boolean;
+  /** Toggle handler — when omitted (or canToggle false) no toggle renders. */
+  onToggle?: () => void;
+  canToggle?: boolean;
 }
 
-const ICON_SIZE = 18;
-
-export function AppShellSidebar({ variant }: AppShellSidebarProps) {
-  const pathname = usePathname();
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`);
-
-  if (variant === "platform") {
-    return (
-      <Sidebar
-        groups={[
-          {
-            items: (
-              <SidebarItem
-                href="/platform"
-                icon={<LayoutGrid size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Dashboard"
-                active={pathname === "/platform"}
-              />
-            ),
-          },
-          {
-            label: "Platform",
-            items: (
-              <>
-                <PermissionGuard permission="platform.tenants.read">
-                  <SidebarItem
-                    href="/platform/tenants"
-                    icon={<Building2 size={ICON_SIZE} strokeWidth={1.75} />}
-                    label="Tenants"
-                    active={isActive("/platform/tenants")}
-                  />
-                </PermissionGuard>
-                <PermissionGuard permission="platform.users.read">
-                  <SidebarItem
-                    href="/platform/users"
-                    icon={<Users size={ICON_SIZE} strokeWidth={1.75} />}
-                    label="Users"
-                    active={isActive("/platform/users")}
-                  />
-                </PermissionGuard>
-                <PermissionGuard permission="billing.read">
-                  <SidebarItem
-                    href="/platform/billing/plans"
-                    icon={<Banknote size={ICON_SIZE} strokeWidth={1.75} />}
-                    label="Billing"
-                    active={isActive("/platform/billing")}
-                  />
-                </PermissionGuard>
-                <PermissionGuard permission="approvals.read">
-                  <SidebarItem
-                    href="/platform/approvals"
-                    icon={<CheckCircle2 size={ICON_SIZE} strokeWidth={1.75} />}
-                    label="Approvals"
-                    active={isActive("/platform/approvals")}
-                  />
-                </PermissionGuard>
-                <PermissionGuard permission="audit.read">
-                  <SidebarItem
-                    href="/platform/audit"
-                    icon={<History size={ICON_SIZE} strokeWidth={1.75} />}
-                    label="Audit"
-                    active={isActive("/platform/audit")}
-                  />
-                </PermissionGuard>
-                <PermissionGuard permission="operations.read">
-                  <SidebarItem
-                    href="/platform/operations"
-                    icon={<Activity size={ICON_SIZE} strokeWidth={1.75} />}
-                    label="Operations"
-                    active={isActive("/platform/operations")}
-                  />
-                </PermissionGuard>
-                <PermissionGuard permission="settings.read">
-                  <SidebarItem
-                    href="/platform/settings"
-                    icon={<Settings size={ICON_SIZE} strokeWidth={1.75} />}
-                    label="Settings"
-                    active={isActive("/platform/settings")}
-                  />
-                </PermissionGuard>
-              </>
-            ),
-          },
-        ]}
-      />
-    );
-  }
-
-  if (variant === "member") {
-    return (
-      <Sidebar
-        groups={[
-          {
-            items: (
-              <SidebarItem
-                href="/member/dashboard"
-                icon={<LayoutGrid size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Dashboard"
-                active={pathname === "/member/dashboard"}
-              />
-            ),
-          },
-          {
-            items: (
-              <>
-                <SidebarItem
-                  href="/member/savings"
-                  icon={<Landmark size={ICON_SIZE} strokeWidth={1.75} />}
-                  label="Savings"
-                  active={isActive("/member/savings")}
-                />
-                <SidebarItem
-                  href="/member/shares"
-                  icon={<PieChart size={ICON_SIZE} strokeWidth={1.75} />}
-                  label="Shares"
-                  active={isActive("/member/shares")}
-                />
-                <SidebarItem
-                  href="/member/loans"
-                  icon={<Banknote size={ICON_SIZE} strokeWidth={1.75} />}
-                  label="Loans"
-                  active={isActive("/member/loans")}
-                />
-                <SidebarItem
-                  href="/member/fees"
-                  icon={<Receipt size={ICON_SIZE} strokeWidth={1.75} />}
-                  label="Fees"
-                  active={isActive("/member/fees")}
-                />
-                <SidebarItem
-                  href="/member/profile"
-                  icon={<User size={ICON_SIZE} strokeWidth={1.75} />}
-                  label="Profile"
-                  active={isActive("/member/profile")}
-                />
-              </>
-            ),
-          },
-        ]}
-      />
-    );
-  }
-
-  // Tenant
+export function AppShellSidebar({
+  variant,
+  collapsed = false,
+  onToggle,
+  canToggle = true,
+}: AppShellSidebarProps) {
+  const groups = navForVariant(variant);
   return (
-    <Sidebar
-      groups={[
-        {
-          items: (
-            <SidebarItem
-              href="/"
-              icon={<LayoutGrid size={ICON_SIZE} strokeWidth={1.75} />}
-              label="Dashboard"
-              active={pathname === "/"}
-            />
-          ),
-        },
-        {
-          label: "Operations",
-          items: (
-            <>
-              <SidebarItem
-                href="/members"
-                icon={<Users size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Members"
-                active={isActive("/members")}
-              />
-              <SidebarItem
-                href="/savings"
-                icon={<Landmark size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Savings"
-                active={isActive("/savings")}
-              />
-              <SidebarItem
-                href="/shares"
-                icon={<PieChart size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Shares"
-                active={isActive("/shares")}
-              />
-              <SidebarItem
-                href="/credit"
-                icon={<Banknote size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Credit"
-                active={isActive("/credit")}
-              />
-              <SidebarItem
-                href="/fees/types"
-                icon={<FileText size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Fees"
-                active={isActive("/fees")}
-              />
-            </>
-          ),
-        },
-        {
-          label: "Books",
-          items: (
-            <>
-              <SidebarItem
-                href="/ledger/accounts"
-                icon={<FileText size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Ledger"
-                active={isActive("/ledger")}
-              />
-              <SidebarItem
-                href="/reports"
-                icon={<FileText size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Reports"
-                active={isActive("/reports")}
-              />
-            </>
-          ),
-        },
-        {
-          label: "Billing",
-          items: (
-            <SidebarItem
-              href="/billing"
-              icon={<Banknote size={ICON_SIZE} strokeWidth={1.75} />}
-              label="Billing"
-              active={isActive("/billing")}
-            />
-          ),
-        },
-        {
-          label: "Approvals & Audit",
-          items: (
-            <>
-              <SidebarItem
-                href="/approvals"
-                icon={<CheckCircle2 size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Approvals"
-                active={isActive("/approvals")}
-              />
-              <SidebarItem
-                href="/audit"
-                icon={<History size={ICON_SIZE} strokeWidth={1.75} />}
-                label="Audit"
-                active={isActive("/audit")}
-              />
-            </>
-          ),
-        },
-      ]}
-    />
+    <aside
+      className={cn(
+        "sticky top-[var(--height-header)] z-[var(--z-sticky)] h-[calc(100vh-var(--height-header))] shrink-0",
+        "flex flex-col border-r border-[var(--border-subtle)] bg-[var(--surface-elevated)]",
+        "transition-[width] duration-200 ease-[var(--ease-out)]",
+        collapsed
+          ? "w-[var(--width-sidebar-collapsed)]"
+          : "w-[var(--width-sidebar)]",
+      )}
+      aria-label="Primary navigation"
+    >
+      <div
+        className={cn(
+          "flex-1 overflow-y-auto overflow-x-hidden py-3",
+          collapsed ? "px-2" : "px-3",
+        )}
+      >
+        <SidebarNav groups={groups} collapsed={collapsed} />
+      </div>
+
+      {canToggle && onToggle ? (
+        <div
+          className={cn(
+            "border-t border-[var(--border-subtle)] p-2",
+            collapsed && "flex justify-center",
+          )}
+        >
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={cn(
+              "flex h-9 items-center gap-2 rounded-[var(--radius-md)] text-[13px] font-medium text-[color:var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[color:var(--text-primary)]",
+              collapsed ? "w-9 justify-center" : "w-full px-3",
+            )}
+          >
+            {collapsed ? (
+              <PanelLeftOpen size={18} />
+            ) : (
+              <>
+                <PanelLeftClose size={18} />
+                <span>Collapse</span>
+              </>
+            )}
+          </button>
+        </div>
+      ) : null}
+    </aside>
   );
 }

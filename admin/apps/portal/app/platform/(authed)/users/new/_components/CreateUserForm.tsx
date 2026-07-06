@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  FormDialog,
   FormField,
   Input,
   Select,
@@ -61,10 +62,22 @@ export function CreateUserForm() {
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-xl flex-col gap-5"
+    <FormDialog
+      title="New platform user"
+      description="Invite a platform back-office user and assign their role."
+      className="max-w-lg"
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Create user
+          </Button>
+        </>
+      }
     >
       <FormField
         control={form.control}
@@ -106,10 +119,6 @@ export function CreateUserForm() {
           </Select>
         )}
       />
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>Create user</Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/platform/users")}>Cancel</Button>
-      </div>
-    </form>
+    </FormDialog>
   );
 }

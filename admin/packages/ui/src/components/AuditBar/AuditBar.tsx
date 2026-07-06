@@ -77,7 +77,7 @@ export function AuditBar({
       {viewAllHref ? (
         <a
           href={viewAllHref}
-          className="mt-3 inline-block text-[13px] text-[var(--text-link)] underline-offset-2 hover:underline"
+          className="mt-3 inline-block text-[13px] text-[var(--text-link)] underline-offset-2"
         >
           View Full History
         </a>

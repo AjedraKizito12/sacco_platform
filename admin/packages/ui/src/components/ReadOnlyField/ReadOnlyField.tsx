@@ -17,7 +17,7 @@ export function ReadOnlyField({ label, value, className }: ReadOnlyFieldProps) {
       </span>
       <div
         className={cn(
-          "flex min-h-[var(--height-control-md)] items-center rounded-[var(--radius-md)] px-3 text-[14px]",
+          "flex min-h-[var(--height-control)] items-center rounded-[var(--radius-md)] px-3 text-[var(--text-body)]",
           "bg-[var(--surface-sunken)] text-[var(--text-primary)]",
           "border border-[var(--border-subtle)]",
         )}

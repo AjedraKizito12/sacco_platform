@@ -6,7 +6,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  FormDialog,
   FormField,
+  FormSection,
   Input,
   MoneyInput,
   Select,
@@ -74,12 +76,24 @@ export function CreateProductForm({ glAccounts }: { glAccounts: GlAccountOption[
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-xl flex-col gap-5"
+    <FormDialog
+      title="Create share product"
+      description="Define the terms a new share account inherits at opening."
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Create product
+          </Button>
+        </>
+      }
     >
-      <FormField control={form.control} name="name" label="Name" required
+      <FormSection columns={2}>
+      <FormField control={form.control} name="name" label="Name" required className="sm:col-span-2"
         render={({ field, id, describedBy, invalid }) => (
           <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
         )} />
@@ -99,7 +113,7 @@ export function CreateProductForm({ glAccounts }: { glAccounts: GlAccountOption[
           <Input id={id} inputMode="numeric" aria-describedby={describedBy}
             aria-invalid={invalid} {...field} />
         )} />
-      <FormField control={form.control} name="share_capital_account_id" label="Share capital GL account" required
+      <FormField control={form.control} name="share_capital_account_id" label="Share capital GL account" required className="sm:col-span-2"
         render={({ field, id, describedBy, invalid }) => (
           <Select value={field.value} onValueChange={field.onChange}>
             <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
@@ -112,10 +126,7 @@ export function CreateProductForm({ glAccounts }: { glAccounts: GlAccountOption[
             </SelectContent>
           </Select>
         )} />
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>Create product</Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/shares")}>Cancel</Button>
-      </div>
-    </form>
+      </FormSection>
+    </FormDialog>
   );
 }

@@ -7,7 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   Checkbox,
+  FormDialog,
   FormField,
+  FormSection,
   Input,
   MoneyInput,
   Select,
@@ -100,11 +102,24 @@ export function CreateFeeTypeForm({ glAccounts }: { glAccounts: GlAccountOption[
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-xl flex-col gap-5"
+    <FormDialog
+      title="Create fee type"
+      description="Define a chargeable fee and the GL accounts it posts to."
+      className="max-w-3xl"
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Create fee type
+          </Button>
+        </>
+      }
     >
+      <FormSection columns={2}>
       <FormField control={form.control} name="code" label="Code" required
         render={({ field, id, describedBy, invalid }) => (
           <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
@@ -113,7 +128,7 @@ export function CreateFeeTypeForm({ glAccounts }: { glAccounts: GlAccountOption[
         render={({ field, id, describedBy, invalid }) => (
           <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
         )} />
-      <FormField control={form.control} name="description" label="Description"
+      <FormField control={form.control} name="description" label="Description" className="sm:col-span-2"
         render={({ field, id, describedBy, invalid }) => (
           <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
         )} />
@@ -175,7 +190,7 @@ export function CreateFeeTypeForm({ glAccounts }: { glAccounts: GlAccountOption[
         render={({ field, id, describedBy, invalid }) => glSelect(field, id, describedBy, invalid)} />
       <FormField control={form.control} name="gl_receivable_account_code" label="Receivable GL account" required
         render={({ field, id, describedBy, invalid }) => glSelect(field, id, describedBy, invalid)} />
-      <FormField control={form.control} name="requires_collection" label="Requires collection"
+      <FormField control={form.control} name="requires_collection" label="Requires collection" className="sm:col-span-2"
         render={({ field, id }) => (
           <div className="flex items-center gap-2">
             <Checkbox
@@ -186,10 +201,7 @@ export function CreateFeeTypeForm({ glAccounts }: { glAccounts: GlAccountOption[
             <span className="text-[var(--text-secondary)]">Requires a separate collection step</span>
           </div>
         )} />
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>Create fee type</Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/fees/types")}>Cancel</Button>
-      </div>
-    </form>
+      </FormSection>
+    </FormDialog>
   );
 }

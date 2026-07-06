@@ -64,10 +64,5 @@ export default async function NewFeeAssessmentPage() {
     name: t.name,
   }));
 
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">New fee assessment</h1>
-      <CreateAssessmentForm feeTypes={feeTypeOptions} targets={targets} />
-    </div>
-  );
+  return <CreateAssessmentForm feeTypes={feeTypeOptions} targets={targets} />;
 }

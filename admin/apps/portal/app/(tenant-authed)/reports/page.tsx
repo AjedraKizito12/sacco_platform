@@ -22,7 +22,7 @@ export default function ReportsIndexPage() {
           <Link
             key={r.href}
             href={r.href}
-            className="px-4 py-3 text-[var(--text-link)] hover:underline"
+            className="px-4 py-3 text-[var(--text-link)]"
           >
             {r.label}
           </Link>

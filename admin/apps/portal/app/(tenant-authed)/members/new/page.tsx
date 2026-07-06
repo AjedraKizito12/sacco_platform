@@ -6,10 +6,5 @@ export const metadata = { title: "Register member" };
 
 export default async function NewMemberPage() {
   await getTenantPageContext();
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">Register member</h1>
-      <CreateMemberForm />
-    </div>
-  );
+  return <CreateMemberForm />;
 }
