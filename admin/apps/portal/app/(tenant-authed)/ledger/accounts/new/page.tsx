@@ -10,10 +10,5 @@ export default async function NewLedgerAccountPage() {
     data?: AccountOption[];
     error?: unknown;
   }>);
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">Create account</h1>
-      <CreateAccountForm parents={data ?? []} />
-    </div>
-  );
+  return <CreateAccountForm parents={data ?? []} />;
 }

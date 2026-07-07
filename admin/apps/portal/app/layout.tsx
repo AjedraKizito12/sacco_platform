@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import "./globals.css";
 import { Toaster } from "@sacco/ui";
 import { AuthProvider } from "@/auth/AuthProvider";
+import { NavigationProgress } from "@/components/NavigationProgress";
 import { getServerTenantSlug } from "@/auth/server-helpers";
 
 // Inter is the fallback in the design system's font stack
@@ -34,6 +35,9 @@ export default async function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body>
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         <NuqsAdapter>
           <AuthProvider
             baseUrl={API_BASE}

@@ -14,7 +14,7 @@ const columns: DataTableProps<AccountOut>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/ledger/accounts/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.code}
       </Link>

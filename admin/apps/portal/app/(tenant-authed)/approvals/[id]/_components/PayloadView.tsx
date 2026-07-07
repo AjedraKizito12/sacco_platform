@@ -40,7 +40,7 @@ export function PayloadView({ payload }: PayloadViewProps) {
       <button
         type="button"
         onClick={() => setRawOpen((o) => !o)}
-        className="self-start text-[13px] text-[var(--text-link)] hover:underline"
+        className="self-start text-[13px] text-[var(--text-link)]"
       >
         {rawOpen ? "Hide raw JSON" : "View raw JSON"}
       </button>

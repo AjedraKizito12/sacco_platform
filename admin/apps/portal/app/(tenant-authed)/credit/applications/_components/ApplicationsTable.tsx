@@ -29,7 +29,7 @@ const columns: DataTableProps<ApplicationRow>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/credit/applications/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.member_label}
       </Link>

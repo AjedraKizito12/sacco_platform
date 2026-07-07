@@ -32,7 +32,7 @@ export function MemberSharesSection({
               </div>
               <Link
                 href={`/shares/accounts/${a.id}`}
-                className="text-[var(--text-link)] hover:underline"
+                className="text-[var(--text-link)]"
               >
                 View
               </Link>

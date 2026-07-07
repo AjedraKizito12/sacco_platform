@@ -9,6 +9,7 @@ import {
   type InputHTMLAttributes,
 } from "react";
 import { cn } from "../../utils/cn";
+import { fieldNumericInputClass, fieldShellClass } from "../../utils/field-shell";
 import { useTenantCurrency } from "../../context/TenantCurrency";
 import { canonicalise, formatTyping, stripFormatting } from "./format-helpers";
 
@@ -74,15 +75,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(
     );
 
     return (
-      <div
-        className={cn(
-          "flex h-[var(--height-control-md)] items-center gap-2 rounded-[var(--radius-md)]",
-          "border border-[var(--border-default)] bg-[var(--surface-elevated)]",
-          "focus-within:border-[var(--border-focus)] focus-within:shadow-[var(--shadow-focus)]",
-          "px-3",
-          className,
-        )}
-      >
+      <div className={cn(fieldShellClass, className)}>
         <span
           aria-hidden="true"
           className="select-none rounded-[var(--radius-sm)] bg-[var(--surface-sunken)] px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]"
@@ -93,12 +86,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(
           ref={ref}
           inputMode="decimal"
           autoComplete="off"
-          className={cn(
-            "h-full flex-1 bg-transparent text-right text-[14px] outline-none",
-            "[font-feature-settings:'tnum'_1,'lnum'_1]",
-            "[appearance:textfield] [-webkit-appearance:textfield]",
-            "[&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-          )}
+          className={fieldNumericInputClass}
           value={display}
           onChange={onChange}
           onBlur={handleBlur}

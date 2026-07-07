@@ -92,7 +92,7 @@ export function PendingPaymentsTable({
         cell: ({ row }) => (
           <Link
             href={`/platform/billing/invoices/${row.original.invoice_id}`}
-            className="font-medium text-[var(--text-link)] hover:underline"
+            className="font-medium text-[var(--text-link)]"
           >
             {row.original.invoice_number}
           </Link>

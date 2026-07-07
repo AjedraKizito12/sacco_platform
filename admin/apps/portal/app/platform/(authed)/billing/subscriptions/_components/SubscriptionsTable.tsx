@@ -45,7 +45,7 @@ const columns: DataTableProps<SubscriptionRow>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/platform/billing/subscriptions/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.tenant_name}
       </Link>

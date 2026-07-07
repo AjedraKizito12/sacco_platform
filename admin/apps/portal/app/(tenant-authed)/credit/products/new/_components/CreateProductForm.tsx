@@ -7,7 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   Checkbox,
+  FormDialog,
   FormField,
+  FormSection,
   Input,
   MoneyInput,
   PercentageInput,
@@ -120,19 +122,34 @@ export function CreateProductForm({ glAccounts }: { glAccounts: GlAccountOption[
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-xl flex-col gap-5"
+    <FormDialog
+      title="Create loan product"
+      description="Define the terms, GL accounts, and approval rules a new loan inherits."
+      className="max-w-3xl"
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Create product
+          </Button>
+        </>
+      }
     >
-      <FormField control={form.control} name="name" label="Name" required
+      <FormSection title="Product details" columns={2}>
+      <FormField control={form.control} name="name" label="Name" required className="sm:col-span-2"
         render={({ field, id, describedBy, invalid }) => (
           <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
         )} />
-      <FormField control={form.control} name="description" label="Description"
+      <FormField control={form.control} name="description" label="Description" className="sm:col-span-2"
         render={({ field, id, describedBy, invalid }) => (
           <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
         )} />
+      </FormSection>
+      <FormSection title="Loan terms" columns={2}>
       <FormField control={form.control} name="interest_method" label="Interest method" required
         render={({ field, id, describedBy, invalid }) => (
           <Select value={field.value} onValueChange={field.onChange}>
@@ -199,7 +216,9 @@ export function CreateProductForm({ glAccounts }: { glAccounts: GlAccountOption[
             </SelectContent>
           </Select>
         )} />
-      <FormField control={form.control} name="disbursement_destinations" label="Disbursement destinations" required
+      </FormSection>
+      <FormSection title="Disbursement & GL accounts" columns={2}>
+      <FormField control={form.control} name="disbursement_destinations" label="Disbursement destinations" required className="sm:col-span-2"
         render={({ field }) => (
           <div className="flex flex-col gap-2">
             {DESTS.map((d) => {
@@ -240,10 +259,7 @@ export function CreateProductForm({ glAccounts }: { glAccounts: GlAccountOption[
             value={field.value ?? ""} onValueChange={field.onChange}
             onBlur={field.onBlur} name={field.name} ref={field.ref} />
         )} />
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>Create product</Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/credit")}>Cancel</Button>
-      </div>
-    </form>
+      </FormSection>
+    </FormDialog>
   );
 }

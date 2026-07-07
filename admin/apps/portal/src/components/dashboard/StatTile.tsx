@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, TrendingDown, TrendingUp } from "lucide-react";
 
 interface StatTileProps {
   label: string;
@@ -8,6 +8,14 @@ interface StatTileProps {
   hint?: ReactNode;
   /** When set, the tile links here and shows the hover affordance. */
   href?: string;
+  /**
+   * Period-over-period change, as a percent. A positive value reads as
+   * success (green ↑), negative as danger (red ↓). null/undefined hides the
+   * chip — use it when there's no comparable prior period.
+   */
+  delta?: number | null;
+  /** Caption beside the delta chip, e.g. "vs last month". */
+  deltaLabel?: string;
   /** The metric value (Money / Count / custom node). */
   children: ReactNode;
 }
@@ -15,7 +23,32 @@ interface StatTileProps {
 const CARD =
   "flex flex-col gap-3 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-sm)] transition-shadow duration-150 hover:shadow-[var(--shadow-md)]";
 
-export function StatTile({ label, icon, hint, href, children }: StatTileProps) {
+function DeltaChip({ delta }: { delta: number }) {
+  const up = delta >= 0;
+  const text = `${up ? "+" : ""}${delta.toFixed(1)}%`;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 rounded-[var(--radius-full)] px-1.5 py-0.5 text-[12px] font-medium tabular-nums ${
+        up
+          ? "bg-[var(--status-success-bg)] text-[var(--text-success)]"
+          : "bg-[var(--status-danger-bg)] text-[var(--text-danger)]"
+      }`}
+    >
+      {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+      {text}
+    </span>
+  );
+}
+
+export function StatTile({
+  label,
+  icon,
+  hint,
+  href,
+  delta,
+  deltaLabel,
+  children,
+}: StatTileProps) {
   const body = (
     <>
       <div className="flex items-center justify-between">
@@ -36,7 +69,12 @@ export function StatTile({ label, icon, hint, href, children }: StatTileProps) {
         <p className="mt-1 text-[24px] font-semibold leading-tight text-[var(--text-primary)]">
           {children}
         </p>
-        {hint ? (
+        {delta !== null && delta !== undefined ? (
+          <p className="mt-1.5 flex items-center gap-1.5 text-[12px] text-[var(--text-tertiary)]">
+            <DeltaChip delta={delta} />
+            {deltaLabel}
+          </p>
+        ) : hint ? (
           <p className="mt-0.5 text-[12px] text-[var(--text-tertiary)]">{hint}</p>
         ) : null}
       </div>

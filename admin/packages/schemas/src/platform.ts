@@ -1,5 +1,6 @@
 // admin/packages/schemas/src/platform.ts
 import { z } from "zod";
+import type { MonthPoint } from "./dashboard";
 
 export const platformRoleSchema = z.enum([
   "superuser",
@@ -69,6 +70,9 @@ export interface DashboardStatsOut {
   invoices_amount_outstanding: Record<string, string>;
   approvals_pending: number;
   active_impersonations: number;
+  revenue_trend: MonthPoint[];
+  tenants_trend: MonthPoint[];
+  tenants_new_this_month: number;
   last_updated: string;
 }
 

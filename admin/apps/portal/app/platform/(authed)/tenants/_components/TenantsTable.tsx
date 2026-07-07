@@ -37,7 +37,7 @@ const columns: DataTableProps<TenantOut>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/platform/tenants/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.name}
       </Link>

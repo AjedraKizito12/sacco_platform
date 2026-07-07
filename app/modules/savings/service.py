@@ -11,6 +11,8 @@ from sqlalchemy import func, select
 from app.modules.savings.models import SavingsAccount, SavingsProduct, SavingsTransaction
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 _ALLOW_NEGATIVE_MODULES: frozenset[str] = frozenset()  # extended by credit module
@@ -197,6 +199,42 @@ class SavingsService:
             select(func.coalesce(signed, Decimal("0")))
         )
         return Decimal(str(total or 0))
+
+    async def monthly_net_movements(
+        self, *, since: datetime
+    ) -> dict[str, Decimal]:
+        """Net savings movement per calendar month, keyed ``YYYY-MM``.
+
+        Uses the same credit/debit definition as ``total_balance_all_accounts``
+        (deposit + SYSTEM_CREDIT credit; withdrawal + SYSTEM_DEBIT debit;
+        EXTERNAL_* excluded) so the running balance derived from these months
+        reconciles with the dashboard's headline total. Only transactions with
+        ``posted_at >= since`` are counted.
+        """
+        from sqlalchemy import case  # noqa: PLC0415
+
+        month = func.to_char(
+            func.date_trunc("month", SavingsTransaction.posted_at), "YYYY-MM"
+        )
+        signed = func.sum(
+            case(
+                (
+                    SavingsTransaction.transaction_type.in_(("deposit", "SYSTEM_CREDIT")),
+                    SavingsTransaction.amount,
+                ),
+                (
+                    SavingsTransaction.transaction_type.in_(("withdrawal", "SYSTEM_DEBIT")),
+                    -SavingsTransaction.amount,
+                ),
+                else_=Decimal("0"),
+            )
+        )
+        rows = await self._session.execute(
+            select(month.label("month"), signed.label("net"))
+            .where(SavingsTransaction.posted_at >= since)
+            .group_by(month)
+        )
+        return {row.month: Decimal(str(row.net or 0)) for row in rows.all()}
 
     async def get_available_balance(self, savings_account_id: uuid.UUID) -> Decimal:
         """Raw balance minus any active guarantor liens on this account."""

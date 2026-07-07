@@ -20,7 +20,7 @@ const columns: DataTableProps<SubscriptionPlanOut>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/platform/billing/plans/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.name}
       </Link>

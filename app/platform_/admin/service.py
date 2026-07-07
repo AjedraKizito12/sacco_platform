@@ -13,13 +13,22 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 
-from app.platform_.admin.schemas import DashboardStatsOut
-from app.platform_.billing.models import Invoice, Subscription, SubscriptionPlan
+from app.core.month_series import as_cumulative, as_flow, month_keys
+from app.platform_.admin.schemas import DashboardStatsOut, MonthPoint
+from app.platform_.billing.models import (
+    Invoice,
+    Payment,
+    Subscription,
+    SubscriptionPlan,
+)
 from app.platform_.impersonations.models import SupportImpersonation
 from app.platform_.models import Tenant
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+# Trailing window for the dashboard trend charts.
+_TREND_MONTHS = 6
 
 # Live = counted in MRR.
 _LIVE_SUBSCRIPTION_STATUSES_FOR_MRR = ("active", "trialing")
@@ -48,6 +57,34 @@ class DashboardStatsService:
         )
         approvals_pending = await self._approvals_pending()
         active_impersonations = await self._active_impersonations()
+
+        now = datetime.now(UTC)
+        today = now.date()
+        oldest = month_keys(_TREND_MONTHS, today=today)[0]
+        since = datetime(int(oldest[:4]), int(oldest[5:7]), 1, tzinfo=UTC)
+        month_start = datetime(today.year, today.month, 1, tzinfo=UTC)
+
+        revenue_movements = await self._revenue_by_month(since)
+        revenue_trend = [
+            MonthPoint(month=m, value=v)
+            for m, v in as_flow(revenue_movements, _TREND_MONTHS, today=today)
+        ]
+
+        tenants_new_by_month = await self._tenants_created_by_month(since)
+        total_tenants = sum(tenants.values())
+        tenants_trend = [
+            MonthPoint(month=m, value=v)
+            for m, v in as_cumulative(
+                tenants_new_by_month,
+                _TREND_MONTHS,
+                today=today,
+                current_total=Decimal(total_tenants),
+            )
+        ]
+        tenants_new_this_month = tenants_new_by_month.get(
+            month_start.strftime("%Y-%m"), Decimal("0")
+        )
+
         return DashboardStatsOut(
             tenants=tenants,
             subscriptions=subscriptions,
@@ -56,8 +93,31 @@ class DashboardStatsService:
             invoices_amount_outstanding=invoices_amount_outstanding,
             approvals_pending=approvals_pending,
             active_impersonations=active_impersonations,
-            last_updated=datetime.now(UTC),
+            revenue_trend=revenue_trend,
+            tenants_trend=tenants_trend,
+            tenants_new_this_month=int(tenants_new_this_month),
+            last_updated=now,
         )
+
+    async def _revenue_by_month(self, since: datetime) -> dict[str, Decimal]:
+        """SUM(confirmed payment amount) grouped by month of confirmed_at."""
+        month = func.to_char(func.date_trunc("month", Payment.confirmed_at), "YYYY-MM")
+        rows = await self._s.execute(
+            select(month.label("month"), func.sum(Payment.amount).label("total"))
+            .where(Payment.status == "confirmed", Payment.confirmed_at >= since)
+            .group_by(month)
+        )
+        return {row.month: Decimal(str(row.total or 0)) for row in rows.all()}
+
+    async def _tenants_created_by_month(self, since: datetime) -> dict[str, Decimal]:
+        """COUNT(tenants) grouped by month of created_at, on/after ``since``."""
+        month = func.to_char(func.date_trunc("month", Tenant.created_at), "YYYY-MM")
+        rows = await self._s.execute(
+            select(month.label("month"), func.count().label("n"))
+            .where(Tenant.created_at >= since)
+            .group_by(month)
+        )
+        return {row.month: Decimal(str(row.n or 0)) for row in rows.all()}
 
     async def _tenants_by_status(self) -> dict[str, int]:
         result = await self._s.execute(

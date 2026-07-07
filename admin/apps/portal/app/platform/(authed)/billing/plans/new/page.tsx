@@ -10,10 +10,5 @@ export default async function NewPlanPage() {
   const { user } = await getPlatformPageContext();
   requirePlatformPermission(user, "billing.write");
 
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">New plan</h1>
-      <PlanForm />
-    </div>
-  );
+  return <PlanForm />;
 }

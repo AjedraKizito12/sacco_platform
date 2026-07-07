@@ -10,10 +10,5 @@ export default async function NewFeeTypePage() {
     data?: GlAccountOption[];
     error?: unknown;
   }>);
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">Create fee type</h1>
-      <CreateFeeTypeForm glAccounts={data ?? []} />
-    </div>
-  );
+  return <CreateFeeTypeForm glAccounts={data ?? []} />;
 }

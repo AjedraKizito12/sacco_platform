@@ -6,7 +6,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  FormDialog,
   FormField,
+  FormSection,
   Input,
   Select,
   SelectContent,
@@ -67,11 +69,23 @@ export function CreateAccountForm({ parents }: { parents: AccountOption[] }) {
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-xl flex-col gap-5"
+    <FormDialog
+      title="Create account"
+      description="Add a chart-of-accounts entry to the general ledger."
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Create account
+          </Button>
+        </>
+      }
     >
+      <FormSection columns={2}>
       <FormField control={form.control} name="code" label="Code" required
         render={({ field, id, describedBy, invalid }) => (
           <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
@@ -95,7 +109,7 @@ export function CreateAccountForm({ parents }: { parents: AccountOption[] }) {
             </SelectContent>
           </Select>
         )} />
-      <FormField control={form.control} name="parent_id" label="Parent account (optional)"
+      <FormField control={form.control} name="parent_id" label="Parent account (optional)" className="sm:col-span-2"
         render={({ field, id, describedBy, invalid }) => (
           <Select value={field.value || "none"} onValueChange={field.onChange}>
             <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
@@ -109,14 +123,11 @@ export function CreateAccountForm({ parents }: { parents: AccountOption[] }) {
             </SelectContent>
           </Select>
         )} />
-      <FormField control={form.control} name="description" label="Description"
+      <FormField control={form.control} name="description" label="Description" className="sm:col-span-2"
         render={({ field, id, describedBy, invalid }) => (
           <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
         )} />
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>Create account</Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/ledger/accounts")}>Cancel</Button>
-      </div>
-    </form>
+      </FormSection>
+    </FormDialog>
   );
 }

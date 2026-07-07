@@ -5,7 +5,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  FormDialog,
   FormField,
+  FormSection,
   Input,
   MoneyInput,
   Select,
@@ -71,11 +73,24 @@ export function PlanForm() {
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-xl flex-col gap-5"
+    <FormDialog
+      title="New plan"
+      description="Create a subscription plan tenants can be assigned to."
+      className="max-w-3xl"
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Create plan
+          </Button>
+        </>
+      }
     >
+      <FormSection title="Plan details" columns={2}>
       <FormField control={form.control} name="code" label="Code" required
         helpText="Lowercase letters, digits, _ or -. Immutable after creation."
         render={({ field, id, describedBy, invalid }) => (
@@ -85,10 +100,12 @@ export function PlanForm() {
         render={({ field, id, describedBy, invalid }) => (
           <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
         )} />
-      <FormField control={form.control} name="description" label="Description"
+      <FormField control={form.control} name="description" label="Description" className="sm:col-span-2"
         render={({ field, id, describedBy, invalid }) => (
           <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
         )} />
+      </FormSection>
+      <FormSection title="Pricing & billing" columns={2}>
       <FormField control={form.control} name="currency" label="Currency" required
         render={({ field, id, describedBy, invalid }) => (
           <Select value={field.value} onValueChange={field.onChange}>
@@ -150,10 +167,7 @@ export function PlanForm() {
             onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
             onBlur={field.onBlur} name={field.name} ref={field.ref} />
         )} />
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>Create plan</Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/platform/billing/plans")}>Cancel</Button>
-      </div>
-    </form>
+      </FormSection>
+    </FormDialog>
   );
 }

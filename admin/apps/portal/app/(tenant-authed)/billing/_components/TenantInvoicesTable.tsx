@@ -29,7 +29,7 @@ const columns: DataTableProps<TenantInvoiceRow>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/billing/invoices/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.invoice_number}
       </Link>

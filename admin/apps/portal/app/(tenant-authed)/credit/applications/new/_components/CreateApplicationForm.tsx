@@ -7,7 +7,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  FormDialog,
   FormField,
+  FormSection,
   Input,
   MoneyInput,
   Select,
@@ -97,11 +99,23 @@ export function CreateApplicationForm({
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-xl flex-col gap-5"
+    <FormDialog
+      title="New loan application"
+      description="Capture a member's loan request for review and approval."
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Submit application
+          </Button>
+        </>
+      }
     >
+      <FormSection columns={2}>
       <FormField control={form.control} name="loan_product_id" label="Product" required
         render={({ field, id, describedBy, invalid }) => (
           <Select value={field.value} onValueChange={field.onChange}>
@@ -139,7 +153,7 @@ export function CreateApplicationForm({
           <Input id={id} inputMode="numeric" aria-describedby={describedBy}
             aria-invalid={invalid} {...field} />
         )} />
-      <FormField control={form.control} name="purpose" label="Purpose" required
+      <FormField control={form.control} name="purpose" label="Purpose" required className="sm:col-span-2"
         render={({ field, id, describedBy, invalid }) => (
           <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
         )} />
@@ -168,10 +182,7 @@ export function CreateApplicationForm({
             </SelectContent>
           </Select>
         )} />
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>Submit application</Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/credit/applications")}>Cancel</Button>
-      </div>
-    </form>
+      </FormSection>
+    </FormDialog>
   );
 }

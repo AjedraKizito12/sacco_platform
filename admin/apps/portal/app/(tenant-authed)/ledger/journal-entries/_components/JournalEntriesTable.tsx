@@ -14,7 +14,7 @@ const columns: DataTableProps<JournalEntryOut>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/ledger/journal-entries/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.reference}
       </Link>

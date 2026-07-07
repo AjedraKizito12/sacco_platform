@@ -44,7 +44,7 @@ const columns: DataTableProps<ApprovalRow>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/approvals/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.operation_label}
       </Link>

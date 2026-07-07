@@ -29,7 +29,7 @@ export default async function ApprovalsInboxPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-[var(--text-h3)] font-semibold">Approvals</h1>
-        <a href="/approvals/my-submissions" className="text-[var(--text-link)] hover:underline">
+        <a href="/approvals/my-submissions" className="text-[var(--text-link)]">
           My submissions
         </a>
       </div>

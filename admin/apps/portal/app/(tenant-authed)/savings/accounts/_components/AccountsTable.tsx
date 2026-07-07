@@ -27,7 +27,7 @@ const columns: DataTableProps<AccountRow>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/savings/accounts/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.member_label}
       </Link>

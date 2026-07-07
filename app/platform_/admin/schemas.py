@@ -8,6 +8,14 @@ from decimal import Decimal
 from pydantic import BaseModel
 
 
+class MonthPoint(BaseModel):
+    """One point in a dashboard month-series. ``month`` is ``YYYY-MM``; the
+    Decimal ``value`` serialises to a JSON string (the shape charts read)."""
+
+    month: str
+    value: Decimal
+
+
 class DashboardStatsOut(BaseModel):
     """Single round-trip aggregate for the platform admin dashboard.
 
@@ -24,6 +32,11 @@ class DashboardStatsOut(BaseModel):
                                      approval_requests
     - active_impersonations:         count of non-ended, non-revoked,
                                      non-expired support_impersonations
+    - revenue_trend:                 confirmed-payment amount collected per
+                                     month, last 6 months (oldest first)
+    - tenants_trend:                 cumulative tenant count at each month-end,
+                                     last 6 months (oldest first)
+    - tenants_new_this_month:        tenants created in the current month
     - last_updated:                  generation timestamp (so the portal
                                      can show a "Last updated 12s ago" hint)
     """
@@ -35,4 +48,7 @@ class DashboardStatsOut(BaseModel):
     invoices_amount_outstanding: dict[str, Decimal]
     approvals_pending: int
     active_impersonations: int
+    revenue_trend: list[MonthPoint]
+    tenants_trend: list[MonthPoint]
+    tenants_new_this_month: int
     last_updated: datetime

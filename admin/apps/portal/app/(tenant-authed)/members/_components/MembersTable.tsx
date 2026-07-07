@@ -32,7 +32,7 @@ const columns: DataTableProps<MemberOut>["columns"] = [
     cell: ({ row }) => (
       <Link
         href={`/members/${row.original.id}`}
-        className="font-medium text-[var(--text-link)] hover:underline"
+        className="font-medium text-[var(--text-link)]"
       >
         {row.original.member_number}
       </Link>

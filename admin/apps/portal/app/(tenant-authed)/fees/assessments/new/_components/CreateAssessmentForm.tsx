@@ -7,7 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   DateInput,
+  FormDialog,
   FormField,
+  FormSection,
   Select,
   SelectContent,
   SelectItem,
@@ -89,12 +91,25 @@ export function CreateAssessmentForm({
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-xl flex-col gap-5"
+    <FormDialog
+      title="New fee assessment"
+      description="Assess a fee against a member, loan, or account."
+      className="max-w-xl"
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Create assessment
+          </Button>
+        </>
+      }
     >
-      <FormField control={form.control} name="fee_type_id" label="Fee type" required
+      <FormSection columns={2}>
+      <FormField control={form.control} name="fee_type_id" label="Fee type" required className="sm:col-span-2"
         render={({ field, id, describedBy, invalid }) => (
           <Select value={field.value} onValueChange={field.onChange}>
             <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
@@ -152,10 +167,7 @@ export function CreateAssessmentForm({
             value={field.value ?? ""} onValueChange={field.onChange}
             onBlur={field.onBlur} name={field.name} ref={field.ref} />
         )} />
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>Create assessment</Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/fees/assessments")}>Cancel</Button>
-      </div>
-    </form>
+      </FormSection>
+    </FormDialog>
   );
 }

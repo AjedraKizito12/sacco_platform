@@ -35,13 +35,10 @@ export default async function NewSavingsAccountPage({
   }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">Open savings account</h1>
-      <OpenAccountForm
-        members={memberOptions}
-        products={productOptions}
-        {...(sp.member_id ? { defaultMemberId: sp.member_id } : {})}
-      />
-    </div>
+    <OpenAccountForm
+      members={memberOptions}
+      products={productOptions}
+      {...(sp.member_id ? { defaultMemberId: sp.member_id } : {})}
+    />
   );
 }

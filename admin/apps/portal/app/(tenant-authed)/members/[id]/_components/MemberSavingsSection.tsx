@@ -32,7 +32,7 @@ export function MemberSavingsSection({
               </div>
               <Link
                 href={`/savings/accounts/${a.id}`}
-                className="text-[var(--text-link)] hover:underline"
+                className="text-[var(--text-link)]"
               >
                 View
               </Link>

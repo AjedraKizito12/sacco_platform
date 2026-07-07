@@ -4,7 +4,8 @@
 Creates the minimum a browser login + the smoke screens need:
   1. an active RS256 signing key for ``aud="platform"`` (JWT mode needs one);
   2. a login-capable platform superuser (argon2 password);
-  3. one active ``platform.tenants`` row (display only — no provisioning).
+  3. one admin / finance / support platform user each (for role-gating tests);
+  4. one active ``platform.tenants`` row (display only — no provisioning).
 
 Usage (from the project root, with the dev DB + JWT_KEK in env):
 
@@ -36,6 +37,16 @@ E2E_PASSWORD = os.environ.get("E2E_PASSWORD", "e2e-Password-123!")
 E2E_TENANT_SLUG = "e2e-sacco"
 E2E_TENANT_SCHEMA = "tenant_e2e_sacco"
 E2E_TENANT_NAME = "E2E SACCO"
+
+# Non-superuser platform tiers, so the portal's role-gated routes can be
+# exercised end to end. Same password as the superuser by default.
+# (email, full_name, role)
+E2E_ROLE_PASSWORD = os.environ.get("E2E_ROLE_PASSWORD", E2E_PASSWORD)
+E2E_ROLE_USERS = (
+    ("admin@platform.example.com", "E2E Admin", "admin"),
+    ("finance@platform.example.com", "E2E Finance", "finance"),
+    ("support@platform.example.com", "E2E Support", "support"),
+)
 
 
 async def _seed() -> None:
@@ -84,6 +95,30 @@ async def _seed() -> None:
                 print(f"seed: created superuser {E2E_EMAIL}")
             else:
                 print(f"seed: superuser {E2E_EMAIL} already present")
+
+            # 2b. Non-superuser tiers (admin / finance / support) for the
+            #     portal's role-gated routes. is_superuser stays False — the
+            #     role column is the authoritative tier (CLAUDE.md IAM rule).
+            for email, full_name, role in E2E_ROLE_USERS:
+                existing = await session.scalar(
+                    select(PlatformUser).where(PlatformUser.email == email)
+                )
+                if existing is None:
+                    session.add(
+                        PlatformUser(
+                            email=email,
+                            full_name=full_name,
+                            hashed_password=hash_password(E2E_ROLE_PASSWORD),
+                            is_active=True,
+                            is_superuser=False,
+                            role=role,
+                            created_at=datetime.now(UTC),
+                            updated_at=datetime.now(UTC),
+                        )
+                    )
+                    print(f"seed: created {role} {email}")
+                else:
+                    print(f"seed: {role} {email} already present")
 
             # 3. One active tenant row (display only — no async provisioning).
             tenant = await session.scalar(

@@ -31,7 +31,7 @@ export default async function BillingSettingsPage() {
         <Row title="Plans &amp; default pricing">
           Plans are managed in the billing area, and assigned per tenant on the tenant
           detail page.{" "}
-          <Link href="/platform/billing/plans" className="text-[var(--text-link)] hover:underline">
+          <Link href="/platform/billing/plans" className="text-[var(--text-link)]">
             Manage plans
           </Link>
         </Row>

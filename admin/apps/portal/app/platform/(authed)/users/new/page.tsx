@@ -10,10 +10,5 @@ export default async function NewPlatformUserPage() {
   const { user } = await getPlatformPageContext();
   requirePlatformPermission(user, "platform.users.write");
 
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-[var(--text-h3)] font-semibold">New platform user</h1>
-      <CreateUserForm />
-    </div>
-  );
+  return <CreateUserForm />;
 }

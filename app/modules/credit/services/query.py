@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -79,6 +79,22 @@ class CreditQueryService:
             .where(LoanApplication.status.in_(_AWAITING_DECISION_STATUSES))
         )
         return int(count or 0)
+
+    async def monthly_disbursements(self, *, since: datetime) -> dict[str, Decimal]:
+        """Principal disbursed per calendar month, keyed ``YYYY-MM``.
+
+        Sums ``loans.principal_amount`` grouped by the month of
+        ``disbursed_at``, for loans disbursed on or after ``since``. Loans that
+        were never disbursed (``disbursed_at IS NULL``) are excluded. Feeds the
+        operator dashboard's disbursement-trend chart.
+        """
+        month = func.to_char(func.date_trunc("month", Loan.disbursed_at), "YYYY-MM")
+        rows = await self._session.execute(
+            select(month.label("month"), func.sum(Loan.principal_amount).label("total"))
+            .where(Loan.disbursed_at.is_not(None), Loan.disbursed_at >= since)
+            .group_by(month)
+        )
+        return {row.month: Decimal(str(row.total or 0)) for row in rows.all()}
 
     async def find_loans_eligible_for_fee(
         self,

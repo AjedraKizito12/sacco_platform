@@ -7,6 +7,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  FormDialog,
   FormField,
   Input,
   MoneyInput,
@@ -83,16 +84,23 @@ export function ManualGLForm({ accounts }: { accounts: AccountOption[] }) {
     form.formState.errors.lines?.root?.message ?? form.formState.errors.lines?.message;
 
   return (
-    <form
-      noValidate
-      className="flex max-w-2xl flex-col gap-5"
+    <FormDialog
+      title="Post manual GL entry"
+      description="Posting a manual GL entry creates a maker-checker approval (quorum applies); it posts once approved."
+      className="max-w-2xl"
+      onDismiss={() => router.back()}
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            Submit GL entry
+          </Button>
+        </>
+      }
     >
-      <p className="text-[var(--text-sm)] text-[var(--text-secondary)]">
-        Posting a manual GL entry creates a maker-checker approval (quorum applies); it
-        posts once approved.
-      </p>
-
       <FormField control={form.control} name="reference" label="Reference" required
         render={({ field, id, describedBy, invalid }) => (
           <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
@@ -156,10 +164,6 @@ export function ManualGLForm({ accounts }: { accounts: AccountOption[] }) {
         ) : null}
       </div>
 
-      <div className="flex gap-3">
-        <Button type="submit" disabled={mutation.isPending}>Submit GL entry</Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/ledger/journal-entries")}>Cancel</Button>
-      </div>
-    </form>
+    </FormDialog>
   );
 }
