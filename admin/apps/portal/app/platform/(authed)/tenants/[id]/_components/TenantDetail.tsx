@@ -21,6 +21,7 @@ export function TenantDetail({
   canManageUsers,
   auditBar,
   makerCheckerBanner,
+  kycSection,
 }: {
   tenant: TenantOut;
   canRetry: boolean;
@@ -30,6 +31,7 @@ export function TenantDetail({
   canManageUsers: boolean;
   auditBar: ReactNode;
   makerCheckerBanner: ReactNode;
+  kycSection?: ReactNode;
 }) {
   // Live-updates while the tenant is mid-provision; settles once terminal.
   const live = useTenantProvisioning(tenant.id, tenant);
@@ -109,6 +111,8 @@ export function TenantDetail({
           <p className="text-[var(--text-danger)]">{t.failure_reason}</p>
         ) : null}
       </Card>
+
+      {kycSection}
 
       {auditBar}
     </div>

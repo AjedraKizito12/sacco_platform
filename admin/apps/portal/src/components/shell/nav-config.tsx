@@ -11,6 +11,7 @@ import {
   PieChart,
   Receipt,
   Settings,
+  ShieldCheck,
   User,
   Users,
   Wallet,
@@ -119,6 +120,12 @@ const TENANT_NAV: NavGroup[] = [
   },
   { label: "Billing", items: [{ label: "Billing", href: "/billing", icon: Wallet }] },
   {
+    label: "Organization",
+    items: [
+      { label: "Organization KYC", href: "/organization/kyc", icon: ShieldCheck },
+    ],
+  },
+  {
     label: "Approvals & Audit",
     items: [
       { label: "Approvals", href: "/approvals", icon: CheckCircle2 },
@@ -181,6 +188,7 @@ const PLATFORM_NAV: NavGroup[] = [
         children: [
           { label: "Billing", href: "/platform/settings/billing" },
           { label: "Notifications", href: "/platform/settings/notifications" },
+          { label: "SACCO KYC", href: "/platform/settings/kyc" },
           { label: "Security", href: "/platform/settings/security" },
         ],
       },

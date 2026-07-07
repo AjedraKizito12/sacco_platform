@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import type { TenantOut } from "@sacco/schemas";
+import type { OrganizationKycOut, TenantOut } from "@sacco/schemas";
+import { TenantKycSection } from "./_components/TenantKycSection";
 import {
   getPlatformPageContext,
   requirePlatformPermission,
@@ -27,6 +28,23 @@ export default async function TenantDetailPage({
   );
   if (!data) notFound();
 
+  // Org KYC lives in the tenant schema; the read fails while a tenant is
+  // still provisioning (schema/table absent) or failed. KYC is informational
+  // (spec: no gating), so a failed read hides the section rather than
+  // breaking the whole detail page.
+  let kyc: OrganizationKycOut | null = null;
+  if (data.status === "active") {
+    try {
+      const res = await (resources.kyc.getTenantKyc(id) as Promise<{
+        data?: OrganizationKycOut;
+        error?: unknown;
+      }>);
+      kyc = res.data ?? null;
+    } catch {
+      kyc = null;
+    }
+  }
+
   return (
     <TenantDetail
       tenant={data}
@@ -37,6 +55,15 @@ export default async function TenantDetailPage({
       canManageUsers={userHasPermission(user, "platform.tenants.users.read")}
       auditBar={<AuditBarConnected entityType="tenant" entityId={data.id} />}
       makerCheckerBanner={<MakerCheckerBannerConnected entityType="tenant" entityId={data.id} />}
+      kycSection={
+        kyc ? (
+          <TenantKycSection
+            tenantId={data.id}
+            initial={kyc}
+            canVerify={userHasPermission(user, "platform.tenants.write")}
+          />
+        ) : null
+      }
     />
   );
 }
