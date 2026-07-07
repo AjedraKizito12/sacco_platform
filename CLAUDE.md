@@ -375,6 +375,14 @@ X. Long forms (loan applications, member onboarding) wire
   direct operation, no maker-checker), platform `/platform/settings/kyc`
   requirements toggles. The shared checklist renders through
   `admin/apps/portal/src/components/kyc/KycCompletionCard.tsx`.
+- **Member KYC:** the required set is per-tenant (`member_kyc_requirements`,
+  operator-owned via `GET/PUT /members/kyc-requirements` — registered BEFORE the
+  `/{member_id}` route). Completion is computed by `member_kyc_completion` in
+  `app/modules/members/kyc.py` against `MEMBER_KYC_CATALOG` and surfaced on
+  `GET /members/{id}/kyc` and `GET /member/me/kyc`. The increment-5 columns
+  (`next_of_kin_name`, `next_of_kin_phone`, `occupation`) read as absent until
+  they ship. Shared requirement/completion Pydantic schemas live in
+  `app/core/kyc/schemas.py`; org/platform modules re-export them.
 - **Gating:** KYC completion is informational only; it must not gate activation,
   transacting, or any request path in v1.
 
