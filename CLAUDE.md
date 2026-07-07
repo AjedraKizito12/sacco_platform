@@ -358,6 +358,26 @@ X. Long forms (loan applications, member onboarding) wire
 - Set-password reuses the reset form (identical confirm endpoint); the token is
   read from `?token=` only (contract F).
 
+## KYC tracking contracts (do not violate)
+
+- **Core KYC tracker:** `app/core/kyc/` is pure (no DB, no I/O) and imports nothing
+  from `app/modules` or `app/platform_`. `compute_completion` is the only completion
+  computation; do not hand-roll completeness checks anywhere (backend or portal —
+  the portal renders server-computed `KycCompletionOut`, never re-derives it).
+- **SACCO org KYC:** values live in the tenant-schema `organization_profile`
+  singleton, self-attested by the tenant admin via `/organization/kyc`. The
+  required set is platform-global (`platform.sacco_kyc_requirements`). The
+  `verified` flag is set ONLY by the platform verify/unverify endpoints (via
+  `get_session_for_tenant_schema`) and only when completion `is_complete`
+  (409 otherwise); any material value change resets it to false.
+- **Portal surfaces:** operator `/organization/kyc` page (self-attest + completion),
+  platform tenant-detail KYC section (verify/unverify via plain `ConfirmDialog` —
+  direct operation, no maker-checker), platform `/platform/settings/kyc`
+  requirements toggles. The shared checklist renders through
+  `admin/apps/portal/src/components/kyc/KycCompletionCard.tsx`.
+- **Gating:** KYC completion is informational only; it must not gate activation,
+  transacting, or any request path in v1.
+
 ## Impersonation contracts (do not violate)
 
 ### Data layer (from 02a, unchanged)
