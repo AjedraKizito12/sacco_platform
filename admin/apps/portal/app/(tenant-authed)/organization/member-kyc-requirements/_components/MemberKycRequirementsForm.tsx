@@ -3,34 +3,34 @@
 import { useState } from "react";
 import { toast } from "@sacco/ui";
 import { queryKeys, useTypedMutation } from "@sacco/api-client";
-import type { SaccoKycRequirementsOut } from "@sacco/schemas";
+import type { MemberKycRequirementsOut } from "@sacco/schemas";
 import { useAuth } from "@/auth/use-auth";
 import { apiErrorMessage } from "@/lib/api-error";
 import { KycRequirementsToggles } from "@/components/kyc/KycRequirementsToggles";
 
-export function SaccoKycRequirementsForm({
+export function MemberKycRequirementsForm({
   initial,
 }: {
-  initial: SaccoKycRequirementsOut;
+  initial: MemberKycRequirementsOut;
 }) {
   const { resources } = useAuth();
   const [items, setItems] = useState(initial.items);
 
-  const mutation = useTypedMutation<SaccoKycRequirementsOut, Record<string, boolean>>(
+  const mutation = useTypedMutation<MemberKycRequirementsOut, Record<string, boolean>>(
     async (required) => {
-      // putSaccoRequirements is typed Promise<never> (as-never paths); cast
+      // putKycRequirements is typed Promise<never> (as-never paths); cast
       // to the real { data, error } shape.
-      const res = await (resources.kyc.putSaccoRequirements({
+      const res = await (resources.members.putKycRequirements({
         required,
-      }) as Promise<{ data?: SaccoKycRequirementsOut; error?: unknown }>);
+      }) as Promise<{ data?: MemberKycRequirementsOut; error?: unknown }>);
       if (res.error || !res.data) throw res.error ?? new Error("Empty response");
       return res.data;
     },
     {
-      invalidates: [queryKeys.kyc.root()],
+      invalidates: [queryKeys.members.root(), queryKeys.members.kycRequirements()],
       onSuccess: (data) => {
         setItems(data.items);
-        toast.success("SACCO KYC requirements saved");
+        toast.success("Member KYC requirements saved");
       },
       onError: (error) => {
         toast.error("The requirements were not saved", {
@@ -57,7 +57,7 @@ export function SaccoKycRequirementsForm({
   return (
     <KycRequirementsToggles
       items={items}
-      description="Fields required for a SACCO's organization KYC to count as complete. Applies to all tenants. Locked minimums cannot be toggled off."
+      description="Fields a member must provide for their KYC to count as complete in this SACCO. Locked minimums cannot be toggled off. Completion is informational — it does not block activation or transactions."
       busy={mutation.isPending}
       onToggle={toggle}
       onSave={save}

@@ -8,6 +8,7 @@ import {
   History,
   Landmark,
   LayoutGrid,
+  ListChecks,
   PieChart,
   Receipt,
   Settings,
@@ -123,6 +124,11 @@ const TENANT_NAV: NavGroup[] = [
     label: "Organization",
     items: [
       { label: "Organization KYC", href: "/organization/kyc", icon: ShieldCheck },
+      {
+        label: "Member KYC requirements",
+        href: "/organization/member-kyc-requirements",
+        icon: ListChecks,
+      },
     ],
   },
   {
