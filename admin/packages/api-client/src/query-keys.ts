@@ -41,6 +41,8 @@ export const queryKeys = {
     list: (filters?: Record<string, unknown>) =>
       ["members", "list", filters ?? {}] as const,
     detail: (id: string) => ["members", "detail", id] as const,
+    kycRequirements: () => ["members", "kycRequirements"] as const,
+    kyc: (id: string) => ["members", "kyc", id] as const,
   },
   savings: {
     root: () => ["savings"] as const,
@@ -131,6 +133,7 @@ export const queryKeys = {
     fees: () => ["member", "fees"] as const,
     loanApplications: () => ["member", "loan-applications"] as const,
     loanApplication: (id: string) => ["member", "loan-applications", id] as const,
+    kyc: () => ["member", "kyc"] as const,
   },
   organization: {
     root: () => ["organization"] as const,

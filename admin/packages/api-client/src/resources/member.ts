@@ -32,5 +32,6 @@ export function member(api: FetchClient) {
       api.GET("/member/loan-applications/{application_id}" as never, {
         params: { path: { application_id: applicationId } },
       } as never),
+    getMyKyc: () => api.GET("/member/me/kyc" as never),
   } as const;
 }
