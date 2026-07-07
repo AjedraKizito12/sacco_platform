@@ -6,37 +6,16 @@ from datetime import date, datetime
 from pydantic import BaseModel
 
 from app.core.kyc.completion import KycCompletion
+from app.core.kyc.schemas import KycCompletionOut, KycFieldStatusOut
 from app.modules.organization.models import OrganizationProfile
 
-
-class KycFieldStatusOut(BaseModel):
-    key: str
-    label: str
-    required: bool
-    present: bool
-
-
-class KycCompletionOut(BaseModel):
-    items: list[KycFieldStatusOut]
-    required_total: int
-    required_present: int
-    percent: int
-    missing_required: list[str]
-    is_complete: bool
-
-    @classmethod
-    def from_completion(cls, c: KycCompletion) -> KycCompletionOut:
-        return cls(
-            items=[
-                KycFieldStatusOut(key=i.key, label=i.label, required=i.required, present=i.present)
-                for i in c.items
-            ],
-            required_total=c.required_total,
-            required_present=c.required_present,
-            percent=c.percent,
-            missing_required=list(c.missing_required),
-            is_complete=c.is_complete,
-        )
+__all__ = [
+    "KycCompletionOut",
+    "KycFieldStatusOut",
+    "OrganizationKycOut",
+    "OrganizationKycValuesIn",
+    "OrganizationKycValuesOut",
+]
 
 
 class OrganizationKycValuesIn(BaseModel):

@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.core.kyc.schemas import KycCompletionOut
+
 Gender = Literal["male", "female", "other"]
 IdDocumentType = Literal["national_id", "passport", "driving_license"]
 
@@ -59,3 +61,16 @@ class MemberOut(BaseModel):
 class StatusChangeOut(BaseModel):
     approval_request_id: uuid.UUID
     status: str
+
+
+class MemberKycOut(BaseModel):
+    """Operator view: one member's KYC completion (values come from GET /members/{id})."""
+
+    member_id: uuid.UUID
+    completion: KycCompletionOut
+
+
+class MemberSelfKycOut(BaseModel):
+    """Member self view. Increment 5 adds latest-submission status here."""
+
+    completion: KycCompletionOut
