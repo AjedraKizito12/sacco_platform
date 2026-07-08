@@ -8,10 +8,12 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Date,
+    ForeignKey,
     Index,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -48,6 +50,11 @@ class Member(AuditableMixin, Base):
     id_document_number: Mapped[str | None] = mapped_column(Text, nullable=True)
     id_issued_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     id_expiry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    # KYC enrichment (increment 5; nullable, backfill-free)
+    next_of_kin_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_of_kin_phone: Mapped[str | None] = mapped_column(Text, nullable=True)
+    occupation: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Status lifecycle
     status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
@@ -112,3 +119,76 @@ class MemberKycRequirement(Base):
 
     field_key: Mapped[str] = mapped_column(Text, primary_key=True)
     is_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class KycSubmission(AuditableMixin, Base):
+    """One member KYC submission awaiting / after operator review.
+
+    At most one 'pending' row per member (partial unique index). Resubmitting
+    supersedes the open pending row IN PLACE (new proposed values + refreshed
+    submitted_at). Reviewed rows (approved/rejected) are terminal history and
+    are never deleted or reused. The proposed-value columns are exactly the
+    non-locked MEMBER_KYC_CATALOG keys.
+    """
+
+    __tablename__ = "kyc_submissions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    member_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("members.id"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
+    submitted_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Proposed editable-field snapshot
+    phone: Mapped[str | None] = mapped_column(Text, nullable=True)
+    email: Mapped[str | None] = mapped_column(Text, nullable=True)
+    physical_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    national_id_number: Mapped[str | None] = mapped_column(Text, nullable=True)
+    id_document_type: Mapped[str | None] = mapped_column(Text, nullable=True)
+    id_document_number: Mapped[str | None] = mapped_column(Text, nullable=True)
+    id_issued_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    id_expiry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    next_of_kin_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_of_kin_phone: Mapped[str | None] = mapped_column(Text, nullable=True)
+    occupation: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected')",
+            name="ck_kyc_submissions_status",
+        ),
+        CheckConstraint(
+            "id_document_type IS NULL OR id_document_type IN ('national_id', 'passport', 'driving_license')",
+            name="ck_kyc_submissions_id_doc_type",
+        ),
+        Index(
+            "uq_kyc_submissions_one_pending",
+            "member_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
+        Index("ix_kyc_submissions_status", "status"),
+        Index("ix_kyc_submissions_member_id", "member_id"),
+    )
