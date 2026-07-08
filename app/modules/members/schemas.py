@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.core.kyc.schemas import KycCompletionOut
+from app.modules.members.models import KycSubmission
 
 Gender = Literal["male", "female", "other"]
 IdDocumentType = Literal["national_id", "passport", "driving_license"]
@@ -70,7 +71,78 @@ class MemberKycOut(BaseModel):
     completion: KycCompletionOut
 
 
+class MemberKycValues(BaseModel):
+    """The 11 editable (non-locked) member KYC fields — one shape for
+    proposed snapshots, current values, and the member self view."""
+
+    phone: str | None = None
+    email: str | None = None
+    physical_address: str | None = None
+    national_id_number: str | None = None
+    id_document_type: IdDocumentType | None = None
+    id_document_number: str | None = None
+    id_issued_date: date | None = None
+    id_expiry_date: date | None = None
+    next_of_kin_name: str | None = None
+    next_of_kin_phone: str | None = None
+    occupation: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class KycSubmissionIn(MemberKycValues):
+    """Proposed values — the FULL intended state of the editable fields.
+
+    An omitted/None field clears the member value at approve time (the
+    portal form prefills current values, so a blank is intentional).
+    """
+
+
+class KycSubmissionOut(BaseModel):
+    id: uuid.UUID
+    member_id: uuid.UUID
+    status: str
+    submitted_at: datetime
+    reviewed_at: datetime | None
+    rejection_reason: str | None
+    proposed: MemberKycValues
+
+    @classmethod
+    def from_row(cls, s: KycSubmission) -> KycSubmissionOut:
+        return cls(
+            id=s.id,
+            member_id=s.member_id,
+            status=s.status,
+            submitted_at=s.submitted_at,
+            reviewed_at=s.reviewed_at,
+            rejection_reason=s.rejection_reason,
+            proposed=MemberKycValues.model_validate(s),
+        )
+
+
+class KycSubmissionListItemOut(BaseModel):
+    id: uuid.UUID
+    member_id: uuid.UUID
+    member_number: str
+    full_name: str
+    status: str
+    submitted_at: datetime
+
+
+class KycSubmissionDetailOut(BaseModel):
+    submission: KycSubmissionOut
+    member_number: str
+    full_name: str
+    current: MemberKycValues
+
+
+class KycRejectIn(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=500)
+
+
 class MemberSelfKycOut(BaseModel):
-    """Member self view. Increment 5 adds latest-submission status here."""
+    """Member self view: completion + current values + latest submission."""
 
     completion: KycCompletionOut
+    values: MemberKycValues
+    latest_submission: KycSubmissionOut | None

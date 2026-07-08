@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,9 +14,22 @@ from app.modules.iam.keys.service import KeyService
 from app.modules.iam.member_auth.schemas import EnablePortalAccessOut
 from app.modules.iam.member_auth.schemas import MemberOut as MemberSelfOut
 from app.modules.members.kyc import MemberKycRequirementsService, member_kyc_completion
+from app.modules.members.kyc_submissions import (
+    KycFieldConflict,
+    KycReviewService,
+    MemberSelfService,
+    SubmissionNotFound,
+    SubmissionNotPending,
+)
 from app.modules.members.schemas import (
+    KycRejectIn,
+    KycSubmissionDetailOut,
+    KycSubmissionIn,
+    KycSubmissionListItemOut,
+    KycSubmissionOut,
     MemberIn,
     MemberKycOut,
+    MemberKycValues,
     MemberOut,
     MemberSelfKycOut,
     StatusChangeIn,
@@ -41,7 +54,24 @@ async def member_self(member: CurrentMember) -> MemberSelfOut:
 @member_router.get("/me/kyc", response_model=MemberSelfKycOut)
 async def member_self_kyc(member: CurrentMember, session: Session) -> MemberSelfKycOut:
     completion = await member_kyc_completion(session, member)
-    return MemberSelfKycOut(completion=KycCompletionOut.from_completion(completion))
+    latest = await MemberSelfService(session).latest_submission(member.id)
+    return MemberSelfKycOut(
+        completion=KycCompletionOut.from_completion(completion),
+        values=MemberKycValues.model_validate(member),
+        latest_submission=KycSubmissionOut.from_row(latest) if latest else None,
+    )
+
+
+@member_router.post("/me/kyc", response_model=KycSubmissionOut, status_code=201)
+async def member_submit_kyc(
+    body: KycSubmissionIn, member: CurrentMember, session: Session
+) -> KycSubmissionOut:
+    """Submit/resubmit KYC. Supersedes any open pending submission in place —
+    naturally idempotent, so a retried POST converges on the same state."""
+    submission = await MemberSelfService(session).submit_kyc(
+        member.id, body.model_dump()
+    )
+    return KycSubmissionOut.from_row(submission)
 
 
 @router.post("", response_model=MemberOut, status_code=201)
@@ -97,6 +127,79 @@ async def put_member_kyc_requirements(
     svc = MemberKycRequirementsService(session)
     await svc.replace(body.required)
     return KycRequirementsOut.from_config(await svc.list_config())
+
+
+@router.get("/kyc-submissions", response_model=list[KycSubmissionListItemOut])
+async def list_kyc_submissions(
+    session: Session,
+    _user: CurrentTenantUser,
+    status: Literal["pending", "approved", "rejected"] | None = None,
+) -> list[KycSubmissionListItemOut]:
+    # NOTE: registered before /{member_id} — same shadowing rule as
+    # /kyc-requirements (a UUID path param would swallow this literal and 422).
+    rows = await KycReviewService(session).list(status=status)
+    return [
+        KycSubmissionListItemOut(
+            id=s.id,
+            member_id=m.id,
+            member_number=m.member_number,
+            full_name=m.full_name,
+            status=s.status,
+            submitted_at=s.submitted_at,
+        )
+        for s, m in rows
+    ]
+
+
+@router.get("/kyc-submissions/{submission_id}", response_model=KycSubmissionDetailOut)
+async def get_kyc_submission(
+    submission_id: uuid.UUID, session: Session, _user: CurrentTenantUser
+) -> KycSubmissionDetailOut:
+    try:
+        submission, member = await KycReviewService(session).get(submission_id)
+    except SubmissionNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return KycSubmissionDetailOut(
+        submission=KycSubmissionOut.from_row(submission),
+        member_number=member.member_number,
+        full_name=member.full_name,
+        current=MemberKycValues.model_validate(member),
+    )
+
+
+@router.post("/kyc-submissions/{submission_id}/approve", response_model=KycSubmissionOut)
+async def approve_kyc_submission(
+    submission_id: uuid.UUID, session: Session, user: CurrentTenantUser
+) -> KycSubmissionOut:
+    """Single-reviewer approval (NOT maker-checker, per the 2026-06-29 spec).
+    Applies the proposed snapshot to the member row; never touches status."""
+    try:
+        submission = await KycReviewService(session).approve(
+            submission_id, reviewer_id=user.id
+        )
+    except SubmissionNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (SubmissionNotPending, KycFieldConflict) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return KycSubmissionOut.from_row(submission)
+
+
+@router.post("/kyc-submissions/{submission_id}/reject", response_model=KycSubmissionOut)
+async def reject_kyc_submission(
+    submission_id: uuid.UUID,
+    body: KycRejectIn,
+    session: Session,
+    user: CurrentTenantUser,
+) -> KycSubmissionOut:
+    try:
+        submission = await KycReviewService(session).reject(
+            submission_id, reviewer_id=user.id, reason=body.reason
+        )
+    except SubmissionNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SubmissionNotPending as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return KycSubmissionOut.from_row(submission)
 
 
 @router.get("/{member_id}", response_model=MemberOut)
