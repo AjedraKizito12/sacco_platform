@@ -35,6 +35,7 @@ from app.modules.credit.schemas import (
     LoanRepaymentCreateIn,
     LoanRepaymentOut,
     LoanStatementOut,
+    MemberLoanProductOut,
     PayrollBatchJsonIn,
     PayrollBatchOut,
     RestructureIn,
@@ -57,6 +58,8 @@ router = APIRouter(prefix="/credit", tags=["credit"])
 member_router = APIRouter(prefix="/member/loans", tags=["member-loans"])
 # Member self-service loan applications (read-only; scoped to the current member).
 member_app_router = APIRouter(prefix="/member/loan-applications", tags=["member-loans"])
+# Member self-service loan products (read-only; active products, slim shape).
+member_products_router = APIRouter(prefix="/member/loan-products", tags=["member-loans"])
 Session = Annotated[AsyncSession, Depends(get_tenant_session)]
 
 
@@ -169,6 +172,16 @@ async def member_loan_application_detail(
     """Return one of the current member's own applications (404 if not theirs)."""
     application = await _member_application_or_404(session, application_id, member.id)
     return LoanApplicationOut.model_validate(application)
+
+
+@member_products_router.get("", response_model=list[MemberLoanProductOut])
+async def member_loan_products(
+    session: Session, member: CurrentMember
+) -> list[MemberLoanProductOut]:
+    """List active loan products a member can apply for (slim view)."""
+    svc = LoanProductService(session)
+    products = await svc.list(include_inactive=False)
+    return [MemberLoanProductOut.model_validate(p) for p in products]
 
 
 # ── Loan Products ─────────────────────────────────────────────────────────────
