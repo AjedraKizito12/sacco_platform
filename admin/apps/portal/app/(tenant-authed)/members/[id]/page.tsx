@@ -4,11 +4,13 @@ import { notFound } from "next/navigation";
 import { Card, FormattedDate, StatusBadge } from "@sacco/ui";
 import type {
   LoanOut,
+  MemberKycOut,
   MemberOut,
   SavingsAccountOut,
   ShareAccountListItemOut,
 } from "@sacco/schemas";
 import { getTenantPageContext } from "@/auth/server-page-context";
+import { KycCompletionCard } from "@/components/kyc/KycCompletionCard";
 import { ChangeMemberStatusButton } from "./_components/ChangeMemberStatusButton";
 import { MemberSavingsSection } from "./_components/MemberSavingsSection";
 import { MemberSharesSection } from "./_components/MemberSharesSection";
@@ -40,7 +42,7 @@ export default async function MemberDetailPage({
 }) {
   const { id } = await params;
   const { resources } = await getTenantPageContext();
-  const [{ data }, { data: accounts }, { data: shareAccounts }, { data: loans }] =
+  const [{ data }, { data: accounts }, { data: shareAccounts }, { data: loans }, { data: kyc }] =
     await Promise.all([
       resources.members.get(id) as Promise<{ data?: MemberOut; error?: unknown }>,
       resources.savings.listAccounts({ member_id: id }) as Promise<{
@@ -53,6 +55,10 @@ export default async function MemberDetailPage({
       }>,
       resources.credit.listLoans({ member_id: id }) as Promise<{
         data?: LoanOut[];
+        error?: unknown;
+      }>,
+      resources.members.getKyc(id) as Promise<{
+        data?: MemberKycOut;
         error?: unknown;
       }>,
     ]);
@@ -95,6 +101,8 @@ export default async function MemberDetailPage({
         <Row label="ID issued">{dateOrDash(data.id_issued_date)}</Row>
         <Row label="ID expiry">{dateOrDash(data.id_expiry_date)}</Row>
       </Card>
+
+      {kyc ? <KycCompletionCard completion={kyc.completion} /> : null}
 
       <MemberSavingsSection memberId={data.id} accounts={accounts ?? []} />
       <MemberSharesSection memberId={data.id} accounts={shareAccounts ?? []} />

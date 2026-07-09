@@ -98,3 +98,17 @@ class Member(AuditableMixin, Base):
         Index("ix_members_email", "email"),
         Index("ix_members_national_id_number", "national_id_number"),
     )
+
+
+class MemberKycRequirement(Base):
+    """Per-tenant override of a member KYC field's required-ness.
+
+    Override rows only: a missing row means "use the catalog default".
+    Locked catalog fields ignore any row here. One row per field_key.
+    Tenant-schema twin of platform.sacco_kyc_requirements.
+    """
+
+    __tablename__ = "member_kyc_requirements"
+
+    field_key: Mapped[str] = mapped_column(Text, primary_key=True)
+    is_required: Mapped[bool] = mapped_column(Boolean, nullable=False)

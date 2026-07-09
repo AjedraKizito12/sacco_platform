@@ -8,11 +8,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_platform_session, get_tenant_session
+from app.core.kyc.schemas import KycCompletionOut, KycRequirementsIn, KycRequirementsOut
 from app.modules.iam.dependencies import CurrentMember, CurrentTenantUser
 from app.modules.iam.keys.service import KeyService
 from app.modules.iam.member_auth.schemas import EnablePortalAccessOut
 from app.modules.iam.member_auth.schemas import MemberOut as MemberSelfOut
-from app.modules.members.schemas import MemberIn, MemberOut, StatusChangeIn, StatusChangeOut
+from app.modules.members.kyc import MemberKycRequirementsService, member_kyc_completion
+from app.modules.members.schemas import (
+    MemberIn,
+    MemberKycOut,
+    MemberOut,
+    MemberSelfKycOut,
+    StatusChangeIn,
+    StatusChangeOut,
+)
 from app.modules.members.service import MemberService
 
 router = APIRouter(prefix="/members", tags=["members"])
@@ -27,6 +36,12 @@ PlatformSession = Annotated[AsyncSession, Depends(get_platform_session)]
 async def member_self(member: CurrentMember) -> MemberSelfOut:
     """Return the authenticated member's own profile."""
     return MemberSelfOut.model_validate(member)
+
+
+@member_router.get("/me/kyc", response_model=MemberSelfKycOut)
+async def member_self_kyc(member: CurrentMember, session: Session) -> MemberSelfKycOut:
+    completion = await member_kyc_completion(session, member)
+    return MemberSelfKycOut(completion=KycCompletionOut.from_completion(completion))
 
 
 @router.post("", response_model=MemberOut, status_code=201)
@@ -65,6 +80,25 @@ async def list_members(
     return [MemberOut.model_validate(m) for m in members]
 
 
+@router.get("/kyc-requirements", response_model=KycRequirementsOut)
+async def get_member_kyc_requirements(
+    session: Session, _user: CurrentTenantUser
+) -> KycRequirementsOut:
+    # NOTE: registered before /{member_id} — a UUID-typed path param would
+    # otherwise swallow this literal segment and 422.
+    config = await MemberKycRequirementsService(session).list_config()
+    return KycRequirementsOut.from_config(config)
+
+
+@router.put("/kyc-requirements", response_model=KycRequirementsOut)
+async def put_member_kyc_requirements(
+    body: KycRequirementsIn, session: Session, _user: CurrentTenantUser
+) -> KycRequirementsOut:
+    svc = MemberKycRequirementsService(session)
+    await svc.replace(body.required)
+    return KycRequirementsOut.from_config(await svc.list_config())
+
+
 @router.get("/{member_id}", response_model=MemberOut)
 async def get_member(
     member_id: uuid.UUID, session: Session, user: CurrentTenantUser
@@ -75,6 +109,21 @@ async def get_member(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return MemberOut.model_validate(member)
+
+
+@router.get("/{member_id}/kyc", response_model=MemberKycOut)
+async def get_member_kyc(
+    member_id: uuid.UUID, session: Session, _user: CurrentTenantUser
+) -> MemberKycOut:
+    svc = MemberService(session)
+    try:
+        member = await svc.get_member(member_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    completion = await member_kyc_completion(session, member)
+    return MemberKycOut(
+        member_id=member.id, completion=KycCompletionOut.from_completion(completion)
+    )
 
 
 @router.post("/{member_id}/enable-portal-access", response_model=EnablePortalAccessOut)

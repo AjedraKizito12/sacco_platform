@@ -122,3 +122,16 @@ export function toOrganizationKycPayload(
   }
   return out;
 }
+
+// ---- Member KYC (increment 4). Requirement items share the SACCO shape. ----
+
+export type MemberKycRequirementsOut = SaccoKycRequirementsOut;
+
+export interface MemberKycOut {
+  member_id: string;
+  completion: KycCompletionOut;
+}
+
+export interface MemberSelfKycOut {
+  completion: KycCompletionOut;
+}

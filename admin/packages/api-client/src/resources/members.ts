@@ -8,6 +8,13 @@ export function members(api: FetchClient) {
       api.GET("/members/{member_id}" as never, {
         params: { path: { member_id: id } },
       } as never),
+    getKycRequirements: () => api.GET("/members/kyc-requirements" as never),
+    putKycRequirements: (body: { required: Record<string, boolean> }) =>
+      api.PUT("/members/kyc-requirements" as never, { body } as never),
+    getKyc: (id: string) =>
+      api.GET("/members/{member_id}/kyc" as never, {
+        params: { path: { member_id: id } },
+      } as never),
     create: (body: Record<string, unknown>) =>
       api.POST("/members" as never, { body } as never),
     changeStatus: (id: string, body: Record<string, unknown>) =>
