@@ -33,5 +33,7 @@ export function member(api: FetchClient) {
         params: { path: { application_id: applicationId } },
       } as never),
     getMyKyc: () => api.GET("/member/me/kyc" as never),
+    submitKyc: (body: Record<string, unknown>) =>
+      api.POST("/member/me/kyc" as never, { body } as never),
   } as const;
 }

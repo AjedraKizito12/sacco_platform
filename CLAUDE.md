@@ -329,8 +329,9 @@ X. Long forms (loan applications, member onboarding) wire
   `/member/fees`), each gated by `CurrentMember` + the subscription gate
   (`get_tenant_session`). They reuse existing query services filtered to
   `current_member.id` and never accept a client-supplied member_id.
-  Cross-member access returns **404**, never 403. Members are **read-only** in
-  v1 — no member mutations, no member-side maker-checker.
+  Cross-member access returns **404**, never 403. Members may write **only** a
+  KYC submission (`POST /member/me/kyc`) — no other member mutations, no
+  member-side maker-checker.
 - The `/member/savings` list returns `MemberSavingsAccountOut` (adds derived
   `balance` + lien-aware `available_balance`). This is the one 4a read-API
   extension made during the 4b portal build; both figures derive from
@@ -379,10 +380,20 @@ X. Long forms (loan applications, member onboarding) wire
   operator-owned via `GET/PUT /members/kyc-requirements` — registered BEFORE the
   `/{member_id}` route). Completion is computed by `member_kyc_completion` in
   `app/modules/members/kyc.py` against `MEMBER_KYC_CATALOG` and surfaced on
-  `GET /members/{id}/kyc` and `GET /member/me/kyc`. The increment-5 columns
-  (`next_of_kin_name`, `next_of_kin_phone`, `occupation`) read as absent until
-  they ship. Shared requirement/completion Pydantic schemas live in
-  `app/core/kyc/schemas.py`; org/platform modules re-export them.
+  `GET /members/{id}/kyc` and `GET /member/me/kyc`. Shared requirement/completion
+  Pydantic schemas live in `app/core/kyc/schemas.py`; org/platform modules
+  re-export them.
+- **Member KYC submissions:** `kyc_submissions` (tenant schema) holds proposed-field
+  snapshots of the 11 non-locked catalog keys. `MemberSelfService.submit_kyc` is the
+  only submit path: at most one `pending` row per member (partial unique index);
+  resubmission supersedes the open pending row IN PLACE; reviewed rows are terminal
+  history and never deleted. `KycReviewService.approve` is the ONLY path that applies
+  KYC fields to the member row (full snapshot replace, audited via AuditableMixin);
+  it never touches member status — activation stays maker-checker. Review is
+  single-reviewer, NOT maker-checker. Uniqueness (`national_id_number`, `email`) is
+  enforced at approve time (409), never at submit. Operator surface:
+  `GET /members/kyc-submissions[?status=]`, `GET/POST .../{id}[/approve|/reject]`
+  (reject requires a reason) — registered BEFORE the `/{member_id}` route.
 - **Gating:** KYC completion is informational only; it must not gate activation,
   transacting, or any request path in v1.
 

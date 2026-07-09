@@ -43,6 +43,8 @@ export const queryKeys = {
     detail: (id: string) => ["members", "detail", id] as const,
     kycRequirements: () => ["members", "kycRequirements"] as const,
     kyc: (id: string) => ["members", "kyc", id] as const,
+    kycSubmissions: () => ["members", "kycSubmissions"] as const,
+    kycSubmission: (id: string) => ["members", "kycSubmissions", id] as const,
   },
   savings: {
     root: () => ["savings"] as const,

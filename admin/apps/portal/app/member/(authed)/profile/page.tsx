@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { Card, FormattedDate, StatusBadge } from "@sacco/ui";
+import type { MemberSelfKycOut } from "@sacco/schemas";
 import { getMemberPageContext } from "@/auth/server-page-context";
+import { MemberKycSection } from "./_components/MemberKycSection";
 
 export const metadata = { title: "Your profile" };
 
@@ -20,7 +22,11 @@ function Field({
 }
 
 export default async function MemberProfilePage() {
-  const { member } = await getMemberPageContext();
+  const { member, resources } = await getMemberPageContext();
+  const { data: kyc } = await (resources.member.getMyKyc() as Promise<{
+    data?: MemberSelfKycOut;
+    error?: unknown;
+  }>);
 
   return (
     <div className="space-y-6">
@@ -46,6 +52,8 @@ export default async function MemberProfilePage() {
           )}
         </Field>
       </Card>
+
+      {kyc ? <MemberKycSection initial={kyc} /> : null}
     </div>
   );
 }

@@ -83,3 +83,71 @@ describe("ORGANIZATION_KYC_FIELDS", () => {
     ]);
   });
 });
+
+import {
+  MEMBER_KYC_FIELDS,
+  memberKycFormDefaults,
+  memberKycFormSchema,
+  toMemberKycPayload,
+  type MemberKycValues,
+} from "../kyc";
+
+const EMPTY_VALUES: MemberKycValues = {
+  phone: null,
+  email: null,
+  physical_address: null,
+  national_id_number: null,
+  id_document_type: null,
+  id_document_number: null,
+  id_issued_date: null,
+  id_expiry_date: null,
+  next_of_kin_name: null,
+  next_of_kin_phone: null,
+  occupation: null,
+};
+
+describe("member KYC form helpers", () => {
+  it("has one field spec per editable catalog key", () => {
+    expect(MEMBER_KYC_FIELDS.map((f) => f.key)).toEqual([
+      "phone",
+      "email",
+      "physical_address",
+      "national_id_number",
+      "id_document_type",
+      "id_document_number",
+      "id_issued_date",
+      "id_expiry_date",
+      "next_of_kin_name",
+      "next_of_kin_phone",
+      "occupation",
+    ]);
+  });
+
+  it("round-trips server nulls -> form blanks -> payload nulls", () => {
+    const defaults = memberKycFormDefaults(EMPTY_VALUES);
+    expect(defaults.phone).toBe("");
+    const payload = toMemberKycPayload(defaults);
+    expect(payload).toEqual(EMPTY_VALUES);
+  });
+
+  it("keeps provided values through the round trip", () => {
+    const defaults = memberKycFormDefaults({
+      ...EMPTY_VALUES,
+      phone: "+256700000001",
+      id_document_type: "passport",
+    });
+    const payload = toMemberKycPayload(defaults);
+    expect(payload.phone).toBe("+256700000001");
+    expect(payload.id_document_type).toBe("passport");
+  });
+
+  it("rejects a malformed date but accepts blank", () => {
+    const base = memberKycFormDefaults(EMPTY_VALUES);
+    expect(
+      memberKycFormSchema.safeParse({ ...base, id_issued_date: "01/02/2020" }).success,
+    ).toBe(false);
+    expect(
+      memberKycFormSchema.safeParse({ ...base, id_issued_date: "" }).success,
+    ).toBe(true);
+  });
+});

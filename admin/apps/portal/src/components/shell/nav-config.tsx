@@ -61,7 +61,12 @@ const TENANT_NAV: NavGroup[] = [
   {
     label: "Operations",
     items: [
-      { label: "Members", href: "/members", icon: Users },
+      {
+        label: "Members",
+        href: "/members",
+        icon: Users,
+        children: [{ label: "KYC submissions", href: "/members/kyc-submissions" }],
+      },
       {
         label: "Savings",
         href: "/savings",

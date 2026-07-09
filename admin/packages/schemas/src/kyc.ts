@@ -134,4 +134,127 @@ export interface MemberKycOut {
 
 export interface MemberSelfKycOut {
   completion: KycCompletionOut;
+  values: MemberKycValues;
+  latest_submission: KycSubmissionOut | null;
+}
+
+// ---- Member KYC submissions (increment 5). Wire shapes mirror
+// app/modules/members/schemas.py; dates are ISO strings over the wire. ----
+
+// NOTE: do NOT reuse member.ts's idDocumentTypeSchema here — it includes
+// "voters_card", which the backend's ck_members_id_doc_type / Pydantic
+// Literal reject. Also do NOT export a type named IdDocumentType from this
+// file — member.ts already exports one and index.ts re-exports both files
+// (`export *`), so a second export with that name breaks the build.
+export const ID_DOCUMENT_TYPES = ["national_id", "passport", "driving_license"] as const;
+
+export type MemberKycEditableKey =
+  | "phone"
+  | "email"
+  | "physical_address"
+  | "national_id_number"
+  | "id_document_type"
+  | "id_document_number"
+  | "id_issued_date"
+  | "id_expiry_date"
+  | "next_of_kin_name"
+  | "next_of_kin_phone"
+  | "occupation";
+
+export type MemberKycValues = { [K in MemberKycEditableKey]: string | null };
+
+export type KycSubmissionStatus = "pending" | "approved" | "rejected";
+
+export interface KycSubmissionOut {
+  id: string;
+  member_id: string;
+  status: KycSubmissionStatus;
+  submitted_at: string;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  proposed: MemberKycValues;
+}
+
+export interface KycSubmissionListItemOut {
+  id: string;
+  member_id: string;
+  member_number: string;
+  full_name: string;
+  status: KycSubmissionStatus;
+  submitted_at: string;
+}
+
+export interface KycSubmissionDetailOut {
+  submission: KycSubmissionOut;
+  member_number: string;
+  full_name: string;
+  current: MemberKycValues;
+}
+
+// The member KYC form models "not provided" as "" and toMemberKycPayload
+// converts back to null (same convention as the organization KYC form).
+export const memberKycFormSchema = z.object({
+  phone: z.string().trim(),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email address")
+    .or(z.literal("")),
+  physical_address: z.string().trim(),
+  national_id_number: z.string().trim(),
+  id_document_type: z.enum(ID_DOCUMENT_TYPES).or(z.literal("")),
+  id_document_number: z.string().trim(),
+  id_issued_date: z
+    .string()
+    .regex(ISO_DATE_RE, "Use the date picker (YYYY-MM-DD)")
+    .or(z.literal("")),
+  id_expiry_date: z
+    .string()
+    .regex(ISO_DATE_RE, "Use the date picker (YYYY-MM-DD)")
+    .or(z.literal("")),
+  next_of_kin_name: z.string().trim(),
+  next_of_kin_phone: z.string().trim(),
+  occupation: z.string().trim(),
+});
+export type MemberKycFormInput = z.infer<typeof memberKycFormSchema>;
+
+export interface MemberKycFieldSpec {
+  key: MemberKycEditableKey;
+  label: string;
+  kind: "text" | "email" | "date" | "select";
+}
+
+// Labels mirror MEMBER_KYC_CATALOG in app/core/kyc/catalog.py verbatim.
+export const MEMBER_KYC_FIELDS: readonly MemberKycFieldSpec[] = [
+  { key: "phone", label: "Phone", kind: "text" },
+  { key: "email", label: "Email", kind: "email" },
+  { key: "physical_address", label: "Physical address", kind: "text" },
+  { key: "national_id_number", label: "National ID number", kind: "text" },
+  { key: "id_document_type", label: "ID document type", kind: "select" },
+  { key: "id_document_number", label: "ID document number", kind: "text" },
+  { key: "id_issued_date", label: "ID issued date", kind: "date" },
+  { key: "id_expiry_date", label: "ID expiry date", kind: "date" },
+  { key: "next_of_kin_name", label: "Next of kin name", kind: "text" },
+  { key: "next_of_kin_phone", label: "Next of kin phone", kind: "text" },
+  { key: "occupation", label: "Occupation", kind: "text" },
+];
+
+/** Server nulls → form empty strings. */
+export function memberKycFormDefaults(values: MemberKycValues): MemberKycFormInput {
+  const out = {} as Record<MemberKycEditableKey, string>;
+  for (const field of MEMBER_KYC_FIELDS) {
+    out[field.key] = values[field.key] ?? "";
+  }
+  return out as MemberKycFormInput;
+}
+
+/** Form empty/blank strings → null on the wire. */
+export function toMemberKycPayload(input: MemberKycFormInput): MemberKycValues {
+  const out = {} as Record<MemberKycEditableKey, string | null>;
+  for (const field of MEMBER_KYC_FIELDS) {
+    const raw = input[field.key].trim();
+    out[field.key] = raw === "" ? null : raw;
+  }
+  return out as MemberKycValues;
 }
