@@ -160,3 +160,240 @@ async def test_member_products_requires_member_auth(client: AsyncClient) -> None
     # is missing → FastAPI validation 422 (jwt mode would 401 on missing Bearer).
     resp = await client.get("/member/loan-products", headers=HEADERS)
     assert resp.status_code == 422
+
+
+# ── POST /member/loan-applications ───────────────────────────────────────────
+
+
+def _apply_headers(member_id: str, key: str | None = None) -> dict[str, str]:
+    return {
+        **_member_headers(member_id),
+        "Idempotency-Key": key or f"apply-{uuid.uuid4().hex}",
+    }
+
+
+async def test_member_apply_happy_path_derives_destination(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    member_id = await _seed_member(test_engine)
+    product_id = await _seed_product(
+        test_engine, destinations=["cash", "member_savings"]
+    )
+    resp = await client.post(
+        "/member/loan-applications",
+        json={
+            "loan_product_id": str(product_id),
+            "requested_amount": "5000.00",
+            "requested_term_periods": 12,
+            "purpose": "School fees for my daughter",
+        },
+        headers=_apply_headers(str(member_id)),
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["status"] == "submitted"
+    assert body["member_id"] == str(member_id)
+    # member_savings preferred whenever the product allows it.
+    assert body["disbursement_destination"] == "member_savings"
+    assert body["disbursement_account_id"] is None
+    assert body["approval_request_id"] is not None
+
+
+async def test_member_apply_falls_back_to_first_destination(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    member_id = await _seed_member(test_engine)
+    product_id = await _seed_product(test_engine, destinations=["cash"])
+    resp = await client.post(
+        "/member/loan-applications",
+        json={
+            "loan_product_id": str(product_id),
+            "requested_amount": "5000.00",
+            "requested_term_periods": 12,
+            "purpose": "Working capital for my shop",
+        },
+        headers=_apply_headers(str(member_id)),
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["disbursement_destination"] == "cash"
+
+
+async def test_member_apply_creates_approval_request_by_member(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    member_id = await _seed_member(test_engine)
+    product_id = await _seed_product(test_engine)
+    resp = await client.post(
+        "/member/loan-applications",
+        json={
+            "loan_product_id": str(product_id),
+            "requested_amount": "5000.00",
+            "requested_term_periods": 12,
+            "purpose": "Home improvement project",
+        },
+        headers=_apply_headers(str(member_id)),
+    )
+    assert resp.status_code == 201, resp.text
+    request_id = resp.json()["approval_request_id"]
+
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with factory() as session:
+        await session.execute(text(f"SET search_path TO {TEST_TENANT_SCHEMA}, platform"))
+        row = (
+            await session.execute(
+                text(
+                    "SELECT operation_type, requested_by, status "
+                    "FROM approval_requests WHERE id = :rid"
+                ),
+                {"rid": request_id},
+            )
+        ).one()
+    assert row.operation_type == "credit.approve_application"
+    assert row.requested_by == uuid.UUID(str(member_id))
+    assert row.status == "pending"
+
+
+async def test_member_apply_non_active_member_rejected_by_auth(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    """Regression pin: the member auth dep (4a eligibility) rejects non-active
+    members with 403 before the handler runs — no handler-level guard needed."""
+    member_id = await _seed_member(test_engine, status="pending")
+    product_id = await _seed_product(test_engine)
+    resp = await client.post(
+        "/member/loan-applications",
+        json={
+            "loan_product_id": str(product_id),
+            "requested_amount": "5000.00",
+            "requested_term_periods": 12,
+            "purpose": "Anything at all here",
+        },
+        headers=_apply_headers(str(member_id)),
+    )
+    assert resp.status_code == 403
+
+
+async def test_member_apply_amount_and_term_bounds_422(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    member_id = await _seed_member(test_engine)
+    product_id = await _seed_product(
+        test_engine, min_amount="1000.00", max_amount="2000.00", max_term_periods=6
+    )
+    below = await client.post(
+        "/member/loan-applications",
+        json={
+            "loan_product_id": str(product_id),
+            "requested_amount": "500.00",
+            "requested_term_periods": 6,
+            "purpose": "Below the minimum amount",
+        },
+        headers=_apply_headers(str(member_id)),
+    )
+    assert below.status_code == 422
+    over_term = await client.post(
+        "/member/loan-applications",
+        json={
+            "loan_product_id": str(product_id),
+            "requested_amount": "1500.00",
+            "requested_term_periods": 12,
+            "purpose": "Term is over the maximum",
+        },
+        headers=_apply_headers(str(member_id)),
+    )
+    assert over_term.status_code == 422
+
+
+async def test_member_apply_inactive_product_409_unknown_404(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    member_id = await _seed_member(test_engine)
+    inactive_id = await _seed_product(test_engine, is_active=False)
+    resp = await client.post(
+        "/member/loan-applications",
+        json={
+            "loan_product_id": str(inactive_id),
+            "requested_amount": "5000.00",
+            "requested_term_periods": 12,
+            "purpose": "Product is switched off",
+        },
+        headers=_apply_headers(str(member_id)),
+    )
+    assert resp.status_code == 409
+
+    unknown = await client.post(
+        "/member/loan-applications",
+        json={
+            "loan_product_id": str(uuid.uuid4()),
+            "requested_amount": "5000.00",
+            "requested_term_periods": 12,
+            "purpose": "Product does not exist",
+        },
+        headers=_apply_headers(str(member_id)),
+    )
+    assert unknown.status_code == 404
+
+
+async def test_member_apply_idempotent_replay_same_member(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    member_id = await _seed_member(test_engine)
+    product_id = await _seed_product(test_engine)
+    key = f"apply-{uuid.uuid4().hex}"
+    body = {
+        "loan_product_id": str(product_id),
+        "requested_amount": "5000.00",
+        "requested_term_periods": 12,
+        "purpose": "Retried form submission",
+    }
+    first = await client.post(
+        "/member/loan-applications", json=body, headers=_apply_headers(str(member_id), key)
+    )
+    second = await client.post(
+        "/member/loan-applications", json=body, headers=_apply_headers(str(member_id), key)
+    )
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert second.json()["id"] == first.json()["id"]
+
+
+async def test_member_apply_foreign_idempotency_key_404(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    """Replaying another member's key must not leak their application."""
+    member_a = await _seed_member(test_engine)
+    member_b = await _seed_member(test_engine)
+    product_id = await _seed_product(test_engine)
+    key = f"apply-{uuid.uuid4().hex}"
+    body = {
+        "loan_product_id": str(product_id),
+        "requested_amount": "5000.00",
+        "requested_term_periods": 12,
+        "purpose": "Original application by A",
+    }
+    first = await client.post(
+        "/member/loan-applications", json=body, headers=_apply_headers(str(member_a), key)
+    )
+    assert first.status_code == 201
+    replay = await client.post(
+        "/member/loan-applications", json=body, headers=_apply_headers(str(member_b), key)
+    )
+    assert replay.status_code == 404
+
+
+async def test_member_apply_missing_idempotency_header_422(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    member_id = await _seed_member(test_engine)
+    product_id = await _seed_product(test_engine)
+    resp = await client.post(
+        "/member/loan-applications",
+        json={
+            "loan_product_id": str(product_id),
+            "requested_amount": "5000.00",
+            "requested_term_periods": 12,
+            "purpose": "No idempotency header sent",
+        },
+        headers=_member_headers(str(member_id)),
+    )
+    assert resp.status_code == 422

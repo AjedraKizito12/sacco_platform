@@ -84,6 +84,16 @@ class MemberLoanProductOut(BaseModel):
     max_amount: Decimal
 
 
+class MemberLoanApplicationIn(BaseModel):
+    """Member self-service application. member_id, destination, and the
+    idempotency key are supplied server-side — never by the client body."""
+
+    loan_product_id: uuid.UUID
+    requested_amount: Decimal = Field(gt=0)
+    requested_term_periods: int = Field(ge=1)
+    purpose: str | None = Field(default=None, max_length=500)
+
+
 # ── Application schemas ───────────────────────────────────────────────────────
 
 

@@ -10,7 +10,7 @@ import uuid
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select as _select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +35,7 @@ from app.modules.credit.schemas import (
     LoanRepaymentCreateIn,
     LoanRepaymentOut,
     LoanStatementOut,
+    MemberLoanApplicationIn,
     MemberLoanProductOut,
     PayrollBatchJsonIn,
     PayrollBatchOut,
@@ -171,6 +172,59 @@ async def member_loan_application_detail(
 ) -> LoanApplicationOut:
     """Return one of the current member's own applications (404 if not theirs)."""
     application = await _member_application_or_404(session, application_id, member.id)
+    return LoanApplicationOut.model_validate(application)
+
+
+@member_app_router.post("", response_model=LoanApplicationOut, status_code=201)
+async def member_apply_for_loan(
+    body: MemberLoanApplicationIn,
+    session: Session,
+    member: CurrentMember,
+    idempotency_key: Annotated[
+        str, Header(alias="Idempotency-Key", min_length=8, max_length=200)
+    ],
+) -> LoanApplicationOut:
+    """Member loan apply: thin wrapper over LoanApplicationService.submit.
+
+    Derives the disbursement destination from the product (member_savings
+    when allowed) and leaves disbursement_account_id NULL for the operator.
+    The application flows into the unchanged credit.approve_application
+    maker-checker — this endpoint adds no approval surface. No member-status
+    guard here: CurrentMember already rejects non-active members (403).
+    """
+    svc = LoanApplicationService(session)
+    try:
+        product = await LoanProductService(session).get(body.loan_product_id)
+        destination = (
+            "member_savings"
+            if "member_savings" in product.disbursement_destinations
+            else product.disbursement_destinations[0]
+        )
+        application = await svc.submit(
+            loan_product_id=body.loan_product_id,
+            member_id=member.id,
+            requested_amount=body.requested_amount,
+            requested_term_periods=body.requested_term_periods,
+            purpose=body.purpose,
+            disbursement_destination=destination,
+            disbursement_account_id=None,
+            submitted_by=member.id,
+            idempotency_key=idempotency_key,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        if "not found" in message:
+            raise HTTPException(status_code=404, detail="Product not found") from exc
+        if "not active" in message:
+            raise HTTPException(
+                status_code=409, detail="This loan product is not available"
+            ) from exc
+        # Product min/max amount or term bounds from the existing service.
+        raise HTTPException(status_code=422, detail=message) from exc
+    if application.member_id != member.id:
+        # Idempotent replay of a key created by a different member: behave as
+        # if nothing exists rather than leaking another member's application.
+        raise HTTPException(status_code=404, detail="Application not found")
     return LoanApplicationOut.model_validate(application)
 
 
