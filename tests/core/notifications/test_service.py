@@ -242,3 +242,26 @@ async def test_publish_dedupe_key_is_idempotent(
         )
         await s.commit()
     assert second.id == first.id
+
+
+async def test_publish_allows_any_context_when_code_has_no_templates(
+    factory: async_sessionmaker,
+) -> None:
+    """No active templates for a code => allow-list is unenforceable; publish
+    must not reject (legacy suites run without seeded templates)."""
+    async with factory() as s:
+        await _set_path(s)
+        await s.execute(
+            text("UPDATE platform.notification_templates SET is_active = false WHERE code = 'member_activated'")
+        )
+        event = await NotificationService(s).publish(
+            event_code="member_activated",
+            recipient_kind="member",
+            recipient_user_id=uuid.uuid4(),
+            context={"anything": "goes"},
+        )
+        assert event.status == "queued"
+        await s.execute(
+            text("UPDATE platform.notification_templates SET is_active = true WHERE code = 'member_activated'")
+        )
+        await s.commit()
