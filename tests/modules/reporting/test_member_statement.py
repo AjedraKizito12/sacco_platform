@@ -355,3 +355,136 @@ async def test_member_statement_template_renders_pdf(test_engine: AsyncEngine) -
         )
     pdf = render_pdf("member_statement.html", ctx)
     assert pdf[:4] == b"%PDF"
+
+
+# ── HTTP endpoint ─────────────────────────────────────────────────────────────
+
+from collections.abc import AsyncGenerator  # noqa: E402
+
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+
+from app.core.db import get_tenant_session  # noqa: E402
+from app.main import app, lifespan  # noqa: E402
+
+HEADERS = {"X-Tenant-Slug": "test-tenant"}
+
+
+@pytest.fixture
+async def client(test_engine: AsyncEngine, tenant_actor_id: uuid.UUID):  # noqa: ANN201
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    async def _override() -> AsyncGenerator[AsyncSession, None]:
+        async with factory() as session:
+            await session.execute(
+                text(f"SET LOCAL search_path TO {TEST_SCHEMA}, platform")
+            )
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+
+    app.dependency_overrides[get_tenant_session] = _override
+    async with lifespan(app), AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        c.headers["X-Tenant-Slug"] = "test-tenant"
+        yield c
+    app.dependency_overrides.pop(get_tenant_session, None)
+
+
+def _member_headers(member_id: uuid.UUID) -> dict[str, str]:
+    return {**HEADERS, "X-Member-Actor-ID": str(member_id)}
+
+
+async def test_statement_pdf_default(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    seed_session = _new_session(test_engine)
+    async with seed_session:
+        member_id = await _seed_member_with_everything(seed_session)
+    resp = await client.get("/member/statement", headers=_member_headers(member_id))
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"] == "application/pdf"
+    assert "attachment" in resp.headers["content-disposition"]
+    assert resp.content[:4] == b"%PDF"
+
+
+async def test_statement_html_preview_contains_sections(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    seed_session = _new_session(test_engine)
+    async with seed_session:
+        member_id = await _seed_member_with_everything(seed_session)
+    resp = await client.get(
+        "/member/statement",
+        params={"format": "html"},
+        headers=_member_headers(member_id),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith("text/html")
+    html = resp.text
+    assert "Savings" in html
+    assert "Ordinary Shares" in html
+    assert "Annual Membership Fee" in html
+    assert "1,300.0000" in html  # savings closing balance
+
+
+async def test_statement_range_filters_html(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    seed_session = _new_session(test_engine)
+    async with seed_session:
+        member_id = await _seed_member_with_everything(seed_session)
+    resp = await client.get(
+        "/member/statement",
+        params={"format": "html", "from_date": "2026-02-01", "to_date": "2026-02-28"},
+        headers=_member_headers(member_id),
+    )
+    assert resp.status_code == 200
+    html = resp.text
+    assert "No share transactions in this period." in html
+    assert "No fee assessments in this period." in html
+    assert "withdrawal" in html  # the Feb 15 txn is in range
+
+
+async def test_statement_empty_member_returns_valid_pdf(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    session = _new_session(test_engine)
+    async with session:
+        member = Member(
+            member_number=f"M-{uuid.uuid4().hex[:8]}",
+            full_name="Empty Member",
+            date_of_birth=date(1995, 6, 1),
+            gender="male",
+            status="active",
+            portal_enabled=True,
+        )
+        session.add(member)
+        await session.commit()
+        member_id = member.id
+    resp = await client.get("/member/statement", headers=_member_headers(member_id))
+    assert resp.status_code == 200
+    assert resp.content[:4] == b"%PDF"
+
+
+async def test_statement_invalid_range_422(
+    client: AsyncClient, test_engine: AsyncEngine
+) -> None:
+    seed_session = _new_session(test_engine)
+    async with seed_session:
+        member_id = await _seed_member_with_everything(seed_session)
+    resp = await client.get(
+        "/member/statement",
+        params={"from_date": "2026-03-01", "to_date": "2026-01-01"},
+        headers=_member_headers(member_id),
+    )
+    assert resp.status_code == 422
+
+
+async def test_statement_requires_member_auth(client: AsyncClient) -> None:
+    # Missing X-Member-Actor-ID (stub mode) -> FastAPI validation 422.
+    resp = await client.get("/member/statement", headers=HEADERS)
+    assert resp.status_code == 422

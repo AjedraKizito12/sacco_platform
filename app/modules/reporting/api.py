@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
-from app.modules.iam.dependencies import CurrentTenantUser
+from app.modules.iam.dependencies import CurrentMember, CurrentTenantUser
 from app.modules.reporting.models import (
     ReportFeeCollectionRow,
     ReportIncomeStatementLine,
@@ -40,6 +40,8 @@ from app.modules.reporting.schemas import (
 )
 
 router = APIRouter(prefix="/reporting", tags=["reporting"])
+# Member self-service consolidated statement (on-demand, scoped to the member).
+member_router = APIRouter(prefix="/member/statement", tags=["member-reports"])
 Session = Annotated[AsyncSession, Depends(get_tenant_session)]
 
 
@@ -519,3 +521,47 @@ async def list_report_runs(
         q = q.where(ReportRun.report_type == report_type)
     runs = list((await session.execute(q)).scalars().all())
     return [ReportRunOut.model_validate(r) for r in runs]
+
+
+@member_router.get("", response_model=None)
+async def member_statement(
+    session: Session,
+    member: CurrentMember,
+    from_date: date | None = Query(default=None),
+    to_date: date | None = Query(default=None),
+    format: str = Query(default="pdf", pattern="^(pdf|html)$"),
+) -> Response:
+    """Consolidated statement (savings + shares + loans + fees) for the
+    current member. Always scoped to the authenticated member — no id
+    params, hence no cross-member surface. Empty data renders a valid
+    empty-state document (200)."""
+    if from_date is not None and to_date is not None and from_date > to_date:
+        raise HTTPException(
+            status_code=422, detail="from_date must be on or before to_date"
+        )
+    from app.modules.reporting.services.member_statement import (  # noqa: PLC0415
+        MemberStatementService,
+    )
+
+    context = await MemberStatementService(session).build_context(
+        member, from_date=from_date, to_date=to_date
+    )
+    if format == "html":
+        from app.modules.reporting._base import render_html  # noqa: PLC0415
+
+        return Response(
+            content=render_html("member_statement.html", context),
+            media_type="text/html",
+        )
+    from app.modules.reporting._base import render_pdf  # noqa: PLC0415
+
+    pdf = render_pdf("member_statement.html", context)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="statement-{member.member_number}.pdf"'
+            ),
+        },
+    )
