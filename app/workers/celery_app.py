@@ -8,6 +8,7 @@ celery_app = Celery(
     "sacco",
     broker=settings.redis_url,  # Redis as broker (rabbitmq for events, redis for tasks)
     include=[
+        "app.core.notifications.beat",
         "app.core.outbox.worker",
         "app.core.outbox.retention",
         "app.platform_.provisioning.tasks",
@@ -31,6 +32,18 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     beat_schedule={
+        "dispatch-pending-notifications": {
+            "task": "app.core.notifications.beat.dispatch_pending_notifications",
+            "schedule": 30.0,
+        },
+        "retry-failed-notifications": {
+            "task": "app.core.notifications.beat.retry_failed_notifications",
+            "schedule": 300.0,
+        },
+        "purge-old-notification-events": {
+            "task": "app.core.notifications.beat.purge_old_notification_events",
+            "schedule": 24 * 3600.0,  # daily
+        },
         "relay-platform-outbox": {
             "task": "app.core.outbox.worker.relay_platform_outbox",
             "schedule": 5.0,

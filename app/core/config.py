@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # Outbox retention
     outbox_retention_days: int = 90
 
+    # Notifications (Phase 3). 'null' = no delivery (v1 default); 'log' = structlog.
+    notify_email_provider: str = "null"
+    notify_sms_provider: str = "null"
+
     # Platform auth
     platform_auth_mode: str = "jwt"  # "stub" | "jwt" — stub requires explicit opt-in
     platform_bootstrap_email: str = ""

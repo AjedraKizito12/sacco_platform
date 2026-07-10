@@ -41,6 +41,7 @@ def anyio_backend() -> str:
 @pytest.fixture(scope="session")
 async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     """One engine per test session. Schemas created once; dropped on teardown."""
+    import app.core.notifications.models  # noqa: F401 — registers notification tables in Base.metadata
     import app.core.outbox.models  # noqa: F401 — registers TenantOutboxEvent/PlatformOutboxEvent in Base.metadata
     import app.modules.credit.models  # noqa: F401 — registers credit tables in Base.metadata
     import app.modules.fees.models  # noqa: F401 — registers fee tables in Base.metadata
