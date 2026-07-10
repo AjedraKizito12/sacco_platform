@@ -1,0 +1,117 @@
+<!-- app/modules/reporting/templates/member_statement.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Member Statement — {{ member.member_number }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; }
+    h1 { font-size: 16px; margin-bottom: 4px; }
+    h2 { font-size: 13px; margin: 18px 0 6px; border-bottom: 1px solid #1a5276; padding-bottom: 2px; }
+    h3 { font-size: 11px; margin: 10px 0 4px; }
+    .meta { color: #555; font-size: 10px; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    th { background: #1a5276; color: white; padding: 5px 8px; text-align: left; }
+    td { padding: 4px 8px; border-bottom: 1px solid #e0e0e0; }
+    tr:nth-child(even) td { background: #f8f8f8; }
+    .num { text-align: right; }
+    .cr { color: #1e8449; }
+    .dr { color: #c0392b; }
+    .empty { color: #888; font-style: italic; margin: 4px 0 10px; }
+  </style>
+</head>
+<body>
+  <h1>Member Statement</h1>
+  <div class="meta">
+    {{ member.full_name }} ({{ member.member_number }}) &nbsp;|&nbsp;
+    Period: {{ from_date or 'beginning' }} to {{ to_date or 'today' }} &nbsp;|&nbsp;
+    Generated: {{ generated_at.strftime('%Y-%m-%d %H:%M UTC') }}
+  </div>
+
+  <h2>Savings</h2>
+  {% if not savings %}<p class="empty">No savings accounts.</p>{% endif %}
+  {% for s in savings %}
+  <h3>{{ s.account.product_name }} — opening {{ "{:,.4f}".format(s.opening_balance) }},
+      closing {{ "{:,.4f}".format(s.closing_balance) }}</h3>
+  {% if not s.lines %}<p class="empty">No transactions in this period.</p>{% else %}
+  <table>
+    <thead><tr><th>Date</th><th>Type</th><th>Narration</th><th class="num">Amount</th><th class="num">Balance</th></tr></thead>
+    <tbody>
+      {% for ln in s.lines %}
+      <tr>
+        <td>{{ ln.txn.posted_at.strftime('%Y-%m-%d') }}</td>
+        <td>{{ ln.txn.transaction_type }}</td>
+        <td>{{ ln.txn.narration or '—' }}</td>
+        <td class="num {% if ln.signed >= 0 %}cr{% else %}dr{% endif %}">{{ "{:,.4f}".format(ln.txn.amount) }}</td>
+        <td class="num">{{ "{:,.4f}".format(ln.running) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% endfor %}
+
+  <h2>Shares</h2>
+  {% if not shares %}<p class="empty">No share accounts.</p>{% endif %}
+  {% for sh in shares %}
+  <h3>{{ sh.product_name }} — {{ sh.total_quantity }} shares, value {{ "{:,.4f}".format(sh.total_value) }}</h3>
+  {% if not sh.txns %}<p class="empty">No share transactions in this period.</p>{% else %}
+  <table>
+    <thead><tr><th>Date</th><th>Type</th><th class="num">Quantity</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      {% for txn in sh.txns %}
+      <tr>
+        <td>{{ txn.posted_at.strftime('%Y-%m-%d') }}</td>
+        <td>{{ txn.transaction_type }}</td>
+        <td class="num">{{ txn.quantity }}</td>
+        <td class="num">{{ "{:,.4f}".format(txn.amount) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% endfor %}
+
+  <h2>Loans</h2>
+  {% if not loans %}<p class="empty">No loans.</p>{% endif %}
+  {% for l in loans %}
+  <h3>{{ l.loan.loan_reference }} — {{ l.loan.status }},
+      principal {{ "{:,.4f}".format(l.loan.principal_amount) }},
+      outstanding {{ "{:,.4f}".format(l.loan.outstanding_principal) }}</h3>
+  {% if not l.installments %}<p class="empty">No schedule.</p>{% else %}
+  <table>
+    <thead><tr><th>#</th><th>Due Date</th><th class="num">Principal</th><th class="num">Interest</th><th class="num">Total Due</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for i in l.installments %}
+      <tr>
+        <td>{{ i.period_number }}</td>
+        <td>{{ i.due_date }}</td>
+        <td class="num">{{ "{:,.4f}".format(i.principal_due) }}</td>
+        <td class="num">{{ "{:,.4f}".format(i.interest_due) }}</td>
+        <td class="num">{{ "{:,.4f}".format(i.total_due) }}</td>
+        <td>{{ i.status }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% endfor %}
+
+  <h2>Fees</h2>
+  {% if not fees %}<p class="empty">No fee assessments in this period.</p>{% else %}
+  <table>
+    <thead><tr><th>Assessed</th><th>Fee</th><th class="num">Amount</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for f in fees %}
+      <tr>
+        <td>{{ f.assessment.assessed_at.strftime('%Y-%m-%d') }}</td>
+        <td>{{ f.fee_name }}</td>
+        <td class="num">{{ "{:,.4f}".format(f.assessment.amount) }}</td>
+        <td>{{ f.assessment.status }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</body>
+</html>
