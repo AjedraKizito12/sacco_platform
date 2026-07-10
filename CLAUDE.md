@@ -348,14 +348,24 @@ X. Long forms (loan applications, member onboarding) wire
   maker-checker (`requested_by` = the member's id — a plain UUID column, no FK).
   `GET /member/loan-products` is the member-facing product read: active products
   only, slim shape (no GL codes / approval / write-off config).
+- `GET /member/statement?from_date=&to_date=&format=pdf|html` (reporting module,
+  `member_router`) renders the consolidated statement (savings + shares + loans +
+  fees) on demand via `MemberStatementService` + WeasyPrint — live data, NOT
+  materialized report runs. Always scoped to the current member (no id params).
+  Empty data → valid empty-state PDF, 200; `from_date > to_date` → 422. The range
+  filters transaction rows and fee assessments; loans always show the current
+  snapshot + active schedule. The portal downloads through the
+  `/api/member/statement` Next.js proxy (member Bearer token is server-side).
+  Member nav: Dashboard / Savings / Shares / Loans / Fees / Statements / Profile.
 
 ## Member portal (Phase 4b)
 
 - The member self-service portal is a **fourth audience** inside the existing
   `admin/apps/portal` Next.js app, under a real `/member/*` path segment with a
   `(authed)` route group, mirroring the operator (`tenant`) layout. It is a pure
-  client of the 4a `/member/*` API — read-only, no member mutations, no
-  statement PDF; the notification bell stays the empty stub.
+  client of the `/member/*` API — read-only except the two permitted member
+  writes (KYC submission + loan apply); the consolidated statement PDF ships via
+  `/member/statement`; the notification bell stays the empty stub.
 - Auth plumbing clones the operator `tenant` variant with a new `member` variant:
   `MEMBER_REFRESH_COOKIE = "sacco_refresh_member"` (httpOnly, 8h), the
   `/api/auth/member-*` route handlers, `getServerAccessToken("member")` /
