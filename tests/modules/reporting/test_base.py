@@ -31,3 +31,23 @@ def test_render_csv_none_values_become_empty_string():
     text = result.decode("utf-8-sig")
     reader = list(csv.reader(io.StringIO(text)))
     assert reader[1] == ["", "value"]
+
+
+def test_render_html_returns_rendered_string():
+    from datetime import UTC, date, datetime
+    from decimal import Decimal
+
+    from app.modules.reporting._base import render_html
+
+    html = render_html(
+        "trial_balance.html",
+        {
+            "as_of_date": date(2026, 1, 31),
+            "generated_at": datetime(2026, 1, 31, 12, 0, tzinfo=UTC),
+            "rows": [],
+            "total_debits": Decimal("0"),
+            "total_credits": Decimal("0"),
+        },
+    )
+    assert isinstance(html, str)
+    assert "<html" in html
