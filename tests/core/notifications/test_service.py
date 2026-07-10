@@ -110,3 +110,32 @@ async def test_event_rows_in_both_schemas_and_dedupe_unique(
         with pytest.raises(IntegrityError):
             await s.flush()
         await s.rollback()
+
+
+from app.core.notifications.seed_templates import (  # noqa: E402
+    DEFAULT_TEMPLATES,
+    seed_default_templates,
+)
+
+
+def test_default_templates_cover_every_catalog_default_channel() -> None:
+    pairs = {(t["code"], t["channel"]) for t in DEFAULT_TEMPLATES}
+    for spec in NOTIFICATION_CATALOG:
+        for channel in spec.default_channels:
+            assert (spec.code, channel) in pairs, (spec.code, channel)
+    for t in DEFAULT_TEMPLATES:
+        assert isinstance(t["variables"], dict)
+        if t["channel"] == "email":
+            assert t["subject_template"] and t["body_text"]
+        if t["channel"] == "in_app":
+            assert t["subject_template"] and t["body_text"]
+
+
+async def test_seed_is_idempotent(factory: async_sessionmaker) -> None:
+    async with factory() as s:
+        await _set_path(s)
+        first = await seed_default_templates(s)
+        again = await seed_default_templates(s)
+        await s.commit()
+    assert first >= len(DEFAULT_TEMPLATES) or first == 0  # fresh DB: all; reruns: 0
+    assert again == 0
