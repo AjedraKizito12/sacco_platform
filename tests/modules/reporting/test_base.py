@@ -39,12 +39,15 @@ def test_render_html_returns_rendered_string():
 
     from app.modules.reporting._base import render_html
 
+    class _Run:
+        as_of_date = date(2026, 1, 31)
+
     html = render_html(
         "trial_balance.html",
         {
-            "as_of_date": date(2026, 1, 31),
+            "run": _Run(),
             "generated_at": datetime(2026, 1, 31, 12, 0, tzinfo=UTC),
-            "rows": [],
+            "lines": [],
             "total_debits": Decimal("0"),
             "total_credits": Decimal("0"),
         },
