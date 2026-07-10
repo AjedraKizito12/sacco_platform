@@ -13,6 +13,18 @@ from redis.asyncio import Redis
 
 from app.core.config import get_settings
 from app.core.db import engine
+from app.core.notifications.api import (
+    member_self_router as notifications_member_router,
+)
+from app.core.notifications.api import (
+    platform_admin_router as notifications_platform_admin_router,
+)
+from app.core.notifications.api import (
+    platform_self_router as notifications_platform_self_router,
+)
+from app.core.notifications.api import (
+    tenant_self_router as notifications_tenant_router,
+)
 from app.modules.credit import executors as _credit_executors  # noqa: F401
 from app.modules.credit.api import member_app_router as credit_member_app_router
 from app.modules.credit.api import member_products_router as credit_member_products_router
@@ -166,6 +178,10 @@ app.include_router(fees_member_router)
 app.include_router(reporting_router)
 app.include_router(reporting_member_router)
 app.include_router(dashboard_router)
+app.include_router(notifications_platform_self_router)
+app.include_router(notifications_tenant_router)
+app.include_router(notifications_member_router)
+app.include_router(notifications_platform_admin_router)
 app.include_router(platform_auth_router)
 app.include_router(tenant_auth_router)
 app.include_router(member_auth_router)
