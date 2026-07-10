@@ -84,3 +84,21 @@ export type MemberStatusChangeInput = z.infer<typeof memberStatusChangeSchema>;
 export type MemberStatus = z.infer<typeof memberStatusSchema>;
 export type MemberGender = z.infer<typeof memberGenderSchema>;
 export type IdDocumentType = z.infer<typeof idDocumentTypeSchema>;
+
+// Consolidated statement date range (both ends optional).
+const optionalStatementDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+  .or(z.literal(""));
+
+export const memberStatementRangeSchema = z
+  .object({
+    from_date: optionalStatementDate,
+    to_date: optionalStatementDate,
+  })
+  .refine((v) => !v.from_date || !v.to_date || v.from_date <= v.to_date, {
+    message: "The start date must be before the end date",
+    path: ["to_date"],
+  });
+
+export type MemberStatementRangeInput = z.infer<typeof memberStatementRangeSchema>;

@@ -33,6 +33,7 @@ from app.modules.members import executors as _members_executors  # noqa: F401
 from app.modules.members.api import member_router as members_self_router
 from app.modules.members.api import router as members_router
 from app.modules.organization.api import router as organization_router
+from app.modules.reporting.api import member_router as reporting_member_router
 from app.modules.reporting.api import router as reporting_router
 from app.modules.savings import executors as _savings_executors  # noqa: F401
 from app.modules.savings.api import member_router as savings_member_router
@@ -163,6 +164,7 @@ app.include_router(credit_member_products_router)
 app.include_router(fees_router)
 app.include_router(fees_member_router)
 app.include_router(reporting_router)
+app.include_router(reporting_member_router)
 app.include_router(dashboard_router)
 app.include_router(platform_auth_router)
 app.include_router(tenant_auth_router)

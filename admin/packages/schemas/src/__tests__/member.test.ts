@@ -96,3 +96,19 @@ describe("MemberOut", () => {
     expect(m.member_number).toBe("M-0001");
   });
 });
+
+import { memberStatementRangeSchema } from "../member";
+
+describe("memberStatementRangeSchema", () => {
+  it("accepts blanks and a valid range", () => {
+    expect(memberStatementRangeSchema.safeParse({ from_date: "", to_date: "" }).success).toBe(true);
+    expect(
+      memberStatementRangeSchema.safeParse({ from_date: "2026-01-01", to_date: "2026-02-01" }).success,
+    ).toBe(true);
+  });
+
+  it("rejects from after to", () => {
+    const r = memberStatementRangeSchema.safeParse({ from_date: "2026-03-01", to_date: "2026-01-01" });
+    expect(r.success).toBe(false);
+  });
+});
