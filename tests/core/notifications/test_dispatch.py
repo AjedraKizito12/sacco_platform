@@ -165,3 +165,82 @@ async def test_dispatch_skips_already_sent_channel(factory, seeded) -> None:  # 
         await _set_path(s)
         rows = list((await s.execute(select(TenantNotificationDelivery))).scalars())
     assert len(rows) == 1
+
+
+# ── Beat jobs ─────────────────────────────────────────────────────────────────
+
+from app.core.notifications.beat import (  # noqa: E402
+    _dispatch_for_schema,
+    _purge_for_schema,
+    _retry_for_schema,
+)
+from app.core.notifications.models import TenantNotificationEvent  # noqa: E402
+
+
+async def test_beat_dispatches_due_queued_events(
+    test_engine: AsyncEngine, factory, seeded  # noqa: ANN001
+) -> None:
+    async with factory() as s:
+        await _set_path(s)
+        event = await _publish(s)
+        await s.commit()
+    count = await _dispatch_for_schema(test_engine, SCHEMA)
+    assert count == 1
+    async with factory() as s:
+        await _set_path(s)
+        row = await s.get(TenantNotificationEvent, event.id)
+    assert row is not None and row.status == "sent"
+    # Second run: nothing queued.
+    assert await _dispatch_for_schema(test_engine, SCHEMA) == 0
+
+
+async def test_retry_requeues_failed_under_attempt_cap(
+    test_engine: AsyncEngine, factory, seeded  # noqa: ANN001
+) -> None:
+    async with factory() as s:
+        await _set_path(s)
+        event = await _publish(s, recipient_email=None, channels=["email"])
+        await s.commit()
+    await _dispatch_for_schema(test_engine, SCHEMA)  # -> failed (no email addr)
+    async with factory() as s:
+        await _set_path(s)
+        # Age the delivery so backoff allows a retry.
+        await s.execute(
+            text(
+                "UPDATE notification_deliveries "
+                "SET sent_at = now() - interval '10 minutes'"
+            )
+        )
+        await s.commit()
+    requeued = await _retry_for_schema(test_engine, SCHEMA, max_attempts=3)
+    assert requeued == 1
+    async with factory() as s:
+        await _set_path(s)
+        row = await s.get(TenantNotificationEvent, event.id)
+    assert row is not None and row.status == "queued"
+
+
+async def test_purge_deletes_only_old_terminal_events(
+    test_engine: AsyncEngine, factory, seeded  # noqa: ANN001
+) -> None:
+    async with factory() as s:
+        await _set_path(s)
+        old = await _publish(s)
+        fresh = await _publish(s)
+        await dispatch_event(s, old)
+        await dispatch_event(s, fresh)
+        await s.flush()
+        await s.execute(
+            text(
+                "UPDATE notification_events "
+                "SET created_at = now() - interval '200 days' WHERE id = :i"
+            ),
+            {"i": str(old.id)},
+        )
+        await s.commit()
+    deleted = await _purge_for_schema(test_engine, SCHEMA, days=180)
+    assert deleted == 1
+    async with factory() as s:
+        await _set_path(s)
+        assert await s.get(TenantNotificationEvent, old.id) is None
+        assert await s.get(TenantNotificationEvent, fresh.id) is not None
