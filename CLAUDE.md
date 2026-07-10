@@ -329,13 +329,25 @@ X. Long forms (loan applications, member onboarding) wire
   `/member/fees`), each gated by `CurrentMember` + the subscription gate
   (`get_tenant_session`). They reuse existing query services filtered to
   `current_member.id` and never accept a client-supplied member_id.
-  Cross-member access returns **404**, never 403. Members may write **only** a
-  KYC submission (`POST /member/me/kyc`) — no other member mutations, no
+  Cross-member access returns **404**, never 403. Members may write **only**: a
+  KYC submission (`POST /member/me/kyc`) and a loan application
+  (`POST /member/loan-applications`) — no other member mutations, no
   member-side maker-checker.
 - The `/member/savings` list returns `MemberSavingsAccountOut` (adds derived
   `balance` + lien-aware `available_balance`). This is the one 4a read-API
   extension made during the 4b portal build; both figures derive from
   `SavingsService.get_balance` / `get_available_balance` (never stored).
+- Member loan apply (`POST /member/loan-applications`) is a handler-level wrapper
+  over `LoanApplicationService.submit`: `member_id` = `submitted_by` = the current
+  member, `disbursement_destination` derived from the product (`member_savings`
+  if allowed, else the first allowed destination), `disbursement_account_id` left
+  NULL for the operator, idempotency key from the required `Idempotency-Key`
+  header. No handler-level status guard — the member auth dep already rejects
+  non-active members (403, the 4a eligibility rule); product bound violations
+  → 422. The application flows into the UNCHANGED `credit.approve_application`
+  maker-checker (`requested_by` = the member's id — a plain UUID column, no FK).
+  `GET /member/loan-products` is the member-facing product read: active products
+  only, slim shape (no GL codes / approval / write-off config).
 
 ## Member portal (Phase 4b)
 

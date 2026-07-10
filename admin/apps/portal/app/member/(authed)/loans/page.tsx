@@ -7,21 +7,28 @@ import {
   MemberApplicationsTable,
   type MemberApplicationRow,
 } from "./_components/MemberApplicationsTable";
+import { MemberApplySection } from "./_components/MemberApplySection";
+import type { MemberLoanProductOut } from "@sacco/schemas";
 
 export const metadata = { title: "Your loans" };
 
 export default async function MemberLoansPage() {
   const { resources } = await getMemberPageContext();
-  const [loansRes, appsRes] = await Promise.all([
+  const [loansRes, appsRes, productsRes] = await Promise.all([
     resources.member.listLoans(),
     resources.member.listLoanApplications(),
+    resources.member.listLoanProducts(),
   ]);
   const loanRows = (loansRes.data ?? []) as MemberLoanRow[];
   const appRows = (appsRes.data ?? []) as MemberApplicationRow[];
+  const products = (productsRes.data ?? []) as MemberLoanProductOut[];
   return (
     <div className="space-y-8">
       <section className="space-y-4">
-        <h1 className="text-[length:var(--text-h4)] font-semibold">Your loans</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-[length:var(--text-h4)] font-semibold">Your loans</h1>
+          <MemberApplySection products={products} />
+        </div>
         <MemberLoansTable rows={loanRows} />
       </section>
       <section className="space-y-4">

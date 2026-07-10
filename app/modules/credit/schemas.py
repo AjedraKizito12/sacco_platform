@@ -68,6 +68,32 @@ class LoanProductPatchIn(BaseModel):
     write_off_threshold: Decimal | None = None
 
 
+class MemberLoanProductOut(BaseModel):
+    """Slim product view for member self-service (no GL / approval config)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    description: str | None
+    interest_method: str
+    annual_interest_rate: Decimal
+    repayment_frequency: str
+    max_term_periods: int
+    min_amount: Decimal
+    max_amount: Decimal
+
+
+class MemberLoanApplicationIn(BaseModel):
+    """Member self-service application. member_id, destination, and the
+    idempotency key are supplied server-side — never by the client body."""
+
+    loan_product_id: uuid.UUID
+    requested_amount: Decimal = Field(gt=0)
+    requested_term_periods: int = Field(ge=1)
+    purpose: str | None = Field(default=None, max_length=500)
+
+
 # ── Application schemas ───────────────────────────────────────────────────────
 
 
