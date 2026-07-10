@@ -19,6 +19,7 @@ celery_app = Celery(
         "app.modules.fees.beat",
         "app.modules.credit.beat",
         "app.modules.credit.consumer",
+        "app.modules.members.consumer",
         "app.modules.reporting.beat",
         "app.modules.maker_checker.service",
     ],
@@ -33,6 +34,10 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     beat_schedule={
+        "consume-member-notification-events": {
+            "task": "app.modules.members.consumer.consume_member_notification_events",
+            "schedule": 60.0,  # every minute
+        },
         "consume-billing-notification-events": {
             "task": "app.platform_.billing.consumer.consume_billing_notification_events",
             "schedule": 60.0,  # every minute
