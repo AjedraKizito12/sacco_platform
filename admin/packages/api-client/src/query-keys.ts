@@ -135,6 +135,7 @@ export const queryKeys = {
     fees: () => ["member", "fees"] as const,
     loanApplications: () => ["member", "loan-applications"] as const,
     loanApplication: (id: string) => ["member", "loan-applications", id] as const,
+    loanProducts: () => ["member", "loan-products"] as const,
     kyc: () => ["member", "kyc"] as const,
   },
   organization: {

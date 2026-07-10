@@ -32,6 +32,9 @@ export function member(api: FetchClient) {
       api.GET("/member/loan-applications/{application_id}" as never, {
         params: { path: { application_id: applicationId } },
       } as never),
+    listLoanProducts: () => api.GET("/member/loan-products" as never),
+    applyForLoan: (body: Record<string, unknown>) =>
+      api.POST("/member/loan-applications" as never, { body } as never),
     getMyKyc: () => api.GET("/member/me/kyc" as never),
     submitKyc: (body: Record<string, unknown>) =>
       api.POST("/member/me/kyc" as never, { body } as never),

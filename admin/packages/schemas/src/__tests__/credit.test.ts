@@ -353,3 +353,44 @@ describe("workout + payroll schemas (3d-4)", () => {
     expect(pb.status).toBe("pending_review");
   });
 });
+
+import { memberLoanApplySchema } from "../credit";
+
+describe("memberLoanApplySchema", () => {
+  const valid = {
+    loan_product_id: "018f6a3e-1111-7000-8000-000000000001",
+    requested_amount: "5000.00",
+    requested_term_periods: "12",
+    purpose: "School fees for my daughter",
+  };
+
+  it("accepts a valid member application", () => {
+    expect(memberLoanApplySchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("requires a purpose of at least 10 characters", () => {
+    expect(
+      memberLoanApplySchema.safeParse({ ...valid, purpose: "too short" }).success,
+    ).toBe(false);
+  });
+
+  it("rejects a zero amount and a non-integer term", () => {
+    expect(
+      memberLoanApplySchema.safeParse({ ...valid, requested_amount: "0" }).success,
+    ).toBe(false);
+    expect(
+      memberLoanApplySchema.safeParse({ ...valid, requested_term_periods: "1.5" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("has no member_id, destination, or idempotency_key fields", () => {
+    const parsed = memberLoanApplySchema.parse(valid);
+    expect(Object.keys(parsed).sort()).toEqual([
+      "loan_product_id",
+      "purpose",
+      "requested_amount",
+      "requested_term_periods",
+    ]);
+  });
+});

@@ -27,6 +27,19 @@ export const loanApplicationRejectSchema = z.object({
   reason: z.string().trim().min(1, "A reason is required").max(1000),
 });
 
+// Member self-service apply (increment 2 of the member self-service design).
+// member_id, disbursement destination, and the idempotency key are server-side.
+export const memberLoanApplySchema = z.object({
+  loan_product_id: uuid,
+  requested_amount: moneyString({ min: "0.01" }),
+  requested_term_periods: intString({ min: 1 }),
+  purpose: z
+    .string()
+    .trim()
+    .min(10, "Tell us the purpose (at least 10 characters)")
+    .max(500),
+});
+
 export const loanRepaymentSchema = z.object({
   amount: moneyString({ min: "0.01" }),
   payment_account_id: uuid,
@@ -115,6 +128,7 @@ export const loanProductPatchSchema = z.object({
 });
 
 export type LoanApplicationInput = z.infer<typeof loanApplicationSchema>;
+export type MemberLoanApplyInput = z.infer<typeof memberLoanApplySchema>;
 export type LoanRepaymentInput = z.infer<typeof loanRepaymentSchema>;
 export type DisburseInput = z.infer<typeof disburseSchema>;
 export type LoanRestructureInput = z.infer<typeof loanRestructureSchema>;
@@ -285,4 +299,17 @@ export interface LoanProductOut {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// Mirror app/modules/credit/schemas.py::MemberLoanProductOut (slim member view).
+export interface MemberLoanProductOut {
+  id: string;
+  name: string;
+  description: string | null;
+  interest_method: string;
+  annual_interest_rate: string;
+  repayment_frequency: string;
+  max_term_periods: number;
+  min_amount: string;
+  max_amount: string;
 }
