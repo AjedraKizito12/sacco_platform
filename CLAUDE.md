@@ -58,7 +58,7 @@ Full spec: `docs/superpowers/plans/saas-launch-roadmap.md`
 |-------|------|--------|-------|--------|
 | 1 | Billing & Subscription Management | L — 3 wk | closed beta | **Done** |
 | 2 | Admin / Back-Office Portal (Next.js) | XL — 6 wk | closed beta | **Next** |
-| 3 | Notifications Framework (NullProvider initially) | M — 2 wk | closed beta, runs parallel to P2 | Not started |
+| 3 | Notifications Framework (NullProvider initially) | M — 2 wk | closed beta, runs parallel to P2 | In progress — increment 1 |
 | 4 | Backups & Disaster Recovery (pgBackRest + PITR) | M — 2 wk | production launch | Not started |
 | 5 | Observability & Monitoring (LGTM stack) | L — 3 wk | production launch | Not started |
 | 6 | Rate Limiting & Abuse Protection | S — 1 wk | production launch (needs P5) | Not started |
@@ -418,6 +418,34 @@ X. Long forms (loan applications, member onboarding) wire
   (reject requires a reason) — registered BEFORE the `/{member_id}` route.
 - **Gating:** KYC completion is informational only; it must not gate activation,
   transacting, or any request path in v1.
+
+## Notifications contracts (Phase 3 increment 1 — do not violate)
+
+- `NotificationService.publish()` (app/core/notifications/service.py) is the ONLY
+  path that creates `notification_events` rows. It writes in the CALLER's
+  transaction — the event row is the notification outbox; there is no RabbitMQ hop
+  for direct publishes. Dispatch happens exclusively via the
+  `dispatch_pending_notifications` beat (30s, `FOR UPDATE SKIP LOCKED`).
+- Notifications never carry secrets (reset tokens, passwords) or sensitive PII.
+  The template `variables` allow-list is enforced at publish time (unknown context
+  key → ValueError). The password_reset notification is a NOTICE — the token is
+  never in the context.
+- Recipient kinds: `platform_user | tenant_user | member`. Templates live in the
+  PLATFORM schema only; events/deliveries/preferences exist in both schemas.
+- Providers are selected via `notify_email_provider` / `notify_sms_provider`
+  settings (`null` default, `log` available). Adding a real provider must not
+  change any call site or the dispatcher.
+- `in_app` is provider-less: the event row is the feed item (`read_at` marks it
+  read) and it writes NO delivery row. The dispatcher/beat is the only code that
+  flips event `status` (the admin resend endpoint re-queues; it never marks sent);
+  the self API touches only `read_at` and preferences.
+- Preferences default to enabled (absence of a row = enabled) and are enforced at
+  dispatch, never at publish. Retries cap at 3 attempts per channel; a channel
+  with a `sent` delivery is never re-sent.
+- Self API paths per audience: `/platform/notifications/me*`, `/notifications/me*`,
+  `/member/notifications/me*`. Cross-recipient access → 404. Increment 2 wires the
+  13 call sites; increment 3 builds the portal surfaces — until then the catalog
+  exists but nothing publishes in production code paths.
 
 ## Impersonation contracts (do not violate)
 
