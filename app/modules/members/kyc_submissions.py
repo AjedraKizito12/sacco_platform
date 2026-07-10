@@ -151,6 +151,16 @@ class KycReviewService:
         submission.reviewed_by = reviewer_id
         submission.reviewed_at = datetime.now(UTC)
         await self._session.flush()
+        from app.core.notifications.service import NotificationService  # noqa: PLC0415
+
+        await NotificationService(self._session).publish(
+            event_code="kyc_submission_approved",
+            recipient_kind="member",
+            recipient_user_id=member.id,
+            recipient_email=member.email,
+            context={},
+            dedupe_key=f"kyc_approved:{submission.id}",
+        )
         _log.info(
             "member.kyc_approved",
             member_id=str(member.id),
@@ -171,6 +181,16 @@ class KycReviewService:
         submission.reviewed_at = datetime.now(UTC)
         submission.rejection_reason = reason
         await self._session.flush()
+        from app.core.notifications.service import NotificationService  # noqa: PLC0415
+
+        await NotificationService(self._session).publish(
+            event_code="kyc_submission_rejected",
+            recipient_kind="member",
+            recipient_user_id=member.id,
+            recipient_email=member.email,
+            context={"reason": reason},
+            dedupe_key=f"kyc_rejected:{submission.id}",
+        )
         _log.info(
             "member.kyc_rejected",
             member_id=str(member.id),
