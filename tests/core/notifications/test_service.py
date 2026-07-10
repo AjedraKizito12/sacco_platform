@@ -139,3 +139,106 @@ async def test_seed_is_idempotent(factory: async_sessionmaker) -> None:
         await s.commit()
     assert first >= len(DEFAULT_TEMPLATES) or first == 0  # fresh DB: all; reruns: 0
     assert again == 0
+
+
+from app.core.notifications.service import NotificationService  # noqa: E402
+
+
+@pytest.fixture
+async def seeded(factory: async_sessionmaker) -> None:
+    async with factory() as s:
+        await _set_path(s)
+        await seed_default_templates(s)
+        await s.commit()
+
+
+async def test_publish_writes_queued_event_in_callers_txn(
+    factory: async_sessionmaker, seeded: None
+) -> None:
+    user_id = uuid.uuid4()
+    async with factory() as s:
+        await _set_path(s)
+        event = await NotificationService(s).publish(
+            event_code="system_announcement",
+            recipient_kind="tenant_user",
+            recipient_user_id=user_id,
+            recipient_email="op@example.com",
+            context={"title": "Maintenance", "body": "Tonight 22:00"},
+        )
+        assert event.status == "queued"
+        assert sorted(event.channels) == ["email", "in_app"]  # catalog defaults
+        await s.commit()
+    async with factory() as s:
+        await _set_path(s)
+        row = await s.get(TenantNotificationEvent, event.id)
+    assert row is not None
+    assert row.recipient_email == "op@example.com"
+
+
+async def test_publish_platform_session_uses_platform_table(
+    factory: async_sessionmaker, seeded: None
+) -> None:
+    async with factory() as s:
+        s.sync_session.info["is_platform"] = True
+        await _set_path(s)
+        event = await NotificationService(s).publish(
+            event_code="system_announcement",
+            recipient_kind="platform_user",
+            recipient_user_id=uuid.uuid4(),
+            context={"title": "t", "body": "b"},
+        )
+        await s.commit()
+    async with factory() as s:
+        await _set_path(s)
+        assert await s.get(PlatformNotificationEvent, event.id) is not None
+
+
+async def test_publish_validation_errors(
+    factory: async_sessionmaker, seeded: None
+) -> None:
+    async with factory() as s:
+        await _set_path(s)
+        svc = NotificationService(s)
+        with pytest.raises(ValueError, match="Unknown"):
+            await svc.publish(
+                event_code="nope", recipient_kind="member",
+                recipient_user_id=uuid.uuid4(), context={},
+            )
+        with pytest.raises(ValueError, match="recipient kind"):
+            await svc.publish(
+                event_code="invoice_issued", recipient_kind="member",
+                recipient_user_id=uuid.uuid4(), context={},
+            )
+        with pytest.raises(ValueError, match="channel"):
+            await svc.publish(
+                event_code="system_announcement", recipient_kind="member",
+                recipient_user_id=uuid.uuid4(), context={}, channels=["pigeon"],
+            )
+        with pytest.raises(ValueError, match="context key"):
+            await svc.publish(
+                event_code="system_announcement", recipient_kind="member",
+                recipient_user_id=uuid.uuid4(),
+                context={"title": "x", "body": "y", "national_id": "SECRET"},
+            )
+        await s.rollback()
+
+
+async def test_publish_dedupe_key_is_idempotent(
+    factory: async_sessionmaker, seeded: None
+) -> None:
+    key = f"test-{uuid.uuid4()}"
+    async with factory() as s:
+        await _set_path(s)
+        svc = NotificationService(s)
+        first = await svc.publish(
+            event_code="system_announcement", recipient_kind="member",
+            recipient_user_id=uuid.uuid4(), context={"title": "a", "body": "b"},
+            dedupe_key=key,
+        )
+        second = await svc.publish(
+            event_code="system_announcement", recipient_kind="member",
+            recipient_user_id=uuid.uuid4(), context={"title": "a", "body": "b"},
+            dedupe_key=key,
+        )
+        await s.commit()
+    assert second.id == first.id
