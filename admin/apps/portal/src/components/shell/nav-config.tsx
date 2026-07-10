@@ -51,6 +51,7 @@ const MEMBER_NAV: NavGroup[] = [
       { label: "Shares", href: "/member/shares", icon: PieChart },
       { label: "Loans", href: "/member/loans", icon: Banknote },
       { label: "Fees", href: "/member/fees", icon: Receipt },
+      { label: "Statements", href: "/member/statements", icon: FileText },
       { label: "Profile", href: "/member/profile", icon: User },
     ],
   },
