@@ -112,6 +112,16 @@ class TenantUsersAdminService:
             await self._redis.set(
                 f"iam:pwreset:{jti}", "1", ex=_ADMIN_RESET_TTL_SECONDS
             )
+
+        from app.core.notifications.service import NotificationService  # noqa: PLC0415
+
+        await NotificationService(self._db).publish(
+            event_code="password_reset",
+            recipient_kind="tenant_user",
+            recipient_user_id=user.id,
+            recipient_email=user.email,
+            context={},
+        )
         return user, token
 
     async def update_user(
@@ -165,6 +175,16 @@ class TenantUsersAdminService:
             await self._redis.set(
                 f"iam:pwreset:{jti}", "1", ex=_ADMIN_RESET_TTL_SECONDS
             )
+
+        from app.core.notifications.service import NotificationService  # noqa: PLC0415
+
+        await NotificationService(self._db).publish(
+            event_code="password_reset",
+            recipient_kind="tenant_user",
+            recipient_user_id=user.id,
+            recipient_email=user.email,
+            context={},
+        )
         return user, token
 
     @staticmethod

@@ -88,6 +88,9 @@ class ApprovalService:
             actor_type="system",
             after_state={"status": "pending", "operation_type": operation_type},
         )
+        from app.modules.maker_checker.notifications import notify_pending  # noqa: PLC0415
+
+        await notify_pending(self._session, request)
         return request
 
     async def approve(
@@ -123,6 +126,11 @@ class ApprovalService:
         if count >= request.required_approvals:
             request.status = "approved"
             await self._execute(request)
+            from app.modules.maker_checker.notifications import (  # noqa: PLC0415
+                notify_decided,
+            )
+
+            await notify_decided(self._session, request, approved=True, reason=None)
 
         return request
 
@@ -156,6 +164,9 @@ class ApprovalService:
             event_type="ApprovalRejected",
             payload={"actor_user_id": str(actor_user_id), "reason": reason},
         )
+        from app.modules.maker_checker.notifications import notify_decided  # noqa: PLC0415
+
+        await notify_decided(self._session, request, approved=False, reason=reason)
         return request
 
     async def cancel(

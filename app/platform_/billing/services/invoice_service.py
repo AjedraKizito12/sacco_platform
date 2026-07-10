@@ -182,6 +182,23 @@ class InvoiceService:
             tenant_id=str(sub.tenant_id),
             amount_total=str(plan.base_price),
         )
+
+        from app.core.outbox.publisher import EventPublisher  # noqa: PLC0415
+
+        await EventPublisher.publish(
+            self._s,
+            aggregate_type="invoice",
+            aggregate_id=invoice.id,
+            event_type="BillingInvoiceIssued",
+            payload={
+                "invoice_id": str(invoice.id),
+                "tenant_id": str(sub.tenant_id),
+                "invoice_number": invoice_number,
+                "amount_total": str(plan.base_price),
+                "currency": invoice.currency,
+                "due_at": due_at.isoformat(),
+            },
+        )
         return invoice
 
     async def void(
@@ -261,11 +278,31 @@ class InvoiceService:
                 "UPDATE platform.invoices "
                 "SET status = 'overdue', updated_at = now() "
                 "WHERE status IN ('issued', 'partial') "
-                "AND due_at < :cutoff"
+                "AND due_at < :cutoff "
+                "RETURNING id, tenant_id, invoice_number, amount_total, "
+                "amount_paid, currency"
             ),
             {"cutoff": cutoff},
         )
-        affected = result.rowcount or 0  # type: ignore[attr-defined]
+        rows = result.fetchall()
+        affected = len(rows)
+
+        from app.core.outbox.publisher import EventPublisher  # noqa: PLC0415
+
+        for row in rows:
+            await EventPublisher.publish(
+                self._s,
+                aggregate_type="invoice",
+                aggregate_id=row.id,
+                event_type="BillingInvoiceOverdue",
+                payload={
+                    "invoice_id": str(row.id),
+                    "tenant_id": str(row.tenant_id),
+                    "invoice_number": row.invoice_number,
+                    "amount_outstanding": str(row.amount_total - row.amount_paid),
+                    "currency": row.currency,
+                },
+            )
         _log.info(
             "invoice.mark_overdue_batch",
             cutoff=cutoff.isoformat(),

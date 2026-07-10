@@ -213,6 +213,17 @@ class LoanApplicationService:
         application.decided_by = rejected_by
         application.decided_at = datetime.now(UTC)
         await self._session.flush()
+        # Member notice — in_app only: credit may not read member rows (no email).
+        from app.core.notifications.service import NotificationService  # noqa: PLC0415
+
+        await NotificationService(self._session).publish(
+            event_code="loan_application_rejected",
+            recipient_kind="member",
+            recipient_user_id=application.member_id,
+            context={"reason": reason or ""},
+            channels=["in_app"],
+            dedupe_key=f"loan_rejected:{application_id}",
+        )
         _log.info(
             "credit.application.rejected",
             application_id=str(application_id),

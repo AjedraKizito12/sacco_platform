@@ -24,9 +24,15 @@ _log = structlog.get_logger(__name__)
 
 
 class NotificationService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, platform: bool | None = None) -> None:
+        """`platform` overrides the session's is_platform inference — for
+        platform-scoped services whose sessions may not carry the flag."""
         self._session = session
-        is_platform = session.sync_session.info.get("is_platform", False)
+        is_platform = (
+            platform
+            if platform is not None
+            else session.sync_session.info.get("is_platform", False)
+        )
         self._model: type[PlatformNotificationEvent] | type[TenantNotificationEvent] = (
             PlatformNotificationEvent if is_platform else TenantNotificationEvent
         )
@@ -59,12 +65,13 @@ class NotificationService:
                 raise ValueError(f"Unknown channel '{ch}'")
 
         allowed_keys = await self._allowed_context_keys(event_code)
-        for key in context:
-            if key not in allowed_keys:
-                raise ValueError(
-                    f"context key '{key}' is not in the template allow-list "
-                    f"for '{event_code}'"
-                )
+        if allowed_keys is not None:
+            for key in context:
+                if key not in allowed_keys:
+                    raise ValueError(
+                        f"context key '{key}' is not in the template allow-list "
+                        f"for '{event_code}'"
+                    )
 
         if dedupe_key is not None:
             existing = await self._session.scalar(
@@ -95,15 +102,22 @@ class NotificationService:
         )
         return event
 
-    async def _allowed_context_keys(self, event_code: str) -> set[str]:
-        rows = (
-            await self._session.execute(
-                select(NotificationTemplate.variables).where(
-                    NotificationTemplate.code == event_code,
-                    NotificationTemplate.is_active.is_(True),
+    async def _allowed_context_keys(self, event_code: str) -> set[str] | None:
+        """Union of active templates' variables keys, or None when the code has
+        no active templates at all (allow-list unenforceable — allow any context;
+        strict validation resumes the moment templates exist)."""
+        rows = list(
+            (
+                await self._session.execute(
+                    select(NotificationTemplate.variables).where(
+                        NotificationTemplate.code == event_code,
+                        NotificationTemplate.is_active.is_(True),
+                    )
                 )
-            )
-        ).scalars()
+            ).scalars()
+        )
+        if not rows:
+            return None
         allowed: set[str] = set()
         for variables in rows:
             allowed |= set(variables.keys())

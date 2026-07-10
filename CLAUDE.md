@@ -58,7 +58,7 @@ Full spec: `docs/superpowers/plans/saas-launch-roadmap.md`
 |-------|------|--------|-------|--------|
 | 1 | Billing & Subscription Management | L — 3 wk | closed beta | **Done** |
 | 2 | Admin / Back-Office Portal (Next.js) | XL — 6 wk | closed beta | **Next** |
-| 3 | Notifications Framework (NullProvider initially) | M — 2 wk | closed beta, runs parallel to P2 | In progress — increment 1 |
+| 3 | Notifications Framework (NullProvider initially) | M — 2 wk | closed beta, runs parallel to P2 | In progress — increments 1-2 |
 | 4 | Backups & Disaster Recovery (pgBackRest + PITR) | M — 2 wk | production launch | Not started |
 | 5 | Observability & Monitoring (LGTM stack) | L — 3 wk | production launch | Not started |
 | 6 | Rate Limiting & Abuse Protection | S — 1 wk | production launch (needs P5) | Not started |
@@ -443,9 +443,21 @@ X. Long forms (loan applications, member onboarding) wire
   dispatch, never at publish. Retries cap at 3 attempts per channel; a channel
   with a `sent` delivery is never re-sent.
 - Self API paths per audience: `/platform/notifications/me*`, `/notifications/me*`,
-  `/member/notifications/me*`. Cross-recipient access → 404. Increment 2 wires the
-  13 call sites; increment 3 builds the portal surfaces — until then the catalog
-  exists but nothing publishes in production code paths.
+  `/member/notifications/me*`. Cross-recipient access → 404.
+- Increment 2 (call sites) is wired: password_reset notices from the four reset
+  flows (platform/tenant/member self-service + admin tenant-user reset — notice
+  only, token never in context); maker-checker pending (all eligible checkers,
+  maker excluded) and approved/rejected (maker; skipped silently when the maker
+  is not a staff row — member-submitted operations get their module's own codes);
+  KYC decisions (members module, with email); loan decisions (credit, in_app-only —
+  credit may not read member rows). Billing codes are DERIVED: the billing services
+  publish BillingInvoiceIssued/BillingInvoiceOverdue/BillingSubscriptionSuspended
+  to the platform outbox and `notifications.billing_consumer` bridges them to
+  tenant-admin feeds; `notifications.member_consumer` derives member_activated
+  from the existing MemberActivated event. All consumer publishes carry dedupe
+  keys; publish treats a code with NO active templates as allow-all context
+  (strict allow-list resumes the moment templates exist). Increment 3 (portal
+  surfaces) is still pending.
 
 ## Impersonation contracts (do not violate)
 

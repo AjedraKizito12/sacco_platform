@@ -319,6 +319,16 @@ class SubscriptionService:
         await self._sync_tenant_status(sub.tenant_id, "suspended", sub.id)
         await self._s.flush()
 
+        from app.core.outbox.publisher import EventPublisher  # noqa: PLC0415
+
+        await EventPublisher.publish(
+            self._s,
+            aggregate_type="subscription",
+            aggregate_id=sub.id,
+            event_type="BillingSubscriptionSuspended",
+            payload={"subscription_id": str(sub.id), "tenant_id": str(sub.tenant_id)},
+        )
+
         _log.info(
             "subscription.suspended",
             subscription_id=str(sub.id),

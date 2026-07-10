@@ -430,6 +430,16 @@ class TenantAuthService:
             table_name="tenant_users",
         )
 
+        from app.core.notifications.service import NotificationService  # noqa: PLC0415
+
+        await NotificationService(self._db).publish(
+            event_code="password_reset",
+            recipient_kind="tenant_user",
+            recipient_user_id=user.id,
+            recipient_email=user.email,
+            context={},
+        )
+
     # ── reset_confirm ─────────────────────────────────────────────────────
 
     async def reset_confirm(self, token: str, new_password: str) -> None:
