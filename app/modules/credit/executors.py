@@ -50,6 +50,18 @@ async def execute_approve_application(
     application.approved_term_periods = approved_term_periods
     await session.flush()
 
+    # Member notice — in_app only: credit may not read member rows (no email).
+    from app.core.notifications.service import NotificationService  # noqa: PLC0415
+
+    await NotificationService(session).publish(
+        event_code="loan_application_approved",
+        recipient_kind="member",
+        recipient_user_id=application.member_id,
+        context={"amount": str(approved_amount)},
+        channels=["in_app"],
+        dedupe_key=f"loan_approved:{application_id}",
+    )
+
     return {
         "application_id": str(application_id),
         "status": "approved",
