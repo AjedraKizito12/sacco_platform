@@ -403,6 +403,16 @@ class MemberAuthService:
             table_name="members",
         )
 
+        from app.core.notifications.service import NotificationService  # noqa: PLC0415
+
+        await NotificationService(self._db).publish(
+            event_code="password_reset",
+            recipient_kind="member",
+            recipient_user_id=member.id,
+            recipient_email=member.email,
+            context={},
+        )
+
     # ── reset_confirm ───────────────────────────────────────────────────────
 
     async def reset_confirm(self, token: str, new_password: str) -> None:

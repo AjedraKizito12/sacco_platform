@@ -24,9 +24,15 @@ _log = structlog.get_logger(__name__)
 
 
 class NotificationService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, platform: bool | None = None) -> None:
+        """`platform` overrides the session's is_platform inference — for
+        platform-scoped services whose sessions may not carry the flag."""
         self._session = session
-        is_platform = session.sync_session.info.get("is_platform", False)
+        is_platform = (
+            platform
+            if platform is not None
+            else session.sync_session.info.get("is_platform", False)
+        )
         self._model: type[PlatformNotificationEvent] | type[TenantNotificationEvent] = (
             PlatformNotificationEvent if is_platform else TenantNotificationEvent
         )
