@@ -10,11 +10,7 @@ import {
   Button,
   DataTable,
   type DataTableProps,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   FormattedDate,
   Money,
@@ -154,33 +150,28 @@ export function PendingPaymentsTable({
         }}
       />
 
-      <Dialog open={rejecting !== null} onOpenChange={(o) => { if (!o) setRejecting(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject payment</DialogTitle>
-            <DialogDescription>
-              {rejecting ? `Reject the payment recorded against ${rejecting.invoice_number}.` : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={form.handleSubmit(({ reason }) => {
-              if (rejecting) mutation.mutate({ id: rejecting.id, reason });
-            })}
-          >
-            <FormField control={form.control} name="reason" label="Reason" required
-              helpText="Recorded on the audit log. Minimum 10 characters."
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit" variant="destructive" disabled={mutation.isPending}>Reject payment</Button>
+      {rejecting !== null ? (
+        <FormDialog
+          title="Reject payment"
+          description={`Reject the payment recorded against ${rejecting.invoice_number}.`}
+          onDismiss={() => setRejecting(null)}
+          onSubmit={form.handleSubmit(({ reason }) => {
+            mutation.mutate({ id: rejecting.id, reason });
+          })}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setRejecting(null)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" variant="destructive" disabled={mutation.isPending}>Reject payment</Button>
+            </>
+          }
+        >
+          <FormField control={form.control} name="reason" label="Reason" required
+            helpText="Recorded on the audit log. Minimum 10 characters."
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
     </>
   );
 }

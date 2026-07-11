@@ -7,11 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   Input,
   MoneyInput,
@@ -160,121 +156,109 @@ export function LoanWorkoutActions({
       )}
 
       {/* Write-off */}
-      <Dialog open={writeOffOpen} onOpenChange={(o) => { if (!o) setWriteOffOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Write off loan</DialogTitle>
-            <DialogDescription>
-              At or above the product&apos;s write-off threshold this creates a maker-checker
-              approval (quorum 2); otherwise it posts immediately.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={writeOffForm.handleSubmit((values) => writeOffMutation.mutate(values))}
-          >
-            <FormField control={writeOffForm.control} name="amount" label="Amount" required
-              render={({ field, id, describedBy, invalid }) => (
-                <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
-                  value={field.value ?? ""} onValueChange={field.onChange}
-                  onBlur={field.onBlur} name={field.name} ref={field.ref} />
-              )} />
-            <FormField control={writeOffForm.control} name="reason" label="Reason" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <FormField control={writeOffForm.control} name="loan_loss_account_code" label="Loan-loss GL account"
-              render={({ field, id, describedBy, invalid }) => (
-                <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                  <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
-                    <SelectValue placeholder="Default (product setting)…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {glAccounts.map((a) => (
-                      <SelectItem key={a.id} value={a.code}>{a.code} — {a.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit" disabled={writeOffMutation.isPending}>Post write-off</Button>
+      {writeOffOpen ? (
+        <FormDialog
+          title="Write off loan"
+          description="At or above the product's write-off threshold this creates a maker-checker approval (quorum 2); otherwise it posts immediately."
+          onDismiss={() => setWriteOffOpen(false)}
+          onSubmit={writeOffForm.handleSubmit((values) => writeOffMutation.mutate(values))}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setWriteOffOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" disabled={writeOffMutation.isPending}>Post write-off</Button>
+            </>
+          }
+        >
+          <FormField control={writeOffForm.control} name="amount" label="Amount" required
+            render={({ field, id, describedBy, invalid }) => (
+              <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
+                value={field.value ?? ""} onValueChange={field.onChange}
+                onBlur={field.onBlur} name={field.name} ref={field.ref} />
+            )} />
+          <FormField control={writeOffForm.control} name="reason" label="Reason" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+          <FormField control={writeOffForm.control} name="loan_loss_account_code" label="Loan-loss GL account"
+            render={({ field, id, describedBy, invalid }) => (
+              <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
+                  <SelectValue placeholder="Default (product setting)…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {glAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.code}>{a.code} — {a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )} />
+        </FormDialog>
+      ) : null}
 
       {/* Restructure */}
-      <Dialog open={restructureOpen} onOpenChange={(o) => { if (!o) setRestructureOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Restructure loan</DialogTitle>
-            <DialogDescription>This creates a maker-checker approval (quorum 2).</DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={restructureForm.handleSubmit((values) => restructureMutation.mutate(values))}
-          >
-            <FormField control={restructureForm.control} name="restructuring_type" label="Type" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
-                    <SelectValue placeholder="Choose…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="term_extension">Term extension</SelectItem>
-                    <SelectItem value="payment_holiday">Payment holiday</SelectItem>
-                  </SelectContent>
-                </Select>
-              )} />
-            <FormField control={restructureForm.control} name="periods_added" label="Periods added" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Input id={id} inputMode="numeric" aria-describedby={describedBy}
-                  aria-invalid={invalid} {...field} />
-              )} />
-            <FormField control={restructureForm.control} name="reason" label="Reason" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit" disabled={restructureMutation.isPending}>Request restructuring</Button>
+      {restructureOpen ? (
+        <FormDialog
+          title="Restructure loan"
+          description="This creates a maker-checker approval (quorum 2)."
+          onDismiss={() => setRestructureOpen(false)}
+          onSubmit={restructureForm.handleSubmit((values) => restructureMutation.mutate(values))}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setRestructureOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" disabled={restructureMutation.isPending}>Request restructuring</Button>
+            </>
+          }
+        >
+          <FormField control={restructureForm.control} name="restructuring_type" label="Type" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
+                  <SelectValue placeholder="Choose…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="term_extension">Term extension</SelectItem>
+                  <SelectItem value="payment_holiday">Payment holiday</SelectItem>
+                </SelectContent>
+              </Select>
+            )} />
+          <FormField control={restructureForm.control} name="periods_added" label="Periods added" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Input id={id} inputMode="numeric" aria-describedby={describedBy}
+                aria-invalid={invalid} {...field} />
+            )} />
+          <FormField control={restructureForm.control} name="reason" label="Reason" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
 
       {/* Recover */}
-      <Dialog open={recoverOpen} onOpenChange={(o) => { if (!o) setRecoverOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Recover written-off loan</DialogTitle>
-            <DialogDescription>Post a recovery against this written-off loan.</DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={recoverForm.handleSubmit((values) => recoverMutation.mutate(values))}
-          >
-            <FormField control={recoverForm.control} name="amount" label="Amount" required
-              render={({ field, id, describedBy, invalid }) => (
-                <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
-                  value={field.value ?? ""} onValueChange={field.onChange}
-                  onBlur={field.onBlur} name={field.name} ref={field.ref} />
-              )} />
-            <FormField control={recoverForm.control} name="reason" label="Reason" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit" disabled={recoverMutation.isPending}>Post recovery</Button>
+      {recoverOpen ? (
+        <FormDialog
+          title="Recover written-off loan"
+          description="Post a recovery against this written-off loan."
+          onDismiss={() => setRecoverOpen(false)}
+          onSubmit={recoverForm.handleSubmit((values) => recoverMutation.mutate(values))}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setRecoverOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" disabled={recoverMutation.isPending}>Post recovery</Button>
+            </>
+          }
+        >
+          <FormField control={recoverForm.control} name="amount" label="Amount" required
+            render={({ field, id, describedBy, invalid }) => (
+              <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
+                value={field.value ?? ""} onValueChange={field.onChange}
+                onBlur={field.onBlur} name={field.name} ref={field.ref} />
+            )} />
+          <FormField control={recoverForm.control} name="reason" label="Reason" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
     </div>
   );
 }

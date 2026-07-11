@@ -7,11 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   ConfirmDialog,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   MakerCheckerConfirmDialog,
   Textarea,
@@ -142,45 +138,40 @@ export function SubscriptionActions({
       ) : null}
 
       {/* Reason collection — both modes funnel through here first. */}
-      <Dialog open={reasonMode !== null} onOpenChange={(o) => { if (!o) setReasonMode(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {reasonMode === "immediate" ? "Cancel immediately" : "Cancel at period end"}
-            </DialogTitle>
-            <DialogDescription>
-              {reasonMode === "immediate"
-                ? "Provide a reason. This creates an approval request; another authorised user must approve before cancellation runs."
-                : "Provide a reason. The subscription will end at the close of the current billing period."}
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={form.handleSubmit(({ reason }) => {
-              if (reasonMode === "immediate") {
-                setPendingReason(reason);
-                setReasonMode(null);
-                setConfirmOpen(true);
-              } else {
-                cancelMutation.mutate({ reason, mode: "at_period_end" });
-              }
-            })}
-          >
-            <FormField control={form.control} name="reason" label="Reason" required
-              helpText="Recorded on the subscription and the audit log. Minimum 10 characters."
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
+      {reasonMode !== null ? (
+        <FormDialog
+          title={reasonMode === "immediate" ? "Cancel immediately" : "Cancel at period end"}
+          description={
+            reasonMode === "immediate"
+              ? "Provide a reason. This creates an approval request; another authorised user must approve before cancellation runs."
+              : "Provide a reason. The subscription will end at the close of the current billing period."
+          }
+          onDismiss={() => setReasonMode(null)}
+          onSubmit={form.handleSubmit(({ reason }) => {
+            if (reasonMode === "immediate") {
+              setPendingReason(reason);
+              setReasonMode(null);
+              setConfirmOpen(true);
+            } else {
+              cancelMutation.mutate({ reason, mode: "at_period_end" });
+            }
+          })}
+          footer={
+            <>
+              <Button type="button" variant="ghost" onClick={() => setReasonMode(null)}>Back</Button>
               <Button type="submit" variant={reasonMode === "immediate" ? "destructive" : "primary"} disabled={cancelMutation.isPending}>
                 {reasonMode === "immediate" ? "Request immediate cancellation" : "Schedule cancellation"}
               </Button>
-              <Button type="button" variant="ghost" onClick={() => setReasonMode(null)}>Back</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+            </>
+          }
+        >
+          <FormField control={form.control} name="reason" label="Reason" required
+            helpText="Recorded on the subscription and the audit log. Minimum 10 characters."
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
 
       {/* Immediate cancel = maker-checker. */}
       <MakerCheckerConfirmDialog

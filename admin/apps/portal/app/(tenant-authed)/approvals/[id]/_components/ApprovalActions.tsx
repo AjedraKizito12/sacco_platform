@@ -7,11 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   ConfirmDialog,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   Textarea,
   toast,
@@ -169,97 +165,76 @@ export function ApprovalActions({
       )}
 
       {/* Approve — checker side: approving EXECUTES the operation once quorum is met. */}
-      <Dialog
-        open={approveOpen}
-        onOpenChange={(o) => {
-          if (!o) setApproveOpen(false);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Approve {subjectLabel}</DialogTitle>
-            <DialogDescription>
-              Approving runs this operation now. When the quorum is met this executes immediately
-              and cannot be undone here.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={approveForm.handleSubmit((values) => approveMutation.mutate(values))}
-          >
-            <FormField
-              control={approveForm.control}
-              name="comment"
-              label="Comment (optional)"
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea
-                  id={id}
-                  rows={2}
-                  aria-describedby={describedBy}
-                  aria-invalid={invalid}
-                  {...field}
-                />
-              )}
-            />
-            <div className="flex gap-3">
-              <Button type="submit" disabled={approveMutation.isPending}>
-                Approve and execute
-              </Button>
+      {approveOpen ? (
+        <FormDialog
+          title={`Approve ${subjectLabel}`}
+          description="Approving runs this operation now. When the quorum is met this executes immediately and cannot be undone here."
+          onDismiss={() => setApproveOpen(false)}
+          onSubmit={approveForm.handleSubmit((values) => approveMutation.mutate(values))}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setApproveOpen(false)}>
                 Cancel
               </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" disabled={approveMutation.isPending}>
+                Approve and execute
+              </Button>
+            </>
+          }
+        >
+          <FormField
+            control={approveForm.control}
+            name="comment"
+            label="Comment (optional)"
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea
+                id={id}
+                rows={2}
+                aria-describedby={describedBy}
+                aria-invalid={invalid}
+                {...field}
+              />
+            )}
+          />
+        </FormDialog>
+      ) : null}
 
       {/* Reject — required reason. */}
-      <Dialog
-        open={rejectOpen}
-        onOpenChange={(o) => {
-          if (!o) setRejectOpen(false);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject {subjectLabel}</DialogTitle>
-            <DialogDescription>
-              Rejecting closes this request without running the operation.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={rejectForm.handleSubmit((values) => rejectMutation.mutate(values))}
-          >
-            <FormField
-              control={rejectForm.control}
-              name="reason"
-              label="Reason"
-              required
-              helpText="Recorded on the request and the audit log. Minimum 10 characters."
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea
-                  id={id}
-                  rows={3}
-                  aria-describedby={describedBy}
-                  aria-invalid={invalid}
-                  {...field}
-                />
-              )}
-            />
-            <div className="flex gap-3">
-              <Button type="submit" variant="destructive" disabled={rejectMutation.isPending}>
-                Reject
-              </Button>
+      {rejectOpen ? (
+        <FormDialog
+          title={`Reject ${subjectLabel}`}
+          description="Rejecting closes this request without running the operation."
+          onDismiss={() => setRejectOpen(false)}
+          onSubmit={rejectForm.handleSubmit((values) => rejectMutation.mutate(values))}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setRejectOpen(false)}>
                 Cancel
               </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" variant="destructive" disabled={rejectMutation.isPending}>
+                Reject
+              </Button>
+            </>
+          }
+        >
+          <FormField
+            control={rejectForm.control}
+            name="reason"
+            label="Reason"
+            required
+            helpText="Recorded on the request and the audit log. Minimum 10 characters."
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea
+                id={id}
+                rows={3}
+                aria-describedby={describedBy}
+                aria-invalid={invalid}
+                {...field}
+              />
+            )}
+          />
+        </FormDialog>
+      ) : null}
 
       {/* Cancel — requester withdraws (no fields → base ConfirmDialog). */}
       <ConfirmDialog
