@@ -8,11 +8,7 @@ import { z } from "zod";
 import {
   Button,
   ConfirmDialog,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   Textarea,
   toast,
@@ -119,40 +115,14 @@ export function KycReviewActions({
         onConfirm={() => approveMutation.mutate()}
       />
 
-      <Dialog
-        open={rejectOpen}
-        onOpenChange={(o) => {
-          if (!o) setRejectOpen(false);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject KYC submission</DialogTitle>
-            <DialogDescription>
-              The reason is shown to the member so they can fix and resubmit.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={rejectForm.handleSubmit((vars) => rejectMutation.mutate(vars))}
-          >
-            <FormField
-              control={rejectForm.control}
-              name="reason"
-              label="Reason"
-              required
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea
-                  id={id}
-                  rows={3}
-                  aria-describedby={describedBy}
-                  aria-invalid={invalid}
-                  {...field}
-                />
-              )}
-            />
-            <div className="flex justify-end gap-3">
+      {rejectOpen ? (
+        <FormDialog
+          title="Reject KYC submission"
+          description="The reason is shown to the member so they can fix and resubmit."
+          onDismiss={() => setRejectOpen(false)}
+          onSubmit={rejectForm.handleSubmit((vars) => rejectMutation.mutate(vars))}
+          footer={
+            <>
               <Button
                 type="button"
                 variant="secondary"
@@ -168,10 +138,26 @@ export function KycReviewActions({
               >
                 Reject submission
               </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+            </>
+          }
+        >
+          <FormField
+            control={rejectForm.control}
+            name="reason"
+            label="Reason"
+            required
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea
+                id={id}
+                rows={3}
+                aria-describedby={describedBy}
+                aria-invalid={invalid}
+                {...field}
+              />
+            )}
+          />
+        </FormDialog>
+      ) : null}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Badge,
   Button,
+  Card,
   DateInput,
   FormattedDateTime,
   FormField,
@@ -96,6 +97,7 @@ export function OrganizationKycScreen({ initial }: { initial: OrganizationKycOut
       </p>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="self-start p-6">
         <form
           noValidate
           className="flex flex-col gap-5"
@@ -136,6 +138,7 @@ export function OrganizationKycScreen({ initial }: { initial: OrganizationKycOut
             </Button>
           </div>
         </form>
+        </Card>
 
         <div className="lg:sticky lg:top-6 lg:self-start">
           <KycCompletionCard completion={latest.completion} />

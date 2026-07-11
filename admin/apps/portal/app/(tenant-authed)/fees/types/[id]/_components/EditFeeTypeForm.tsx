@@ -4,7 +4,7 @@
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Checkbox, FormField, Input, MoneyInput, Textarea, toast } from "@sacco/ui";
+import { Button, Card, Checkbox, FormField, Input, MoneyInput, Textarea, toast } from "@sacco/ui";
 import { useTypedMutation } from "@sacco/api-client";
 import {
   feeTypePatchSchema,
@@ -56,9 +56,10 @@ export function EditFeeTypeForm({ feeType }: { feeType: FeeTypeOut }) {
   );
 
   return (
+    <Card className="max-w-xl p-6">
     <form
       noValidate
-      className="flex max-w-xl flex-col gap-5"
+      className="flex flex-col gap-5"
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
     >
       <FormField control={form.control} name="name" label="Name" required
@@ -95,5 +96,6 @@ export function EditFeeTypeForm({ feeType }: { feeType: FeeTypeOut }) {
         <Button type="submit" disabled={mutation.isPending}>Save changes</Button>
       </div>
     </form>
+    </Card>
   );
 }

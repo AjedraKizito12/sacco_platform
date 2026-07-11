@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  Card,
   Checkbox,
   FormField,
   Input,
@@ -67,9 +68,10 @@ export function EditPlanForm({ plan }: { plan: SubscriptionPlanOut }) {
   );
 
   return (
+    <Card className="max-w-xl p-6">
     <form
       noValidate
-      className="flex max-w-xl flex-col gap-5"
+      className="flex flex-col gap-5"
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
     >
       <ReadOnlyField label="Code" value={plan.code} />
@@ -225,5 +227,6 @@ export function EditPlanForm({ plan }: { plan: SubscriptionPlanOut }) {
         </Button>
       </div>
     </form>
+    </Card>
   );
 }

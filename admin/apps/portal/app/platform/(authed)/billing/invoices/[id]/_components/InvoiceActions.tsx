@@ -7,11 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   Input,
   MakerCheckerConfirmDialog,
@@ -166,59 +162,53 @@ export function InvoiceActions({
       ) : null}
 
       {/* Record-payment form dialog */}
-      <Dialog open={payOpen} onOpenChange={(o) => { if (!o) setPayOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record payment</DialogTitle>
-            <DialogDescription>
-              Capture an offline payment against {invoice.invoice_number}. This creates an approval
-              request; the payment applies once another platform user approves it.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={payForm.handleSubmit((values) => {
-              setPendingPayment(values);
-              setPayOpen(false);
-              setPayConfirm(true);
-            })}
-          >
-            <FormField control={payForm.control} name="amount" label="Amount" required
-              render={({ field, id, describedBy, invalid }) => (
-                <MoneyInput id={id} currency={invoice.currency}
-                  aria-describedby={describedBy} aria-invalid={invalid}
-                  value={field.value ?? ""} onValueChange={field.onChange}
-                  onBlur={field.onBlur} name={field.name} ref={field.ref} />
-              )} />
-            <FormField control={payForm.control} name="payment_method" label="Method" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAYMENT_METHOD_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )} />
-            <FormField control={payForm.control} name="external_reference" label="Reference"
-              render={({ field, id, describedBy, invalid }) => (
-                <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <FormField control={payForm.control} name="notes" label="Notes"
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit">Record</Button>
+      {payOpen ? (
+        <FormDialog
+          title="Record payment"
+          description={`Capture an offline payment against ${invoice.invoice_number}. This creates an approval request; the payment applies once another platform user approves it.`}
+          onDismiss={() => setPayOpen(false)}
+          onSubmit={payForm.handleSubmit((values) => {
+            setPendingPayment(values);
+            setPayOpen(false);
+            setPayConfirm(true);
+          })}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setPayOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit">Record</Button>
+            </>
+          }
+        >
+          <FormField control={payForm.control} name="amount" label="Amount" required
+            render={({ field, id, describedBy, invalid }) => (
+              <MoneyInput id={id} currency={invoice.currency}
+                aria-describedby={describedBy} aria-invalid={invalid}
+                value={field.value ?? ""} onValueChange={field.onChange}
+                onBlur={field.onBlur} name={field.name} ref={field.ref} />
+            )} />
+          <FormField control={payForm.control} name="payment_method" label="Method" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHOD_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )} />
+          <FormField control={payForm.control} name="external_reference" label="Reference"
+            render={({ field, id, describedBy, invalid }) => (
+              <Input id={id} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+          <FormField control={payForm.control} name="notes" label="Notes"
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
 
       <MakerCheckerConfirmDialog
         open={payConfirm}
@@ -230,36 +220,30 @@ export function InvoiceActions({
       />
 
       {/* Void form dialog */}
-      <Dialog open={voidOpen} onOpenChange={(o) => { if (!o) setVoidOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Void {invoice.invoice_number}</DialogTitle>
-            <DialogDescription>
-              Voiding cancels this invoice. This creates an approval request; the invoice is voided
-              once another platform user approves it.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={voidForm.handleSubmit((values) => {
-              setPendingVoid(values);
-              setVoidOpen(false);
-              setVoidConfirm(true);
-            })}
-          >
-            <FormField control={voidForm.control} name="reason" label="Reason" required
-              helpText="Recorded on the approval request and the audit log. Minimum 10 characters."
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit" variant="destructive">Request void</Button>
+      {voidOpen ? (
+        <FormDialog
+          title={`Void ${invoice.invoice_number}`}
+          description="Voiding cancels this invoice. This creates an approval request; the invoice is voided once another platform user approves it."
+          onDismiss={() => setVoidOpen(false)}
+          onSubmit={voidForm.handleSubmit((values) => {
+            setPendingVoid(values);
+            setVoidOpen(false);
+            setVoidConfirm(true);
+          })}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setVoidOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" variant="destructive">Request void</Button>
+            </>
+          }
+        >
+          <FormField control={voidForm.control} name="reason" label="Reason" required
+            helpText="Recorded on the approval request and the audit log. Minimum 10 characters."
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
 
       <MakerCheckerConfirmDialog
         open={voidConfirm}

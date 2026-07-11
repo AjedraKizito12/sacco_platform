@@ -10,11 +10,7 @@ import {
   Card,
   Checkbox,
   ConfirmDialog,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   Money,
   StatusBadge,
@@ -184,47 +180,56 @@ export function GuarantorsSection({
         onConfirm={() => { if (consent) consentMutation.mutate(consent); }}
       />
 
-      <Dialog open={nominateOpen} onOpenChange={(o) => { if (!o) setNominateOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add guarantor(s)</DialogTitle>
-            <DialogDescription>Select members to nominate as guarantors.</DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={nominateForm.handleSubmit((values) => addMutation.mutate(values))}
-          >
-            <FormField control={nominateForm.control} name="guarantor_member_ids" label="Members" required
-              render={({ field }) => (
-                <div className="flex flex-col gap-2">
-                  {nominatable.map((m) => {
-                    const current = (field.value ?? []) as string[];
-                    const checked = current.includes(m.id);
-                    return (
-                      <label key={m.id} className="flex items-center gap-2">
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(c) => {
-                            const next = new Set<string>(current);
-                            if (c) next.add(m.id);
-                            else next.delete(m.id);
-                            field.onChange([...next]);
-                          }}
-                        />
-                        <span>{`${m.full_name} (${m.member_number})`}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit" disabled={addMutation.isPending}>Add selected</Button>
-              <Button type="button" variant="ghost" onClick={() => setNominateOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {nominateOpen ? (
+        <FormDialog
+          title="Add guarantors"
+          description="Select members to nominate as guarantors for this application."
+          onDismiss={() => setNominateOpen(false)}
+          onSubmit={nominateForm.handleSubmit((values) => addMutation.mutate(values))}
+          footer={
+            <>
+              <Button type="button" variant="ghost" onClick={() => setNominateOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={addMutation.isPending}>
+                {addMutation.isPending ? "Adding…" : "Add selected"}
+              </Button>
+            </>
+          }
+        >
+          <FormField control={nominateForm.control} name="guarantor_member_ids" label="Members" required
+            render={({ field }) => (
+              <div className="-mx-2 flex max-h-80 flex-col gap-0.5 overflow-y-auto">
+                {nominatable.map((m) => {
+                  const current = (field.value ?? []) as string[];
+                  const checked = current.includes(m.id);
+                  return (
+                    <label
+                      key={m.id}
+                      htmlFor={`nominate-${m.id}`}
+                      className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-md)] px-2 py-2 hover:bg-[var(--surface-hover)]"
+                    >
+                      <Checkbox
+                        id={`nominate-${m.id}`}
+                        checked={checked}
+                        onCheckedChange={(c) => {
+                          const next = new Set<string>(current);
+                          if (c) next.add(m.id);
+                          else next.delete(m.id);
+                          field.onChange([...next]);
+                        }}
+                      />
+                      <span className="flex flex-col">
+                        <span className="text-sm text-[var(--text-primary)]">{m.full_name}</span>
+                        <span className="text-xs text-[var(--text-secondary)]">{m.member_number}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )} />
+        </FormDialog>
+      ) : null}
     </Card>
   );
 }

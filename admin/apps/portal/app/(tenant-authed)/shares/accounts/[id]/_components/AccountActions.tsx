@@ -7,11 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   Input,
   MakerCheckerConfirmDialog,
@@ -150,68 +146,60 @@ export function AccountActions({
       </Button>
 
       {/* Purchase — direct (no maker-checker) */}
-      <Dialog open={purchaseOpen} onOpenChange={(o) => { if (!o) setPurchaseOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Purchase shares</DialogTitle>
-            <DialogDescription>Buy shares into this account.</DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={purchaseForm.handleSubmit((values) => purchaseMutation.mutate(values))}
-          >
-            <FormField control={purchaseForm.control} name="quantity" label="Quantity" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Input id={id} inputMode="numeric" aria-describedby={describedBy}
-                  aria-invalid={invalid} {...field} />
-              )} />
-            <FormField control={purchaseForm.control} name="payment_account_id" label="Cash / payment GL account" required
-              render={({ field, id, describedBy, invalid }) => glSelect(field, id, describedBy, invalid)} />
-            <div className="flex gap-3">
-              <Button type="submit" disabled={purchaseMutation.isPending}>Post purchase</Button>
+      {purchaseOpen ? (
+        <FormDialog
+          title="Purchase shares"
+          description="Buy shares into this account."
+          onDismiss={() => setPurchaseOpen(false)}
+          onSubmit={purchaseForm.handleSubmit((values) => purchaseMutation.mutate(values))}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setPurchaseOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" disabled={purchaseMutation.isPending}>Post purchase</Button>
+            </>
+          }
+        >
+          <FormField control={purchaseForm.control} name="quantity" label="Quantity" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Input id={id} inputMode="numeric" aria-describedby={describedBy}
+                aria-invalid={invalid} {...field} />
+            )} />
+          <FormField control={purchaseForm.control} name="payment_account_id" label="Cash / payment GL account" required
+            render={({ field, id, describedBy, invalid }) => glSelect(field, id, describedBy, invalid)} />
+        </FormDialog>
+      ) : null}
 
       {/* Redeem — maker-checker */}
-      <Dialog open={redeemOpen} onOpenChange={(o) => { if (!o) setRedeemOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Redeem shares</DialogTitle>
-            <DialogDescription>
-              This creates an approval request; the redemption posts once another operator approves it.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={redeemForm.handleSubmit((values) => {
-              setPendingRedeem(values);
-              setRedeemOpen(false);
-              setRedeemConfirm(true);
-            })}
-          >
-            <FormField control={redeemForm.control} name="quantity" label="Quantity" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Input id={id} inputMode="numeric" aria-describedby={describedBy}
-                  aria-invalid={invalid} {...field} />
-              )} />
-            <FormField control={redeemForm.control} name="payment_account_id" label="Cash / payment GL account" required
-              render={({ field, id, describedBy, invalid }) => glSelect(field, id, describedBy, invalid)} />
-            <FormField control={redeemForm.control} name="reason" label="Reason"
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit">Request redemption</Button>
+      {redeemOpen ? (
+        <FormDialog
+          title="Redeem shares"
+          description="This creates an approval request; the redemption posts once another operator approves it."
+          onDismiss={() => setRedeemOpen(false)}
+          onSubmit={redeemForm.handleSubmit((values) => {
+            setPendingRedeem(values);
+            setRedeemOpen(false);
+            setRedeemConfirm(true);
+          })}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setRedeemOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit">Request redemption</Button>
+            </>
+          }
+        >
+          <FormField control={redeemForm.control} name="quantity" label="Quantity" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Input id={id} inputMode="numeric" aria-describedby={describedBy}
+                aria-invalid={invalid} {...field} />
+            )} />
+          <FormField control={redeemForm.control} name="payment_account_id" label="Cash / payment GL account" required
+            render={({ field, id, describedBy, invalid }) => glSelect(field, id, describedBy, invalid)} />
+          <FormField control={redeemForm.control} name="reason" label="Reason"
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
 
       <MakerCheckerConfirmDialog
         open={redeemConfirm}

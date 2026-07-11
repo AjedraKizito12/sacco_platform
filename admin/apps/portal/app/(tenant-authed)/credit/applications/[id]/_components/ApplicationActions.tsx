@@ -8,11 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   ConfirmDialog,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   Textarea,
   toast,
@@ -141,28 +137,27 @@ export function ApplicationActions({ applicationId }: { applicationId: string })
         onConfirm={() => withdrawMutation.mutate({})}
       />
 
-      <Dialog open={rejectOpen} onOpenChange={(o) => { if (!o) setRejectOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject application</DialogTitle>
-            <DialogDescription>Record a reason for rejecting this application.</DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={rejectForm.handleSubmit((values) => rejectMutation.mutate(values))}
-          >
-            <FormField control={rejectForm.control} name="reason" label="Reason" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit" disabled={rejectMutation.isPending}>Reject application</Button>
+      {rejectOpen ? (
+        <FormDialog
+          title="Reject application"
+          description="Record a reason for rejecting this application."
+          onDismiss={() => setRejectOpen(false)}
+          onSubmit={rejectForm.handleSubmit((values) => rejectMutation.mutate(values))}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setRejectOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" variant="destructive" disabled={rejectMutation.isPending}>
+                Reject application
+              </Button>
+            </>
+          }
+        >
+          <FormField control={rejectForm.control} name="reason" label="Reason" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
     </div>
   );
 }

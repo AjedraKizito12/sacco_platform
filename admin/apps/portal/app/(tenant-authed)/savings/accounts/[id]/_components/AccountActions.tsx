@@ -7,11 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   MakerCheckerConfirmDialog,
   MoneyInput,
@@ -150,74 +146,66 @@ export function AccountActions({
       </Button>
 
       {/* Deposit — direct (no maker-checker) */}
-      <Dialog open={depositOpen} onOpenChange={(o) => { if (!o) setDepositOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Deposit</DialogTitle>
-            <DialogDescription>Post a deposit to this savings account.</DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={depositForm.handleSubmit((values) => depositMutation.mutate(values))}
-          >
-            <FormField control={depositForm.control} name="amount" label="Amount" required
-              render={({ field, id, describedBy, invalid }) => (
-                <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
-                  value={field.value ?? ""} onValueChange={field.onChange}
-                  onBlur={field.onBlur} name={field.name} ref={field.ref} />
-              )} />
-            <FormField control={depositForm.control} name="payment_account_id" label="Cash / payment GL account" required
-              render={({ field, id, describedBy, invalid }) => glSelect(field, id, describedBy, invalid)} />
-            <FormField control={depositForm.control} name="narration" label="Narration"
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit" disabled={depositMutation.isPending}>Post deposit</Button>
+      {depositOpen ? (
+        <FormDialog
+          title="Deposit"
+          description="Post a deposit to this savings account."
+          onDismiss={() => setDepositOpen(false)}
+          onSubmit={depositForm.handleSubmit((values) => depositMutation.mutate(values))}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setDepositOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" disabled={depositMutation.isPending}>Post deposit</Button>
+            </>
+          }
+        >
+          <FormField control={depositForm.control} name="amount" label="Amount" required
+            render={({ field, id, describedBy, invalid }) => (
+              <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
+                value={field.value ?? ""} onValueChange={field.onChange}
+                onBlur={field.onBlur} name={field.name} ref={field.ref} />
+            )} />
+          <FormField control={depositForm.control} name="payment_account_id" label="Cash / payment GL account" required
+            render={({ field, id, describedBy, invalid }) => glSelect(field, id, describedBy, invalid)} />
+          <FormField control={depositForm.control} name="narration" label="Narration"
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
 
       {/* Withdraw — maker-checker */}
-      <Dialog open={withdrawOpen} onOpenChange={(o) => { if (!o) setWithdrawOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Withdraw</DialogTitle>
-            <DialogDescription>
-              This creates an approval request; the withdrawal posts once another operator approves it.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={withdrawForm.handleSubmit((values) => {
-              setPendingWithdraw(values);
-              setWithdrawOpen(false);
-              setWithdrawConfirm(true);
-            })}
-          >
-            <FormField control={withdrawForm.control} name="amount" label="Amount" required
-              render={({ field, id, describedBy, invalid }) => (
-                <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
-                  value={field.value ?? ""} onValueChange={field.onChange}
-                  onBlur={field.onBlur} name={field.name} ref={field.ref} />
-              )} />
-            <FormField control={withdrawForm.control} name="payment_account_id" label="Cash / payment GL account" required
-              render={({ field, id, describedBy, invalid }) => glSelect(field, id, describedBy, invalid)} />
-            <FormField control={withdrawForm.control} name="narration" label="Narration"
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit">Request withdrawal</Button>
+      {withdrawOpen ? (
+        <FormDialog
+          title="Withdraw"
+          description="This creates an approval request; the withdrawal posts once another operator approves it."
+          onDismiss={() => setWithdrawOpen(false)}
+          onSubmit={withdrawForm.handleSubmit((values) => {
+            setPendingWithdraw(values);
+            setWithdrawOpen(false);
+            setWithdrawConfirm(true);
+          })}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setWithdrawOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit">Request withdrawal</Button>
+            </>
+          }
+        >
+          <FormField control={withdrawForm.control} name="amount" label="Amount" required
+            render={({ field, id, describedBy, invalid }) => (
+              <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
+                value={field.value ?? ""} onValueChange={field.onChange}
+                onBlur={field.onBlur} name={field.name} ref={field.ref} />
+            )} />
+          <FormField control={withdrawForm.control} name="payment_account_id" label="Cash / payment GL account" required
+            render={({ field, id, describedBy, invalid }) => glSelect(field, id, describedBy, invalid)} />
+          <FormField control={withdrawForm.control} name="narration" label="Narration"
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
 
       <MakerCheckerConfirmDialog
         open={withdrawConfirm}

@@ -7,11 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   MoneyInput,
   Select,
@@ -101,55 +97,52 @@ export function RecordCollectionButton({
   return (
     <>
       <Button onClick={() => setOpen(true)}>Record collection</Button>
-      <Dialog open={open} onOpenChange={(o) => { if (!o) setOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record collection</DialogTitle>
-            <DialogDescription>Record a payment against this assessment.</DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
-          >
-            <FormField control={form.control} name="amount" label="Amount" required
-              render={({ field, id, describedBy, invalid }) => (
-                <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
-                  value={field.value ?? ""} onValueChange={field.onChange}
-                  onBlur={field.onBlur} name={field.name} ref={field.ref} />
-              )} />
-            <FormField control={form.control} name="method" label="Method" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
-                    <SelectValue placeholder="Choose…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="journal_voucher">Journal voucher</SelectItem>
-                  </SelectContent>
-                </Select>
-              )} />
-            <FormField control={form.control} name="contra_account_id" label="Contra GL account" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
-                    <SelectValue placeholder="Choose a GL account…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {glAccounts.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.code} — {a.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit" disabled={mutation.isPending}>Record</Button>
+      {open ? (
+        <FormDialog
+          title="Record collection"
+          description="Record a payment against this assessment."
+          onDismiss={() => setOpen(false)}
+          onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" disabled={mutation.isPending}>Record</Button>
+            </>
+          }
+        >
+          <FormField control={form.control} name="amount" label="Amount" required
+            render={({ field, id, describedBy, invalid }) => (
+              <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
+                value={field.value ?? ""} onValueChange={field.onChange}
+                onBlur={field.onBlur} name={field.name} ref={field.ref} />
+            )} />
+          <FormField control={form.control} name="method" label="Method" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
+                  <SelectValue placeholder="Choose…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="journal_voucher">Journal voucher</SelectItem>
+                </SelectContent>
+              </Select>
+            )} />
+          <FormField control={form.control} name="contra_account_id" label="Contra GL account" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
+                  <SelectValue placeholder="Choose a GL account…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {glAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.code} — {a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )} />
+        </FormDialog>
+      ) : null}
     </>
   );
 }

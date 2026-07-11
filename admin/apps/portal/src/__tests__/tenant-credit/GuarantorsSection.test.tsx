@@ -79,8 +79,8 @@ describe("GuarantorsSection", () => {
     renderSection();
     await userEvent.click(screen.getByRole("button", { name: /add guarantor/i }));
     // Only Cara (m3) is selectable — Ben (m2) is already a guarantor.
-    // Only Cara (m3) is selectable — Ben (m2) is already a guarantor.
-    expect(screen.getByText("Cara N (M-0003)")).toBeInTheDocument();
+    expect(screen.getByText("Cara N")).toBeInTheDocument();
+    expect(screen.getByText("M-0003")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox"));
     await userEvent.click(screen.getByRole("button", { name: /add selected/i }));
     expect(await screen.findByText(/guarantors added/i)).toBeInTheDocument();

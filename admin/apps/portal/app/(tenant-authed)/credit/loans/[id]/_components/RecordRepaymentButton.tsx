@@ -7,11 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   MoneyInput,
   Select,
@@ -89,47 +85,44 @@ export function RecordRepaymentButton({
   return (
     <>
       <Button onClick={() => setOpen(true)}>Record repayment</Button>
-      <Dialog open={open} onOpenChange={(o) => { if (!o) setOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record repayment</DialogTitle>
-            <DialogDescription>Post a repayment against this loan.</DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
-          >
-            <FormField control={form.control} name="amount" label="Amount" required
-              render={({ field, id, describedBy, invalid }) => (
-                <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
-                  value={field.value ?? ""} onValueChange={field.onChange}
-                  onBlur={field.onBlur} name={field.name} ref={field.ref} />
-              )} />
-            <FormField control={form.control} name="payment_account_id" label="Payment GL account" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
-                    <SelectValue placeholder="Choose a GL account…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {glAccounts.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.code} — {a.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )} />
-            <FormField control={form.control} name="narration" label="Narration"
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit" disabled={mutation.isPending}>Post repayment</Button>
+      {open ? (
+        <FormDialog
+          title="Record repayment"
+          description="Post a repayment against this loan."
+          onDismiss={() => setOpen(false)}
+          onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" disabled={mutation.isPending}>Post repayment</Button>
+            </>
+          }
+        >
+          <FormField control={form.control} name="amount" label="Amount" required
+            render={({ field, id, describedBy, invalid }) => (
+              <MoneyInput id={id} aria-describedby={describedBy} aria-invalid={invalid}
+                value={field.value ?? ""} onValueChange={field.onChange}
+                onBlur={field.onBlur} name={field.name} ref={field.ref} />
+            )} />
+          <FormField control={form.control} name="payment_account_id" label="Payment GL account" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
+                  <SelectValue placeholder="Choose a GL account…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {glAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.code} — {a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )} />
+          <FormField control={form.control} name="narration" label="Narration"
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={2} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
     </>
   );
 }

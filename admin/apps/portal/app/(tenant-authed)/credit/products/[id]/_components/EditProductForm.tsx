@@ -4,7 +4,7 @@
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, FormField, Input, MoneyInput, Textarea, toast } from "@sacco/ui";
+import { Button, Card, FormField, Input, MoneyInput, Textarea, toast } from "@sacco/ui";
 import { useTypedMutation } from "@sacco/api-client";
 import {
   loanProductPatchSchema,
@@ -57,9 +57,10 @@ export function EditProductForm({ product }: { product: LoanProductOut }) {
   );
 
   return (
+    <Card className="max-w-xl p-6">
     <form
       noValidate
-      className="flex max-w-xl flex-col gap-5"
+      className="flex flex-col gap-5"
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
     >
       <FormField control={form.control} name="name" label="Name" required
@@ -84,5 +85,6 @@ export function EditProductForm({ product }: { product: LoanProductOut }) {
         <Button type="submit" disabled={mutation.isPending}>Save changes</Button>
       </div>
     </form>
+    </Card>
   );
 }

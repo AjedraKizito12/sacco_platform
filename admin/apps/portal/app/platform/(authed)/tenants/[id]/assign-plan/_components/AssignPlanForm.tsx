@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  Card,
   DateInput,
   FormField,
   Select,
@@ -68,9 +69,10 @@ export function AssignPlanForm({
   );
 
   return (
+    <Card className="max-w-xl p-6">
     <form
       noValidate
-      className="flex max-w-xl flex-col gap-5"
+      className="flex flex-col gap-5"
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
     >
       <FormField control={form.control} name="plan_id" label="Plan" required
@@ -98,5 +100,6 @@ export function AssignPlanForm({
         <Button type="button" variant="ghost" onClick={() => router.push(`/platform/tenants/${tenantId}`)}>Cancel</Button>
       </div>
     </form>
+    </Card>
   );
 }

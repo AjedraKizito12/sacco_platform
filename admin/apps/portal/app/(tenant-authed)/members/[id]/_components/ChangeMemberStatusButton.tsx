@@ -7,11 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  FormDialog,
   FormField,
   MakerCheckerConfirmDialog,
   Select,
@@ -93,49 +89,43 @@ export function ChangeMemberStatusButton({
         Change status
       </Button>
 
-      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) setFormOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change member status</DialogTitle>
-            <DialogDescription>
-              Current status is {currentStatus}. This creates an approval request; the change
-              applies once another operator approves it.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className="flex flex-col gap-4"
-            onSubmit={form.handleSubmit((values) => {
-              setPending(values);
-              setFormOpen(false);
-              setConfirmOpen(true);
-            })}
-          >
-            <FormField control={form.control} name="new_status" label="New status" required
-              render={({ field, id, describedBy, invalid }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUS_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )} />
-            <FormField control={form.control} name="reason" label="Reason" required
-              helpText="Recorded on the approval request and the audit log. Minimum 10 characters."
-              render={({ field, id, describedBy, invalid }) => (
-                <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
-              )} />
-            <div className="flex gap-3">
-              <Button type="submit">Request status change</Button>
+      {formOpen ? (
+        <FormDialog
+          title="Change member status"
+          description={`Current status is ${currentStatus}. This creates an approval request; the change applies once another operator approves it.`}
+          onDismiss={() => setFormOpen(false)}
+          onSubmit={form.handleSubmit((values) => {
+            setPending(values);
+            setFormOpen(false);
+            setConfirmOpen(true);
+          })}
+          footer={
+            <>
               <Button type="button" variant="ghost" onClick={() => setFormOpen(false)}>Cancel</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit">Request status change</Button>
+            </>
+          }
+        >
+          <FormField control={form.control} name="new_status" label="New status" required
+            render={({ field, id, describedBy, invalid }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )} />
+          <FormField control={form.control} name="reason" label="Reason" required
+            helpText="Recorded on the approval request and the audit log. Minimum 10 characters."
+            render={({ field, id, describedBy, invalid }) => (
+              <Textarea id={id} rows={3} aria-describedby={describedBy} aria-invalid={invalid} {...field} />
+            )} />
+        </FormDialog>
+      ) : null}
 
       <MakerCheckerConfirmDialog
         open={confirmOpen}
