@@ -58,7 +58,7 @@ Full spec: `docs/superpowers/plans/saas-launch-roadmap.md`
 |-------|------|--------|-------|--------|
 | 1 | Billing & Subscription Management | L — 3 wk | closed beta | **Done** |
 | 2 | Admin / Back-Office Portal (Next.js) | XL — 6 wk | closed beta | **Next** |
-| 3 | Notifications Framework (NullProvider initially) | M — 2 wk | closed beta, runs parallel to P2 | In progress — increments 1-2 |
+| 3 | Notifications Framework (NullProvider initially) | M — 2 wk | closed beta, runs parallel to P2 | **Done** |
 | 4 | Backups & Disaster Recovery (pgBackRest + PITR) | M — 2 wk | production launch | Not started |
 | 5 | Observability & Monitoring (LGTM stack) | L — 3 wk | production launch | Not started |
 | 6 | Rate Limiting & Abuse Protection | S — 1 wk | production launch (needs P5) | Not started |
@@ -98,7 +98,15 @@ K. Maker-checker UI patterns: action buttons labeled "Request X" not "X" when th
 L. `Idempotency-Key` auto-injected on all POST/PUT/PATCH/DELETE by the API client (UUID per user intent — same UUID across retries of the same form submission).
 M. No client-side data fetching for initial render. Server components fetch via the typed client; client components mutate via TanStack Query.
 N. Do NOT modify anything outside `admin/` except: `docker-compose.yml` (add admin service), `Makefile` (add `admin-*` targets), `CLAUDE.md` (append portal subsection, update Phase 2 stack to "Next.js 15"), `.gitignore` (admin entries). Backend code, alembic, docker/, scripts/, tests/, app/ stay untouched.
-O. Notification bell renders empty state ("Notifications coming soon") until Phase 3 ships. Bell component accepts the future Phase 3 event-feed shape but is fed null/empty in v1.
+O. The notification bell is LIVE (Phase 3 increment 3): `NotificationBell`
+   (@sacco/ui, presentational) fed by `AppShellNotificationBell`, which polls
+   the audience's `/…/notifications/me` feed every 60s via TanStack Query (the
+   one sanctioned shell client-fetch — the bell lives in the shell, not a
+   page). Clicking an unread item marks it read via `POST .../{id}/read`.
+   Preferences pages per audience: `/platform/settings/notifications`,
+   `/notifications/preferences`, `/member/notifications/preferences` (reached
+   from the bell footer — no dedicated nav items for the tenant/member pages).
+   `NotificationBellStub` remains exported for Storybook only.
 P. Design tokens are owned by `docs/tokens.css` (the canonical source).
    `admin/packages/ui/src/tokens.css` is a byte-identical copy consumed by the
    portal app and Storybook. Editing tokens means editing the canonical file
@@ -365,7 +373,9 @@ X. Long forms (loan applications, member onboarding) wire
   `(authed)` route group, mirroring the operator (`tenant`) layout. It is a pure
   client of the `/member/*` API — read-only except the two permitted member
   writes (KYC submission + loan apply); the consolidated statement PDF ships via
-  `/member/statement`; the notification bell stays the empty stub.
+  `/member/statement`; the notification bell is live per contract O (Phase 3
+  increment 3) — member preferences at `/member/notifications/preferences`,
+  reached from the bell footer, not the member nav.
 - Auth plumbing clones the operator `tenant` variant with a new `member` variant:
   `MEMBER_REFRESH_COOKIE = "sacco_refresh_member"` (httpOnly, 8h), the
   `/api/auth/member-*` route handlers, `getServerAccessToken("member")` /
@@ -456,8 +466,20 @@ X. Long forms (loan applications, member onboarding) wire
   tenant-admin feeds; `notifications.member_consumer` derives member_activated
   from the existing MemberActivated event. All consumer publishes carry dedupe
   keys; publish treats a code with NO active templates as allow-all context
-  (strict allow-list resumes the moment templates exist). Increment 3 (portal
-  surfaces) is still pending.
+  (strict allow-list resumes the moment templates exist).
+- Increment 3 (portal surfaces) is wired: the portal catalog mirror lives in
+  `admin/packages/schemas/src/notifications.ts` — adding an event code =
+  backend catalog row + template seed + ONE portal catalog row (status-maps
+  pattern). Preference pages render the catalog as a (code × channel) checkbox
+  matrix and PUT the full rendered matrix (absence of a stored row = enabled).
+  Admin template/event screens live at `/platform/notifications/templates` and
+  `/platform/notifications/events` (settings.read to view; the API enforces
+  admin for writes). Resend is a direct admin action via plain `ConfirmDialog`
+  — no maker-checker. The banner copy "Notifications: provider=null — real
+  delivery disabled" (`NotificationsProviderBanner`) is fixed until a real
+  provider ships and renders on the platform templates/events/settings pages.
+  Template edit sends a diff-based PATCH (only changed fields). Phase 3 is
+  complete.
 
 ## Impersonation contracts (do not violate)
 

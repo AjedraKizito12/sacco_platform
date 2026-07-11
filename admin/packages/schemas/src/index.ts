@@ -15,3 +15,4 @@ export * from "./audit";
 export * from "./tenant-users";
 export * from "./dashboard";
 export * from "./kyc";
+export * from "./notifications";

@@ -3,11 +3,11 @@
 import {
   CommandPaletteTrigger,
   Header,
-  NotificationBellStub,
   TenantIndicator,
   UserMenu,
 } from "@sacco/ui";
 import { useCurrentUser } from "@/auth/use-current-user";
+import { AppShellNotificationBell } from "./AppShellNotificationBell";
 
 interface AppShellHeaderProps {
   variant: "platform" | "tenant" | "member";
@@ -64,7 +64,7 @@ export function AppShellHeader({ variant, tenantName }: AppShellHeaderProps) {
       }
       end={
         <>
-          <NotificationBellStub />
+          <AppShellNotificationBell variant={variant} />
           {user ? (
             <UserMenu
               fullName={user.full_name}

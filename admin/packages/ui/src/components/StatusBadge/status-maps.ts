@@ -21,7 +21,8 @@ export type StatusEntity =
   | "guarantor"
   | "payroll_batch"
   | "report_run"
-  | "kyc_submission";
+  | "kyc_submission"
+  | "notification_event";
 
 interface MapEntry {
   variant: NonNullable<BadgeProps["variant"]>;
@@ -168,6 +169,14 @@ export const KYC_SUBMISSION_STATUS: StatusMap = {
   rejected: { variant: "danger", label: "Rejected" },
 };
 
+export const NOTIFICATION_EVENT_STATUS: StatusMap = {
+  queued: { variant: "info", label: "Queued" },
+  sent: { variant: "success", label: "Sent" },
+  partial: { variant: "warning", label: "Partial" },
+  failed: { variant: "danger", label: "Failed" },
+  cancelled: { variant: "neutral", label: "Cancelled" },
+};
+
 const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   loan: LOAN_STATUS,
   member: MEMBER_STATUS,
@@ -187,6 +196,7 @@ const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   payroll_batch: PAYROLL_BATCH_STATUS,
   report_run: REPORT_RUN_STATUS,
   kyc_submission: KYC_SUBMISSION_STATUS,
+  notification_event: NOTIFICATION_EVENT_STATUS,
 };
 
 export function resolveStatus(
