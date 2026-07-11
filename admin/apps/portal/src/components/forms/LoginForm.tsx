@@ -21,6 +21,10 @@ export function LoginForm({ variant }: LoginFormProps) {
   const setAuthContext = useAuthStore((s) => s.setAuthContext);
   const setTenantSlug = useAuthStore((s) => s.setTenantSlug);
   const [serverError, setServerError] = useState<string | null>(null);
+  // Held true from successful login until the destination page unmounts this
+  // form — router.push resolves before the navigation completes, so RHF's
+  // isSubmitting alone would re-enable the button during the load.
+  const [redirecting, setRedirecting] = useState(false);
   const {
     register,
     handleSubmit,
@@ -90,6 +94,7 @@ export function LoginForm({ variant }: LoginFormProps) {
         : variant === "member"
           ? "/member/dashboard"
           : "/";
+    setRedirecting(true);
     router.push(next ?? home);
   }
 
@@ -146,8 +151,8 @@ export function LoginForm({ variant }: LoginFormProps) {
             {serverError}
           </p>
         )}
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Signing in…" : "Sign in"}
+        <Button type="submit" disabled={isSubmitting || redirecting}>
+          {isSubmitting || redirecting ? "Signing in…" : "Sign in"}
         </Button>
         <p className="text-center text-sm">
           <a

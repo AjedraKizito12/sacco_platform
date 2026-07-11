@@ -38,4 +38,44 @@ describe("LoginForm (member)", () => {
     );
     await waitFor(() => expect(push).toHaveBeenCalledWith("/member/dashboard"));
   });
+
+  it("keeps the submit button disabled through the post-login redirect", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: "a", expires_in: 900 }),
+    });
+    render(<LoginForm variant="member" />);
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: "jane@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/password/i), {
+      target: { value: "S3cret-pass!ok" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    await waitFor(() => expect(push).toHaveBeenCalled());
+    // The dashboard takes a moment to load after router.push; the button must
+    // not re-enable in that window.
+    const button = screen.getByRole("button", { name: /signing in/i });
+    expect(button).toBeDisabled();
+  });
+
+  it("re-enables the submit button after a failed login", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ detail: "Invalid credentials" }),
+    });
+    render(<LoginForm variant="member" />);
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: "jane@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/password/i), {
+      target: { value: "wrong-password-1!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/invalid email or password/i),
+    );
+    expect(screen.getByRole("button", { name: /^sign in$/i })).toBeEnabled();
+  });
 });
