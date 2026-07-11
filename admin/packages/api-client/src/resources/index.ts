@@ -19,6 +19,7 @@ import { member } from "./member";
 import { memberAuth } from "./memberAuth";
 import { organization } from "./organization";
 import { kyc } from "./kyc";
+import { notifications } from "./notifications";
 
 export function buildResources(api: FetchClient) {
   return {
@@ -42,6 +43,7 @@ export function buildResources(api: FetchClient) {
     memberAuth: memberAuth(api),
     organization: organization(api),
     kyc: kyc(api),
+    notifications: notifications(api),
   } as const;
 }
 

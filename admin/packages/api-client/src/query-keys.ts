@@ -146,4 +146,13 @@ export const queryKeys = {
     root: () => ["kyc"] as const,
     saccoRequirements: () => ["kyc", "saccoRequirements"] as const,
   },
+  notifications: {
+    root: () => ["notifications"] as const,
+    feed: (audience: string) => ["notifications", "feed", audience] as const,
+    preferences: (audience: string) =>
+      ["notifications", "preferences", audience] as const,
+    templates: () => ["notifications", "templates"] as const,
+    events: (filters?: Record<string, unknown>) =>
+      ["notifications", "events", filters ?? {}] as const,
+  },
 } as const;
