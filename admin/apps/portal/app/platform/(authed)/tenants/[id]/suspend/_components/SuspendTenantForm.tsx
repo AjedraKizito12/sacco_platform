@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  Card,
   FormField,
   MakerCheckerConfirmDialog,
   Textarea,
@@ -63,9 +64,10 @@ export function SuspendTenantForm({ tenant }: { tenant: TenantOut }) {
 
   return (
     <>
+      <Card className="max-w-xl p-6">
       <form
         noValidate
-        className="flex max-w-xl flex-col gap-5"
+        className="flex flex-col gap-5"
         onSubmit={form.handleSubmit((values) => {
           setPending(values);
           setConfirmOpen(true);
@@ -100,6 +102,7 @@ export function SuspendTenantForm({ tenant }: { tenant: TenantOut }) {
           </Button>
         </div>
       </form>
+      </Card>
 
       <MakerCheckerConfirmDialog
         open={confirmOpen}

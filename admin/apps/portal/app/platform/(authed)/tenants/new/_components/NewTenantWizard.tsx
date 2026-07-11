@@ -96,6 +96,7 @@ export function NewTenantWizard() {
   return (
     <div className="flex max-w-xl flex-col gap-6">
       <Stepper steps={WIZARD_STEPS} currentStepId="details" />
+      <Card className="p-6">
       <form
         noValidate
         className="flex flex-col gap-5"
@@ -153,6 +154,7 @@ export function NewTenantWizard() {
           </Button>
         </div>
       </form>
+      </Card>
     </div>
   );
 }

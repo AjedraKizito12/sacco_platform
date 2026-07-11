@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
+  Card,
   Checkbox,
   FormField,
   Input,
@@ -108,8 +109,9 @@ export function EditUserForm({ user }: { user: PlatformUserOut }) {
 
   return (
     <>
+      <Card className="max-w-xl p-6">
       <form
-        className="flex max-w-xl flex-col gap-5"
+        className="flex flex-col gap-5"
         onSubmit={form.handleSubmit(onValid)}
         noValidate
       >
@@ -179,6 +181,7 @@ export function EditUserForm({ user }: { user: PlatformUserOut }) {
           </Button>
         </div>
       </form>
+      </Card>
 
       <MakerCheckerConfirmDialog
         open={confirmOpen}

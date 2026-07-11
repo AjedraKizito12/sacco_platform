@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, FormField, Input, toast } from "@sacco/ui";
+import { Button, Card, FormField, Input, toast } from "@sacco/ui";
 import { queryKeys, useTypedMutation } from "@sacco/api-client";
 import {
   tenantPatchSchema,
@@ -52,11 +52,12 @@ export function EditTenantForm({ tenant }: { tenant: TenantOut }) {
   );
 
   return (
-    <form
-      noValidate
-      className="flex max-w-xl flex-col gap-5"
-      onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
-    >
+    <Card className="max-w-xl p-6">
+      <form
+        noValidate
+        className="flex flex-col gap-5"
+        onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      >
       <FormField
         control={form.control}
         name="name"
@@ -76,6 +77,7 @@ export function EditTenantForm({ tenant }: { tenant: TenantOut }) {
           Cancel
         </Button>
       </div>
-    </form>
+      </form>
+    </Card>
   );
 }
