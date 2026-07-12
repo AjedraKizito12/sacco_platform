@@ -146,7 +146,7 @@ const TENANT_NAV: NavGroup[] = [
   },
   {
     label: "Settings",
-    items: [{ label: "Settings", href: "/settings/appearance", icon: Settings }],
+    items: [{ label: "Appearance", href: "/settings/appearance", icon: Settings }],
   },
 ];
 
