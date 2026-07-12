@@ -122,6 +122,23 @@ Q. shadcn/ui components are **forked once** into
    the latest registry, replace literal colours with token references,
    and submit as a PR.
 
+Q2. **Theme preferences** (light/dark/system mode, accent, font size) are a
+   per-device user setting stored in the `sacco_theme` cookie
+   (`{mode,accent,fontSize}`, `SameSite=Lax`, not httpOnly). The root layout
+   reads it server-side and stamps `data-theme`/`data-accent`/`data-font-size`
+   on `<html>`; a static pre-paint inline script (`THEME_SCRIPT`) resolves
+   `system` mode before first paint. That inline `<script>` is the ONE
+   sanctioned `dangerouslySetInnerHTML` (contract E) — a constant with no
+   user data. Dark mode, the four accent presets (blue/green/amber/slate; the
+   default violet ramp needs no block), and font scaling (`--font-scale`,
+   type-only) live ENTIRELY in the token semantic layer (`docs/tokens.css`,
+   copied per contract P). Components never hardcode theme colors (contract Q);
+   the sole exception is the accent-swatch fill map inside
+   `@sacco/ui`'s `ThemeControls` (comment-marked). Cookie server/client split:
+   `next/headers` lives only in `theme-cookie.server.ts` (never imported by a
+   `"use client"` module). SACCO logo + profile-picture uploads are a separate
+   future spec (need file storage).
+
 R. Numbers and money are rendered through the typed primitives from
    `@sacco/ui` only: `<Money>`, `<Percentage>`, `<Count>`. Each enforces
    tabular numerals and the currency registry's precision rules. Inline

@@ -3,6 +3,7 @@ import { Card, FormattedDate, StatusBadge } from "@sacco/ui";
 import type { MemberSelfKycOut } from "@sacco/schemas";
 import { getMemberPageContext } from "@/auth/server-page-context";
 import { MemberKycSection } from "./_components/MemberKycSection";
+import { MemberAppearanceSection } from "./_components/MemberAppearanceSection";
 
 export const metadata = { title: "Your profile" };
 
@@ -54,6 +55,8 @@ export default async function MemberProfilePage() {
       </Card>
 
       {kyc ? <MemberKycSection initial={kyc} /> : null}
+
+      <MemberAppearanceSection />
     </div>
   );
 }
