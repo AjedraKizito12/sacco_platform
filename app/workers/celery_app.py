@@ -10,6 +10,7 @@ celery_app = Celery(
     include=[
         "app.core.notifications.beat",
         "app.core.search.reconcile",
+        "app.core.search.sweep",
         "app.core.outbox.worker",
         "app.core.outbox.retention",
         "app.platform_.provisioning.tasks",
@@ -38,6 +39,10 @@ celery_app.conf.update(
         "reconcile-search-indexes": {
             "task": "app.core.search.reconcile.reconcile_search_indexes",
             "schedule": 45.0,
+        },
+        "sweep-deleted-search-docs": {
+            "task": "app.core.search.sweep.sweep_deleted_search_docs",
+            "schedule": 24 * 3600.0,
         },
         "consume-member-notification-events": {
             "task": "app.modules.members.consumer.consume_member_notification_events",
