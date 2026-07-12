@@ -9,6 +9,7 @@ celery_app = Celery(
     broker=settings.redis_url,  # Redis as broker (rabbitmq for events, redis for tasks)
     include=[
         "app.core.notifications.beat",
+        "app.core.search.reconcile",
         "app.core.outbox.worker",
         "app.core.outbox.retention",
         "app.platform_.provisioning.tasks",
@@ -34,6 +35,10 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     beat_schedule={
+        "reconcile-search-indexes": {
+            "task": "app.core.search.reconcile.reconcile_search_indexes",
+            "schedule": 45.0,
+        },
         "consume-member-notification-events": {
             "task": "app.modules.members.consumer.consume_member_notification_events",
             "schedule": 60.0,  # every minute
