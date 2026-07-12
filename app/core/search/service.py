@@ -21,6 +21,8 @@ _FIELDS = [
     "phone",
     "name",
     "slug",
+    "loan_reference",
+    "invoice_number",
 ]
 
 
@@ -31,6 +33,8 @@ class SearchHit:
     title: str
     subtitle: str
     url: str
+    status: str = ""
+    status_entity: str = ""
 
 
 class SearchService:
@@ -65,7 +69,7 @@ class SearchService:
         tenant_schema: str | None = None,
         limit: int = 20,
     ) -> list[SearchHit]:
-        if len(q.strip()) < 1:
+        if len(q.strip()) < 1 or not indices:
             return []
         body = self.build_query(q.strip(), tenant_schema=tenant_schema)
         body["size"] = limit
@@ -80,6 +84,8 @@ class SearchService:
                     title=src["title"],
                     subtitle=src.get("subtitle", ""),
                     url=src["url"],
+                    status=src.get("status", ""),
+                    status_entity=src.get("status_entity", ""),
                 )
             )
         return hits

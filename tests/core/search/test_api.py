@@ -34,6 +34,8 @@ BETA = "tenant_beta"
 _alpha_member = str(uuid.uuid4())
 _beta_member = str(uuid.uuid4())
 _tenant_id = str(uuid.uuid4())
+_alpha_loan = str(uuid.uuid4())
+LOANS_INDEX = "sacco_loans"
 
 
 async def _es_ready() -> bool:
@@ -78,7 +80,16 @@ def _seed_es():
                     "name": "Grace SACCO", "slug": "grace-sacco",
                 }),
             ])
-            await es.indices.refresh(index=f"{MEMBERS_INDEX},{TENANTS_INDEX}")
+            await svc.bulk_index(LOANS_INDEX, [
+                (f"{ALPHA}:{_alpha_loan}", {
+                    "entity_type": "loan", "record_id": _alpha_loan,
+                    "tenant_schema": ALPHA, "title": "Grace-LOAN-1",
+                    "subtitle": "disbursed", "url": f"/credit/loans/{_alpha_loan}",
+                    "loan_reference": "Grace-LOAN-1",
+                    "status": "disbursed", "status_entity": "loan",
+                }),
+            ])
+            await es.indices.refresh(index=f"{MEMBERS_INDEX},{TENANTS_INDEX},{LOANS_INDEX}")
         finally:
             await es.close()
 
@@ -92,6 +103,7 @@ def _seed_es():
             await safe.delete(index=MEMBERS_INDEX, id=f"{ALPHA}:{_alpha_member}")
             await safe.delete(index=MEMBERS_INDEX, id=f"{BETA}:{_beta_member}")
             await safe.delete(index=TENANTS_INDEX, id=_tenant_id)
+            await safe.delete(index=LOANS_INDEX, id=f"{ALPHA}:{_alpha_loan}")
         finally:
             await es.close()
 
@@ -155,5 +167,43 @@ async def test_platform_search_returns_tenant():
         assert r.status_code == 200
         ids = [h["id"] for h in r.json()["hits"]]
         assert _tenant_id in ids
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_operator_search_returns_loan_with_status():
+    try:
+        client = _make_client(ALPHA)
+        r = await client.get("/search", params={"q": "grace"})
+        assert r.status_code == 200
+        loans = [h for h in r.json()["hits"] if h["entity_type"] == "loan"]
+        assert loans and loans[0]["id"] == _alpha_loan
+        assert loans[0]["status"] == "disbursed"
+        assert loans[0]["status_entity"] == "loan"
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_types_filter_narrows_to_requested_entity():
+    try:
+        client = _make_client(ALPHA)
+        r = await client.get("/search", params={"q": "grace", "types": "member"})
+        assert r.status_code == 200
+        kinds = {h["entity_type"] for h in r.json()["hits"]}
+        assert kinds <= {"member"}  # loan excluded by the types filter
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_operator_loan_search_is_schema_isolated():
+    # A beta-schema caller must never see the alpha loan.
+    try:
+        client = _make_client(BETA)
+        r = await client.get("/search", params={"q": "grace", "types": "loan"})
+        assert r.status_code == 200
+        assert _alpha_loan not in [h["id"] for h in r.json()["hits"]]
     finally:
         app.dependency_overrides.clear()

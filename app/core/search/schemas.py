@@ -9,6 +9,8 @@ class SearchHitOut(BaseModel):
     title: str
     subtitle: str
     url: str
+    status: str = ""
+    status_entity: str = ""
 
 
 class SearchResultsOut(BaseModel):

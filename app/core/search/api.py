@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_tenant_session
 from app.core.search.client import get_search_client
-from app.core.search.indexes import MEMBERS_INDEX, TENANTS_INDEX
+from app.core.search.registry import resolve_indices
 from app.core.search.schemas import SearchHitOut, SearchResultsOut
 from app.core.search.service import SearchHit, SearchService
 from app.modules.iam.dependencies import CurrentTenantUser
@@ -37,6 +37,8 @@ def _results(hits: list[SearchHit], started: float) -> SearchResultsOut:
                 title=h.title,
                 subtitle=h.subtitle,
                 url=h.url,
+                status=h.status,
+                status_entity=h.status_entity,
             )
             for h in hits
         ],
@@ -54,12 +56,14 @@ async def _caller_schema(session: AsyncSession) -> str:
 async def platform_search(
     _user: CurrentSupport,
     q: str = Query(""),
+    types: str | None = Query(None),
     limit: int = Query(20, ge=1, le=50),
 ) -> SearchResultsOut:
     started = time.perf_counter()
+    indices = resolve_indices("platform", types)
     es = get_search_client()
     try:
-        hits = await SearchService(es).search([TENANTS_INDEX], q, limit=limit)
+        hits = await SearchService(es).search(indices, q, limit=limit)
     finally:
         await es.close()
     return _results(hits, started)
@@ -70,14 +74,16 @@ async def tenant_search(
     session: TenantSession,
     _user: CurrentTenantUser,
     q: str = Query(""),
+    types: str | None = Query(None),
     limit: int = Query(20, ge=1, le=50),
 ) -> SearchResultsOut:
     started = time.perf_counter()
     schema = await _caller_schema(session)
+    indices = resolve_indices("tenant", types)
     es = get_search_client()
     try:
         hits = await SearchService(es).search(
-            [MEMBERS_INDEX], q, tenant_schema=schema, limit=limit
+            indices, q, tenant_schema=schema, limit=limit
         )
     finally:
         await es.close()
