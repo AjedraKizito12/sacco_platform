@@ -5,6 +5,8 @@ export interface SearchHitOut {
   title: string;
   subtitle: string;
   url: string;
+  status: string;
+  status_entity: string;
 }
 
 export interface SearchResultsOut {
