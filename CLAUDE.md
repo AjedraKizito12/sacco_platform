@@ -517,11 +517,24 @@ X. Long forms (loan applications, member onboarding) wire
   platform-entity indices only. These two are the ONLY query surfaces.
 - The ⌘K command palette (`CommandPalette` in `@sacco/ui`, driven by
   `AppShellCommandPalette`) is live for platform + operator; member has none.
-  Increment 1 covers tenants + members only. Increment 2 (loans, savings,
-  invoices, subscriptions, platform users; nav actions; delete/tombstone
-  handling; cross-tenant platform member search) is pending. Scope exception:
-  this feature adds `app/core/search/`, platform migration 013, and the palette
-  portal code.
+- The searchable entity set is the single source `app/core/search/registry.py`
+  (`SEARCH_ENTITIES`): operator → members, loans, savings accounts, loan
+  applications; platform → tenants, invoices, subscriptions, platform users.
+  Adding an entity = one registry row + a document mapper + an index mapping
+  (the reconcile + sweep are registry-driven). `resolve_indices(audience, types)`
+  is the per-audience allow-list — the `types=` query param can only narrow
+  WITHIN the caller's audience; a foreign type is dropped, never honored (the
+  structural half of tenant isolation).
+- Every hit carries `status`/`status_entity`; the palette renders a
+  `<StatusBadge>` per result and a "Navigate" group derived from `nav-config`.
+- A daily `sweep_deleted_search_docs` beat removes ES docs whose source row
+  vanished (diffs ES ids vs source ids per index+scope). Terminal-state records
+  (exited/void/cancelled/archived) stay searchable with their badge.
+- **Cross-tenant member search is explicitly OUT** — platform never queries
+  tenant indices; members are searchable only within their own tenant.
+  Increment 2 complete. Scope exception: search touches `app/core/search/`,
+  `app/workers/celery_app.py`, platform migration 013, and the palette portal
+  code.
 
 ## Impersonation contracts (do not violate)
 
