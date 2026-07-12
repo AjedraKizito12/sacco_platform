@@ -209,17 +209,21 @@
   --font-mono: ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas,
                "Liberation Mono", "Courier New", monospace;
 
+  /* Font scale — Theme Preferences font-size setting. Scales the --text-*
+   * type tokens ONLY. Never apply to spacing, radius, or layout tokens. */
+  --font-scale:      1;
+
   /* Sizes — match the scale in the design system doc */
-  --text-display:    48px;
-  --text-h1:         36px;
-  --text-h2:         30px;
-  --text-h3:         24px;
-  --text-h4:         20px;
-  --text-h5:         18px;
-  --text-body-lg:    16px;
-  --text-body:       14px;
-  --text-small:      12px;
-  --text-caption:    11px;
+  --text-display:    calc(48px * var(--font-scale));
+  --text-h1:         calc(36px * var(--font-scale));
+  --text-h2:         calc(30px * var(--font-scale));
+  --text-h3:         calc(24px * var(--font-scale));
+  --text-h4:         calc(20px * var(--font-scale));
+  --text-h5:         calc(18px * var(--font-scale));
+  --text-body-lg:    calc(16px * var(--font-scale));
+  --text-body:       calc(14px * var(--font-scale));
+  --text-small:      calc(12px * var(--font-scale));
+  --text-caption:    calc(11px * var(--font-scale));
 
   /* Weights */
   --font-weight-regular:  400;
@@ -236,6 +240,174 @@
   --tracking-tight:  -0.01em;
   --tracking-normal: 0;
   --tracking-wide:   0.04em;  /* uppercase table headers */
+}
+
+/* -----------------------------------------------------------------------------
+ * Theme Preferences — Font Size Steps
+ *
+ * Sets --font-scale, which the --text-* tokens above are expressed in terms
+ * of (calc(<px> * var(--font-scale))). Only the type scale reacts; spacing,
+ * radius, and layout tokens are untouched by design.
+ * ---------------------------------------------------------------------------*/
+:root[data-font-size="compact"] { --font-scale: 0.9; }
+:root[data-font-size="large"]   { --font-scale: 1.15; }
+:root[data-font-size="xl"]      { --font-scale: 1.3; }
+/* "default" needs no block (--font-scale: 1, set in the Typography :root). */
+
+/* -----------------------------------------------------------------------------
+ * Theme Preferences — Dark Mode
+ *
+ * Overrides the Section 2 semantic layer only; primitives (Section 1) are
+ * untouched, so any accent preset (below) composes with dark mode simply by
+ * both attributes being present on the root element.
+ *
+ * Contrast verified (WCAG 2.1, relative-luminance formula) against the two
+ * load-bearing pairs:
+ *   - --text-primary (#F4F3F9) on --surface-base (#17161C): 16.30:1
+ *   - --interactive-primary-text (#17161C) on --interactive-primary-bg
+ *
+ * The starting draft mapped --interactive-primary-bg to var(--color-brand-500)
+ * (hover/active to -400/-300). For the default (violet) ramp that measured
+ * ink-on-#7C5CF0 = 3.98:1 — below the 4.5:1 target — and the same shape failed
+ * for the slate accent preset (ink-on-#64748B = 3.78:1). Rather than special-
+ * case each accent, the mapping below is nudged one stop lighter across the
+ * board (-400/-300/-200 instead of -500/-400/-300), which fixes both failing
+ * cases (default: ink-on-#A488F6 = 6.36:1; slate: ink-on-#94A3B8 = 7.01:1)
+ * while keeping blue/green/amber comfortably passing (all >6:1 at -400,
+ * vs. already-passing 4.89/7.09/8.37:1 at -500). See task-2-report.md for
+ * the full contrast table.
+ * ---------------------------------------------------------------------------*/
+:root[data-theme="dark"] {
+  --color-canvas:        #17161C;   /* dark violet-tinted page bg */
+  --surface-base:        var(--color-canvas);
+  --surface-elevated:    #201F27;
+  --surface-overlay:     #262530;
+  --surface-sunken:      #1B1A21;
+  --surface-hover:       #2A2933;
+  --surface-active:      #322F3D;
+  --surface-selected:    #2C2540;
+  --surface-disabled:    #201F27;
+  --surface-readonly:    #1B1A21;
+
+  --nav-item-active-bg:   #2C2540;
+  --nav-item-active-text: var(--color-brand-200);
+  --nav-item-active-icon: var(--color-brand-300);
+
+  --text-primary:    #F4F3F9;
+  --text-secondary:  #C9C7D4;
+  --text-tertiary:   #9E9CAC;
+  --text-disabled:   #6E6C7A;
+  --text-inverse:    #17161C;
+  /* The Section 1 success/warning/danger/info/accent primitive scales only
+   * define -100/-500/-700/-900 (no -200/-300/-400 stops exist yet), so these
+   * dark-mode tints are plain hex rather than var() references to
+   * non-existent custom properties. Chosen as lighter, dark-surface-legible
+   * versions of the existing -500 stops. */
+  --text-link:       #7DA6F7;
+  --text-link-hover: #A8C4FA;
+  --text-success:    #6EE0A0;
+  --text-warning:    #F7C463;
+  --text-danger:     #F29B9B;
+  --text-info:       #7DA6F7;
+  --text-accent:     #C4AEF7;
+
+  --border-subtle:   #2E2D38;
+  --border-default:  #3A3947;
+  --border-strong:   #4A4857;
+  --border-focus:    var(--color-brand-400);
+  --border-success:  #4ADE80;
+  --border-warning:  #FBBF24;
+  --border-danger:   #F87171;
+
+  --icon-default:    #9E9CAC;
+  --icon-strong:     #F4F3F9;
+  --icon-disabled:   #5A5866;
+  --icon-inverse:    #17161C;
+
+  /* Nudged one stop lighter than the starting draft (-500/-400/-300) — see
+   * note above the block. */
+  --interactive-primary-bg:          var(--color-brand-400);
+  --interactive-primary-bg-hover:    var(--color-brand-300);
+  --interactive-primary-bg-active:   var(--color-brand-200);
+  --interactive-primary-bg-disabled: #3A3947;
+  --interactive-primary-text:        #17161C;
+
+  --interactive-secondary-bg:        #201F27;
+  --interactive-secondary-bg-hover:  #2A2933;
+  --interactive-secondary-bg-active: #322F3D;
+  --interactive-secondary-border:    #3A3947;
+  --interactive-secondary-text:      #F4F3F9;
+
+  --interactive-ghost-bg-hover:      #2A2933;
+  --interactive-ghost-bg-active:     #322F3D;
+  --interactive-ghost-text:          #C9C7D4;
+  --interactive-ghost-text-hover:    #F4F3F9;
+
+  --interactive-destructive-bg:       var(--color-danger-500);
+  --interactive-destructive-bg-hover: #F87171;  /* no -400 primitive; see note above */
+  --interactive-destructive-text:     #17161C;
+
+  --status-success-bg:  #16301F;
+  --status-warning-bg:  #33280D;
+  --status-danger-bg:   #3A1A1D;
+  --status-info-bg:     #16273A;
+  --status-accent-bg:   #241a3a;
+  --status-neutral-bg:  #2A2933;
+  --status-neutral-text:#C9C7D4;
+  --status-dark-bg:     #0F0E13;
+  --status-dark-text:   #F4F3F9;
+  --status-danger-solid-bg:   var(--color-danger-500);
+  --status-danger-solid-text: #17161C;
+
+  --chart-tooltip-bg: #262530;
+}
+
+/* -----------------------------------------------------------------------------
+ * Theme Preferences — Accent Presets
+ *
+ * Each block overrides the Section 1 brand ramp only (never semantic
+ * tokens), so every semantic mapping that references --color-brand-* picks
+ * up the new hue automatically in both themes. "default" (violet, the
+ * current brand ramp declared in Section 1) gets NO override block.
+ *
+ * Ramps are transcribed from Tailwind's blue / emerald / amber / slate
+ * scales, with one exception documented inline: the green and amber -600
+ * stops (used as --interactive-primary-bg in light mode, i.e. white text on
+ * top) fell below the 4.5:1 contrast target at their stock Tailwind -600
+ * value, so those two ramps are shifted one stop darker starting at -600
+ * (stock -700/-800/-900/-950 promoted to our -600/-700/-800/-900). Blue and
+ * slate needed no shift — see task-2-report.md for the full contrast table.
+ * ---------------------------------------------------------------------------*/
+:root[data-accent="blue"] {
+  --color-brand-50:  #EFF5FF; --color-brand-100: #DBE8FE; --color-brand-200: #BFD7FE;
+  --color-brand-300: #93BBFD; --color-brand-400: #609AFA; --color-brand-500: #3B82F6;
+  --color-brand-600: #2570EB; --color-brand-700: #1D5BD8; --color-brand-800: #1E4BAF;
+  --color-brand-900: #1E408A;
+}
+
+:root[data-accent="green"] {
+  /* Tailwind emerald, shifted one stop darker from -600 (see block note). */
+  --color-brand-50:  #ECFDF5; --color-brand-100: #D1FAE5; --color-brand-200: #A7F3D0;
+  --color-brand-300: #6EE7B7; --color-brand-400: #34D399; --color-brand-500: #10B981;
+  --color-brand-600: #047857; --color-brand-700: #065F46; --color-brand-800: #064E3B;
+  --color-brand-900: #022C22;
+}
+
+:root[data-accent="amber"] {
+  /* Tailwind amber, shifted one stop darker from -600 (see block note). */
+  --color-brand-50:  #FFFBEB; --color-brand-100: #FEF3C7; --color-brand-200: #FDE68A;
+  --color-brand-300: #FCD34D; --color-brand-400: #FBBF24; --color-brand-500: #F59E0B;
+  --color-brand-600: #B45309; --color-brand-700: #92400E; --color-brand-800: #78350F;
+  --color-brand-900: #451A03;
+}
+
+:root[data-accent="slate"] {
+  /* Tailwind slate — a neutral, low-saturation ramp for tenants that want a
+   * quieter accent than the default violet. */
+  --color-brand-50:  #F8FAFC; --color-brand-100: #F1F5F9; --color-brand-200: #E2E8F0;
+  --color-brand-300: #CBD5E1; --color-brand-400: #94A3B8; --color-brand-500: #64748B;
+  --color-brand-600: #475569; --color-brand-700: #334155; --color-brand-800: #1E293B;
+  --color-brand-900: #0F172A;
 }
 
 /* -----------------------------------------------------------------------------
