@@ -50,15 +50,18 @@ async def _run(database_url: str) -> None:
     try:
         await ensure_indices(es)
         svc = SearchService(es)
-        await _reconcile_tenants(engine, svc)
+        # Isolate each pass: one malformed row / bulk error must not abort the
+        # whole beat (the watermark is not advanced on failure, so it self-heals
+        # next run). Mirrors the per-schema isolation on the members loop.
+        try:
+            await _reconcile_tenants(engine, svc)
+        except Exception:  # noqa: BLE001
+            _log.warning("search.reconcile_scope_failed", scope="platform", exc_info=True)
         for schema in await _tenant_schemas(engine):
-            # Isolate per-schema failures: an unprovisioned or malformed tenant
-            # schema (e.g. an active tenants row whose schema was never created)
-            # must not abort indexing for every other tenant.
             try:
                 await _reconcile_members(engine, svc, schema)
             except Exception:  # noqa: BLE001
-                _log.warning("search.reconcile_schema_failed", scope=schema, exc_info=True)
+                _log.warning("search.reconcile_scope_failed", scope=schema, exc_info=True)
     finally:
         await es.close()
         await engine.dispose()
@@ -113,7 +116,7 @@ async def _reconcile_tenants(engine: AsyncEngine, svc: SearchService) -> None:
                 await session.execute(
                     text(
                         "SELECT id, name, slug, schema_name, updated_at "
-                        "FROM platform.tenants WHERE updated_at > :wm "
+                        "FROM platform.tenants WHERE updated_at >= :wm "
                         "ORDER BY updated_at"
                     ),
                     {"wm": wm},
@@ -140,7 +143,7 @@ async def _reconcile_members(
                 await session.execute(
                     text(
                         "SELECT id, full_name, member_number, email, phone, updated_at "
-                        "FROM members WHERE updated_at > :wm ORDER BY updated_at"
+                        "FROM members WHERE updated_at >= :wm ORDER BY updated_at"
                     ),
                     {"wm": wm},
                 )

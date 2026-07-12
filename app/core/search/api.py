@@ -54,7 +54,7 @@ async def _caller_schema(session: AsyncSession) -> str:
 async def platform_search(
     _user: CurrentSupport,
     q: str = Query(""),
-    limit: int = Query(20, le=50),
+    limit: int = Query(20, ge=1, le=50),
 ) -> SearchResultsOut:
     started = time.perf_counter()
     es = get_search_client()
@@ -70,7 +70,7 @@ async def tenant_search(
     session: TenantSession,
     _user: CurrentTenantUser,
     q: str = Query(""),
-    limit: int = Query(20, le=50),
+    limit: int = Query(20, ge=1, le=50),
 ) -> SearchResultsOut:
     started = time.perf_counter()
     schema = await _caller_schema(session)
