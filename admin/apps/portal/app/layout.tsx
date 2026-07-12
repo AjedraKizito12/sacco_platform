@@ -8,6 +8,9 @@ import { Toaster } from "@sacco/ui";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { NavigationProgress } from "@/components/NavigationProgress";
 import { getServerTenantSlug } from "@/auth/server-helpers";
+import { getServerThemePrefs } from "@/theme/theme-cookie";
+import { ThemeProvider } from "@/theme/ThemeProvider";
+import { THEME_SCRIPT } from "@/theme/theme-script";
 
 // Inter is the fallback in the design system's font stack
 // (General Sans → Inter → system-ui). Sub-plan 04 swaps to a real
@@ -32,21 +35,43 @@ export default async function RootLayout({
 }) {
   const tenantSlug = await getServerTenantSlug();
   const initialAuthContext = tenantSlug ? "tenant" : "platform";
+  const themePrefs = await getServerThemePrefs();
+  const dataTheme = themePrefs.mode === "system" ? undefined : themePrefs.mode;
   return (
-    <html lang="en" className={inter.variable}>
+    <html
+      lang="en"
+      className={inter.variable}
+      {...(dataTheme ? { "data-theme": dataTheme } : {})}
+      {...(themePrefs.accent !== "default" ? { "data-accent": themePrefs.accent } : {})}
+      {...(themePrefs.fontSize !== "default" ? { "data-font-size": themePrefs.fontSize } : {})}
+    >
+      <head>
+        {/*
+          THEME_SCRIPT is a STATIC string constant with no interpolated user
+          data — the one sanctioned use of dangerouslySetInnerHTML under
+          contract E. It runs pre-paint to resolve "system" mode via
+          matchMedia and stamp data-* attributes, eliminating a flash of the
+          wrong theme.
+        */}
+        {/* eslint-disable-next-line react/no-danger -- THEME_SCRIPT is a static
+            constant, no user data interpolated; sanctioned by contract E. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>
         <Suspense fallback={null}>
           <NavigationProgress />
         </Suspense>
-        <NuqsAdapter>
-          <AuthProvider
-            baseUrl={API_BASE}
-            initialTenantSlug={tenantSlug}
-            initialAuthContext={initialAuthContext}
-          >
-            {children}
-          </AuthProvider>
-        </NuqsAdapter>
+        <ThemeProvider initial={themePrefs}>
+          <NuqsAdapter>
+            <AuthProvider
+              baseUrl={API_BASE}
+              initialTenantSlug={tenantSlug}
+              initialAuthContext={initialAuthContext}
+            >
+              {children}
+            </AuthProvider>
+          </NuqsAdapter>
+        </ThemeProvider>
         <Toaster />
       </body>
     </html>
