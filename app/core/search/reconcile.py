@@ -1,14 +1,16 @@
-"""Watermark reconcile beat: bulk-index tenants + members into Elasticsearch.
+"""Watermark reconcile beat: bulk-index all search entities into Elasticsearch.
 
 ES is the index; Postgres is the source of truth. This beat is the ONLY writer
-of ES documents. Each (index, scope) advances an ``updated_at`` watermark stored
-in ``platform.search_index_state``; the first run (watermark = epoch) backfills.
-No domain events are consumed and no module write-path is touched.
+of ES documents (alongside the delete-sweep). Each (index, scope) advances an
+``updated_at`` watermark stored in ``platform.search_index_state``; the first
+run (watermark = epoch) backfills. No domain events are consumed and no module
+write-path is touched. The entity set is driven by ``registry.SEARCH_ENTITIES``.
 """
 from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -22,14 +24,41 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.config import get_settings
 from app.core.search.client import get_search_client
-from app.core.search.documents import doc_id, member_document, tenant_document
-from app.core.search.indexes import MEMBERS_INDEX, TENANTS_INDEX, ensure_indices
+from app.core.search.documents import (
+    doc_id,
+    invoice_document,
+    loan_application_document,
+    loan_document,
+    member_document,
+    platform_user_document,
+    savings_account_document,
+    subscription_document,
+    tenant_document,
+)
+from app.core.search.indexes import ensure_indices
+from app.core.search.registry import SEARCH_ENTITIES, SearchEntity
 from app.core.search.service import SearchService
 from app.workers.celery_app import celery_app
 
 _log = structlog.get_logger(__name__)
 _SCHEMA_RE = re.compile(r"^tenant_[a-z0-9_]{1,40}$")
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
+# Mapper dispatch by entity_type. Tenant mappers take (schema, row); platform
+# mappers take (row). Keyed off registry entity_type so the reconcile loop stays
+# entity-agnostic.
+_TENANT_DOC: dict[str, Callable[[str, Any], dict[str, Any]]] = {
+    "member": member_document,
+    "loan": loan_document,
+    "savings_account": savings_account_document,
+    "loan_application": loan_application_document,
+}
+_PLATFORM_DOC: dict[str, Callable[[Any], dict[str, Any]]] = {
+    "tenant": tenant_document,
+    "platform_user": platform_user_document,
+    "invoice": invoice_document,
+    "subscription": subscription_document,
+}
 
 
 def next_watermark(rows: list[Any], current: datetime) -> datetime:
@@ -50,21 +79,34 @@ async def _run(database_url: str) -> None:
     try:
         await ensure_indices(es)
         svc = SearchService(es)
-        # Isolate each pass: one malformed row / bulk error must not abort the
-        # whole beat (the watermark is not advanced on failure, so it self-heals
-        # next run). Mirrors the per-schema isolation on the members loop.
-        try:
-            await _reconcile_tenants(engine, svc)
-        except Exception:  # noqa: BLE001
-            _log.warning("search.reconcile_scope_failed", scope="platform", exc_info=True)
+        platform_entities = [e for e in SEARCH_ENTITIES if e.scope_kind == "platform"]
+        tenant_entities = [e for e in SEARCH_ENTITIES if e.scope_kind == "tenant"]
+
+        # Per (entity, scope) isolation: one malformed row / bulk error must not
+        # abort the whole beat. The watermark is not advanced on failure, so it
+        # self-heals next run.
+        for entity in platform_entities:
+            await _safe_reconcile(engine, svc, entity, "platform")
         for schema in await _tenant_schemas(engine):
-            try:
-                await _reconcile_members(engine, svc, schema)
-            except Exception:  # noqa: BLE001
-                _log.warning("search.reconcile_scope_failed", scope=schema, exc_info=True)
+            for entity in tenant_entities:
+                await _safe_reconcile(engine, svc, entity, schema)
     finally:
         await es.close()
         await engine.dispose()
+
+
+async def _safe_reconcile(
+    engine: AsyncEngine, svc: SearchService, entity: SearchEntity, scope: str
+) -> None:
+    try:
+        await _reconcile_entity(engine, svc, entity, scope)
+    except Exception:  # noqa: BLE001
+        _log.warning(
+            "search.reconcile_scope_failed",
+            index=entity.index,
+            scope=scope,
+            exc_info=True,
+        )
 
 
 async def _tenant_schemas(engine: AsyncEngine) -> list[str]:
@@ -107,51 +149,37 @@ async def _set_watermark(
         )
 
 
-async def _reconcile_tenants(engine: AsyncEngine, svc: SearchService) -> None:
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    wm = await _get_watermark(factory, TENANTS_INDEX, "platform")
-    async with factory() as session:
-        rows = list(
-            (
-                await session.execute(
-                    text(
-                        "SELECT id, name, slug, schema_name, updated_at "
-                        "FROM platform.tenants WHERE updated_at >= :wm "
-                        "ORDER BY updated_at"
-                    ),
-                    {"wm": wm},
-                )
-            ).all()
-        )
-    if not rows:
-        return
-    docs = [(doc_id(None, r.id), tenant_document(r)) for r in rows]
-    await svc.bulk_index(TENANTS_INDEX, docs)
-    await _set_watermark(factory, TENANTS_INDEX, "platform", next_watermark(rows, wm))
-    _log.info("search.reconciled", index=TENANTS_INDEX, scope="platform", count=len(rows))
-
-
-async def _reconcile_members(
-    engine: AsyncEngine, svc: SearchService, schema: str
+async def _reconcile_entity(
+    engine: AsyncEngine, svc: SearchService, entity: SearchEntity, scope: str
 ) -> None:
+    """Index rows of one entity for one scope, advancing its watermark.
+
+    ``table`` and ``timestamp_col`` come from the trusted registry (not user
+    input) — safe to interpolate. Tenant entities read under the scope's
+    ``search_path``; platform entities read the ``platform.``-qualified table.
+    """
     factory = async_sessionmaker(engine, expire_on_commit=False)
-    wm = await _get_watermark(factory, MEMBERS_INDEX, schema)
+    wm = await _get_watermark(factory, entity.index, scope)
+    query = (
+        f"SELECT * FROM {entity.table} "  # noqa: S608 — registry-controlled identifier
+        f"WHERE {entity.timestamp_col} >= :wm ORDER BY {entity.timestamp_col}"
+    )
     async with factory() as session:
-        await session.execute(text(f"SET LOCAL search_path TO {schema}, platform"))
-        rows = list(
-            (
-                await session.execute(
-                    text(
-                        "SELECT id, full_name, member_number, email, phone, updated_at "
-                        "FROM members WHERE updated_at >= :wm ORDER BY updated_at"
-                    ),
-                    {"wm": wm},
-                )
-            ).all()
-        )
+        if entity.scope_kind == "tenant":
+            await session.execute(
+                text(f"SET LOCAL search_path TO {scope}, platform")  # noqa: S608
+            )
+        rows = list((await session.execute(text(query), {"wm": wm})).all())
     if not rows:
         return
-    docs = [(doc_id(schema, r.id), member_document(schema, r)) for r in rows]
-    await svc.bulk_index(MEMBERS_INDEX, docs)
-    await _set_watermark(factory, MEMBERS_INDEX, schema, next_watermark(rows, wm))
-    _log.info("search.reconciled", index=MEMBERS_INDEX, scope=schema, count=len(rows))
+
+    if entity.scope_kind == "tenant":
+        tenant_mapper = _TENANT_DOC[entity.entity_type]
+        docs = [(doc_id(scope, r.id), tenant_mapper(scope, r)) for r in rows]
+    else:
+        platform_mapper = _PLATFORM_DOC[entity.entity_type]
+        docs = [(doc_id(None, r.id), platform_mapper(r)) for r in rows]
+
+    await svc.bulk_index(entity.index, docs)
+    await _set_watermark(factory, entity.index, scope, next_watermark(rows, wm))
+    _log.info("search.reconciled", index=entity.index, scope=scope, count=len(rows))
