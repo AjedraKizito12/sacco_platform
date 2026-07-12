@@ -6,12 +6,19 @@ import { CommandPalette, type CommandPaletteItem } from "@sacco/ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/auth/use-auth";
+import { navActions } from "@/components/search/nav-actions";
 
 const DEBOUNCE_MS = 200;
 
 const GROUP_LABEL: Record<string, string> = {
   member: "Members",
   tenant: "Tenants",
+  loan: "Loans",
+  savings_account: "Savings",
+  loan_application: "Applications",
+  invoice: "Invoices",
+  subscription: "Subscriptions",
+  platform_user: "Platform users",
 };
 
 interface AppShellCommandPaletteProps {
@@ -61,15 +68,32 @@ export function AppShellCommandPalette({
     { enabled },
   );
 
-  const items: CommandPaletteItem[] = (results.data?.hits ?? []).map(
+  const hitItems: CommandPaletteItem[] = (results.data?.hits ?? []).map(
     (hit: SearchHitOut) => ({
       id: hit.id,
       title: hit.title,
       subtitle: hit.subtitle,
       url: hit.url,
       group: GROUP_LABEL[hit.entity_type] ?? hit.entity_type,
+      ...(hit.status
+        ? { status: hit.status, statusEntity: hit.entity_type }
+        : {}),
     }),
   );
+
+  // Nav actions come from nav-config, filtered by the query (client-side).
+  const q = debounced.trim().toLowerCase();
+  const navItems: CommandPaletteItem[] = navActions(variant)
+    .filter((a) => a.label.toLowerCase().includes(q))
+    .map((a) => ({
+      id: `nav:${a.url}`,
+      title: a.label,
+      subtitle: "",
+      url: a.url,
+      group: "Navigate",
+    }));
+
+  const items = enabled ? [...hitItems, ...navItems] : [];
 
   return (
     <CommandPalette
@@ -80,7 +104,7 @@ export function AppShellCommandPalette({
       }}
       query={query}
       onQueryChange={setQuery}
-      items={enabled ? items : []}
+      items={items}
       loading={enabled && results.isFetching}
       onSelect={(item) => {
         onOpenChange(false);

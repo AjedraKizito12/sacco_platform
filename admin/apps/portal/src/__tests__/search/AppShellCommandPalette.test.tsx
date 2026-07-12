@@ -42,6 +42,8 @@ describe("AppShellCommandPalette", () => {
             title: "Grace N",
             subtitle: "M-0001",
             url: "/members/m1",
+            status: "active",
+            status_entity: "member",
           },
         ],
         took_ms: 3,
@@ -64,5 +66,22 @@ describe("AppShellCommandPalette", () => {
     // No typing → no search call.
     await new Promise((r) => setTimeout(r, 250));
     expect(tenantSearch).not.toHaveBeenCalled();
+  });
+
+  it("renders a hit's StatusBadge", async () => {
+    const user = userEvent.setup();
+    render(<Harness />, { wrapper });
+    await user.type(screen.getByRole("textbox"), "grace");
+    // member/active → "Active" badge.
+    expect(await screen.findByText("Active")).toBeInTheDocument();
+  });
+
+  it("surfaces a nav action matching the query and navigates on select", async () => {
+    const user = userEvent.setup();
+    render(<Harness />, { wrapper });
+    await user.type(screen.getByRole("textbox"), "savings");
+    const nav = await screen.findByText("Go to Savings");
+    await user.click(nav);
+    expect(push).toHaveBeenCalledWith("/savings");
   });
 });
