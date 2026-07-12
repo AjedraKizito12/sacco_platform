@@ -56,11 +56,9 @@ export function AppShellHeader({ variant, tenantName }: AppShellHeaderProps) {
       }
       center={
         variant === "member" ? null : (
-          <CommandPaletteTrigger
-            onActivate={() => {
-              // Real palette ships in sub-plan 36
-            }}
-          />
+          // Disabled until a real command palette / search backend is wired.
+          // A live-looking search box that does nothing is worse than "coming soon".
+          <CommandPaletteTrigger disabled onActivate={() => {}} />
         )
       }
       end={
