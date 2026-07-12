@@ -41,7 +41,6 @@ export function ThemeModeToggle({ value, onChange, className }: ThemeModeToggleP
     <button
       type="button"
       aria-label={`Theme: ${MODE_LABEL[value]}. Click to switch mode.`}
-      aria-pressed="true"
       onClick={() => onChange(MODE_CYCLE[value])}
       className={cn(
         "inline-flex h-[var(--height-control-sm)] w-[var(--height-control-sm)] items-center justify-center",
