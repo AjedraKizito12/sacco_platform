@@ -63,4 +63,47 @@ describe("CommandPalette", () => {
     setup({ items: [], emptyLabel: "No matches" });
     expect(screen.getByText("No matches")).toBeInTheDocument();
   });
+
+  it("renders a StatusBadge for an item with status + statusEntity", () => {
+    setup({
+      items: [
+        {
+          id: "L1",
+          title: "L-0001",
+          subtitle: "loan",
+          url: "/credit/loans/L1",
+          group: "Loans",
+          status: "disbursed",
+          statusEntity: "loan",
+        },
+      ],
+    });
+    // loan/disbursed maps to the "Disbursed" badge label.
+    expect(screen.getByText("Disbursed")).toBeInTheDocument();
+  });
+
+  it("renders a nav-action item (no status) and selects it", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const navItem: CommandPaletteItem = {
+      id: "nav-billing",
+      title: "Go to Billing",
+      subtitle: "",
+      url: "/platform/billing",
+      group: "Navigate",
+    };
+    render(
+      <CommandPalette
+        open
+        onOpenChange={() => {}}
+        query="bill"
+        onQueryChange={() => {}}
+        items={[navItem]}
+        onSelect={onSelect}
+      />,
+    );
+    expect(screen.getByText("Navigate")).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox"), "{Enter}");
+    expect(onSelect).toHaveBeenCalledWith(navItem);
+  });
 });

@@ -3,6 +3,7 @@
 import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Dialog, DialogContent, DialogTitle } from "../Dialog";
+import { StatusBadge, type StatusEntity } from "../StatusBadge";
 import { cn } from "../../utils/cn";
 
 export interface CommandPaletteItem {
@@ -11,6 +12,9 @@ export interface CommandPaletteItem {
   subtitle: string;
   url: string;
   group: string;
+  /** When both are set, the row shows a StatusBadge. Nav actions omit them. */
+  status?: string;
+  statusEntity?: string;
 }
 
 export interface CommandPaletteProps {
@@ -130,7 +134,15 @@ export function CommandPalette({
                           : "hover:bg-[var(--surface-hover)]",
                       )}
                     >
-                      <span className="text-sm text-[var(--text-primary)]">{item.title}</span>
+                      <span className="flex w-full items-center justify-between gap-2">
+                        <span className="text-sm text-[var(--text-primary)]">{item.title}</span>
+                        {item.status && item.statusEntity ? (
+                          <StatusBadge
+                            entity={item.statusEntity as StatusEntity}
+                            status={item.status}
+                          />
+                        ) : null}
+                      </span>
                       <span className="text-xs text-[var(--text-secondary)]">{item.subtitle}</span>
                     </button>
                   );
