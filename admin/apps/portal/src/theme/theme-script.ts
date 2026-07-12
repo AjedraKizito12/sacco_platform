@@ -23,8 +23,23 @@ export const THEME_SCRIPT = `
           if (parsed.mode === "light" || parsed.mode === "dark" || parsed.mode === "system") {
             prefs.mode = parsed.mode;
           }
-          if (typeof parsed.accent === "string") prefs.accent = parsed.accent;
-          if (typeof parsed.fontSize === "string") prefs.fontSize = parsed.fontSize;
+          if (
+            parsed.accent === "default" ||
+            parsed.accent === "blue" ||
+            parsed.accent === "green" ||
+            parsed.accent === "amber" ||
+            parsed.accent === "slate"
+          ) {
+            prefs.accent = parsed.accent;
+          }
+          if (
+            parsed.fontSize === "compact" ||
+            parsed.fontSize === "default" ||
+            parsed.fontSize === "large" ||
+            parsed.fontSize === "xl"
+          ) {
+            prefs.fontSize = parsed.fontSize;
+          }
         }
       } catch (e) {}
     }

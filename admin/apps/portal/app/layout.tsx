@@ -8,7 +8,7 @@ import { Toaster } from "@sacco/ui";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { NavigationProgress } from "@/components/NavigationProgress";
 import { getServerTenantSlug } from "@/auth/server-helpers";
-import { getServerThemePrefs } from "@/theme/theme-cookie";
+import { getServerThemePrefs } from "@/theme/theme-cookie.server";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { THEME_SCRIPT } from "@/theme/theme-script";
 
@@ -41,6 +41,13 @@ export default async function RootLayout({
     <html
       lang="en"
       className={inter.variable}
+      // The server intentionally omits `data-theme` for the default
+      // "system" mode (it can't resolve the OS preference at request time),
+      // while THEME_SCRIPT resolves it pre-paint on the client. That's an
+      // expected, single-attribute mismatch on <html> — suppress it here
+      // rather than suppressing hydration warnings tree-wide (standard
+      // next-themes mitigation).
+      suppressHydrationWarning
       {...(dataTheme ? { "data-theme": dataTheme } : {})}
       {...(themePrefs.accent !== "default" ? { "data-accent": themePrefs.accent } : {})}
       {...(themePrefs.fontSize !== "default" ? { "data-font-size": themePrefs.fontSize } : {})}
