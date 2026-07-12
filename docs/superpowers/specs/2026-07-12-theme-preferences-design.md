@@ -21,7 +21,9 @@ theme preferences only.
   existing `sacco_table_prefs` cookie). No backend, no migration, no new API.
   Cross-device sync is explicitly out of scope.
 - **Accent:** a curated set of five presets (not a free picker), each swapping
-  only the `--color-brand-*` ramp and contrast-checked in light and dark.
+  only the `--color-brand-*` ramp and contrast-checked in light and dark. The
+  `default` preset is the existing brand ramp (violet) and needs no override
+  block; the four alternatives are Blue, Green, Amber, Slate.
 - **Font size:** discrete steps (Compact / Default / Large / Extra-large), each
   overriding one root base-font-size variable the rem scale keys off.
 - **Mode:** light / dark / system; `system` resolved client-side from
@@ -72,9 +74,9 @@ mode only needs to override the semantic layer"). Three additions:
   tokens (surface, text, border, interactive, status, chart) with dark values.
   Base ramp colors stay; only the semantic mappings flip. Every component that
   uses `var(--surface-*)` / `var(--text-*)` / etc. inherits dark automatically.
-- **Accent presets:** `:root[data-accent="blue"]` (green/violet/amber likewise)
-  overriding `--color-brand-50 … --color-brand-900`. `slate` is the default
-  (current brand ramp) and needs no override block. Each preset must keep
+- **Accent presets:** `:root[data-accent="blue"]` (green/amber/slate likewise)
+  overriding `--color-brand-50 … --color-brand-900`. `default` is the current
+  brand ramp (violet) and needs no override block. Each preset must keep
   `--interactive-primary-text` contrast ≥ 4.5:1 on `--interactive-primary-bg`
   in BOTH light and dark (dark accent blocks live under
   `:root[data-theme="dark"][data-accent="blue"]` where the ramp needs adjusting
