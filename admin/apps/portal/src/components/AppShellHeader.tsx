@@ -6,7 +6,9 @@ import {
   TenantIndicator,
   UserMenu,
 } from "@sacco/ui";
+import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/auth/use-current-user";
+import { AppShellCommandPalette } from "./AppShellCommandPalette";
 import { AppShellNotificationBell } from "./AppShellNotificationBell";
 import { AppShellThemeToggle } from "./AppShellThemeToggle";
 
@@ -25,6 +27,22 @@ function PortalLogo() {
 
 export function AppShellHeader({ variant, tenantName }: AppShellHeaderProps) {
   const user = useCurrentUser();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const searchVariant = variant === "platform" ? "platform" : "tenant";
+  const hasSearch = variant !== "member";
+
+  // Global ⌘K / Ctrl-K opens the palette (platform + operator only).
+  useEffect(() => {
+    if (!hasSearch) return;
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hasSearch]);
 
   async function onSignOut() {
     const endpoint =
@@ -55,14 +73,19 @@ export function AppShellHeader({ variant, tenantName }: AppShellHeaderProps) {
         ) : null
       }
       center={
-        variant === "member" ? null : (
-          // Disabled until a real command palette / search backend is wired.
-          // A live-looking search box that does nothing is worse than "coming soon".
-          <CommandPaletteTrigger disabled onActivate={() => {}} />
-        )
+        hasSearch ? (
+          <CommandPaletteTrigger onActivate={() => setPaletteOpen(true)} />
+        ) : null
       }
       end={
         <>
+          {hasSearch ? (
+            <AppShellCommandPalette
+              variant={searchVariant}
+              open={paletteOpen}
+              onOpenChange={setPaletteOpen}
+            />
+          ) : null}
           <AppShellThemeToggle />
           <AppShellNotificationBell variant={variant} />
           {user ? (

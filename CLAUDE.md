@@ -498,6 +498,31 @@ X. Long forms (loan applications, member onboarding) wire
   Template edit sends a diff-based PATCH (only changed fields). Phase 3 is
   complete.
 
+## Search contracts (Increment 1 — do not violate)
+
+- All search code lives in `app/core/search/` (cross-cutting; reads rows via
+  raw SQL / the active-schema helper, imports no module models). Elasticsearch
+  is the index; **Postgres is the source of truth**.
+- The `reconcile_search_indexes` beat (~45s, watermark on `updated_at`) is the
+  ONLY writer of ES documents. No query path writes to ES; no domain events are
+  consumed (the existing events are milestone-only). Per-schema failures are
+  isolated so one unprovisioned tenant can't abort indexing.
+- One index per entity type (`sacco_tenants`, `sacco_members`); tenant-owned
+  docs carry `tenant_schema`; doc id `<schema>:<uuid>` (tenant) or `<uuid>`
+  (platform).
+- **Operator search is schema-isolated server-side**: `GET /search` derives the
+  caller's schema from the tenant session (never the client) and ANDs a
+  mandatory `term` filter `tenant_schema=<schema>` into the ES query.
+  Cross-tenant results are impossible. `GET /platform/search` (support+) queries
+  platform-entity indices only. These two are the ONLY query surfaces.
+- The ⌘K command palette (`CommandPalette` in `@sacco/ui`, driven by
+  `AppShellCommandPalette`) is live for platform + operator; member has none.
+  Increment 1 covers tenants + members only. Increment 2 (loans, savings,
+  invoices, subscriptions, platform users; nav actions; delete/tombstone
+  handling; cross-tenant platform member search) is pending. Scope exception:
+  this feature adds `app/core/search/`, platform migration 013, and the palette
+  portal code.
+
 ## Impersonation contracts (do not violate)
 
 ### Data layer (from 02a, unchanged)
