@@ -17,3 +17,4 @@ export * from "./dashboard";
 export * from "./kyc";
 export * from "./notifications";
 export * from "./theme";
+export * from "./search";

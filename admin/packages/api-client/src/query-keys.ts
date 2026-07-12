@@ -146,6 +146,11 @@ export const queryKeys = {
     root: () => ["kyc"] as const,
     saccoRequirements: () => ["kyc", "saccoRequirements"] as const,
   },
+  search: {
+    root: () => ["search"] as const,
+    platform: (q: string) => ["search", "platform", q] as const,
+    tenant: (q: string) => ["search", "tenant", q] as const,
+  },
   notifications: {
     root: () => ["notifications"] as const,
     feed: (audience: string) => ["notifications", "feed", audience] as const,
