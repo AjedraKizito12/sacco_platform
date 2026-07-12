@@ -92,7 +92,10 @@ export function CommandPalette({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="top-[12%] w-full max-w-xl translate-y-0 gap-0 overflow-hidden p-0">
+      <DialogContent
+        hideClose
+        className="top-[14vh] max-h-[72vh] w-full max-w-xl translate-y-0 gap-0 overflow-hidden p-0"
+      >
         <DialogTitle className="sr-only">Search</DialogTitle>
         <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] px-4">
           <Search size={16} strokeWidth={1.75} aria-hidden className="text-[var(--icon-default)]" />

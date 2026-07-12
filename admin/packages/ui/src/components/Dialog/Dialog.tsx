@@ -29,8 +29,12 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 export const DialogContent = forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    /** Hide the corner close button (e.g. the command palette, which dismisses
+     * via Esc / clicking outside and shouldn't float an X over its input). */
+    hideClose?: boolean;
+  }
+>(({ className, children, hideClose = false, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -46,16 +50,18 @@ export const DialogContent = forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close
-        aria-label="Close"
-        className={cn(
-          "absolute right-4 top-4 rounded p-1",
-          "text-[var(--icon-default)] hover:text-[var(--icon-strong)]",
-          "focus-visible:outline-2 focus-visible:outline-[var(--border-focus)]",
-        )}
-      >
-        <X size={16} strokeWidth={1.75} />
-      </DialogPrimitive.Close>
+      {hideClose ? null : (
+        <DialogPrimitive.Close
+          aria-label="Close"
+          className={cn(
+            "absolute right-4 top-4 rounded p-1",
+            "text-[var(--icon-default)] hover:text-[var(--icon-strong)]",
+            "focus-visible:outline-2 focus-visible:outline-[var(--border-focus)]",
+          )}
+        >
+          <X size={16} strokeWidth={1.75} />
+        </DialogPrimitive.Close>
+      )}
     </DialogPrimitive.Content>
   </DialogPortal>
 ));
