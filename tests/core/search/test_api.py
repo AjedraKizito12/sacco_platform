@@ -198,6 +198,19 @@ async def test_types_filter_narrows_to_requested_entity():
 
 
 @pytest.mark.asyncio
+async def test_operator_cannot_query_a_platform_type():
+    # An operator naming a platform type gets an empty result — the resolver
+    # drops it, so no platform index is ever queried (cross-audience guard).
+    try:
+        client = _make_client(ALPHA)
+        r = await client.get("/search", params={"q": "grace", "types": "invoice"})
+        assert r.status_code == 200
+        assert r.json()["hits"] == []
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
 async def test_operator_loan_search_is_schema_isolated():
     # A beta-schema caller must never see the alpha loan.
     try:

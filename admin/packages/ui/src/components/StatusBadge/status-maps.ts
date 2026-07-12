@@ -49,6 +49,7 @@ export const LOAN_STATUS: StatusMap = {
 
 export const MEMBER_STATUS: StatusMap = {
   prospect: { variant: "info", label: "Prospect" },
+  pending: { variant: "info", label: "Pending" },
   active: { variant: "success", label: "Active" },
   dormant: { variant: "warning", label: "Dormant" },
   suspended: { variant: "danger-solid", label: "Suspended" },
@@ -137,11 +138,15 @@ export const TENANT_USER_STATUS: StatusMap = {
 };
 
 export const LOAN_APPLICATION_STATUS: StatusMap = {
+  draft: { variant: "neutral", label: "Draft" },
+  submitted: { variant: "info", label: "Submitted" },
+  under_review: { variant: "info", label: "Under Review" },
   pending: { variant: "info", label: "Pending" },
   approved: { variant: "success", label: "Approved" },
   rejected: { variant: "danger", label: "Rejected" },
   withdrawn: { variant: "neutral", label: "Withdrawn" },
   cancelled: { variant: "neutral", label: "Cancelled" },
+  disbursed: { variant: "success", label: "Disbursed" },
 };
 
 export const GUARANTOR_STATUS: StatusMap = {
@@ -203,5 +208,5 @@ export function resolveStatus(
   entity: StatusEntity,
   status: string,
 ): MapEntry | null {
-  return ENTITY_MAPS[entity][status] ?? null;
+  return ENTITY_MAPS[entity]?.[status] ?? null;
 }

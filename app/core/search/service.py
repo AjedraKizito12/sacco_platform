@@ -73,7 +73,11 @@ class SearchService:
             return []
         body = self.build_query(q.strip(), tenant_schema=tenant_schema)
         body["size"] = limit
-        res = await self._es.search(index=",".join(indices), body=body)
+        # ignore_unavailable: an index that hasn't been created yet (before the
+        # first reconcile beat runs) must yield no hits, not a 500.
+        res = await self._es.search(
+            index=",".join(indices), body=body, ignore_unavailable=True
+        )
         hits: list[SearchHit] = []
         for h in res["hits"]["hits"]:
             src = h["_source"]
