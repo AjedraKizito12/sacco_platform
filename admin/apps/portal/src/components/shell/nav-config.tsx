@@ -144,6 +144,10 @@ const TENANT_NAV: NavGroup[] = [
       { label: "Audit", href: "/audit", icon: History },
     ],
   },
+  {
+    label: "Settings",
+    items: [{ label: "Settings", href: "/settings/appearance", icon: Settings }],
+  },
 ];
 
 const PLATFORM_NAV: NavGroup[] = [
@@ -210,6 +214,7 @@ const PLATFORM_NAV: NavGroup[] = [
           },
           { label: "SACCO KYC", href: "/platform/settings/kyc" },
           { label: "Security", href: "/platform/settings/security" },
+          { label: "Appearance", href: "/platform/settings/appearance" },
         ],
       },
     ],
