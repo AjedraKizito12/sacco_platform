@@ -48,6 +48,8 @@ ENV/
 # ── Local infra state ───────────────────────────────────────────────────────
 *.pid
 *.sock
+celerybeat-schedule
+celerybeat.pid
 
 # ── Admin portal (pnpm + Turborepo + Next.js) ───────────────────────────────
 admin/node_modules/
