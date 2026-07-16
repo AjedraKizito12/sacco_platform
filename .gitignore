@@ -39,6 +39,7 @@ ENV/
 .claudeignore
 .claire/
 .github/skills/
+.github/hooks/
 .turbo/
 
 # ── Build artifacts ─────────────────────────────────────────────────────────
