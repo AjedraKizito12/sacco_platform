@@ -630,7 +630,7 @@ git commit -m "feat(deploy): Caddy reverse proxy + auto-TLS for staging subdomai
 - Consumes: `PlatformUserService` (`app.platform_.users.service`), `hash_password` (`app.modules.iam.passwords.service`), `PlatformUser` (`app.platform_.models`).
 - Produces: `async def seed_platform_admin(session, *, email, full_name, password, role="superuser") -> PlatformUser` — idempotent by email; sets `hashed_password`; keeps `role`/`is_superuser` in sync. Existing user → updates password + role in place. Returns the user.
 
-- [ ] **Step 1: Write the failing test** at `tests/platform_/users/test_seed_admin.py`. Follow the repo's async integration pattern (real Postgres, `async_sessionmaker` + commit + cleanup — NOT a `flush()`-based fixture):
+- [x] **Step 1: Write the failing test** at `tests/platform_/users/test_seed_admin.py`. Follow the repo's async integration pattern (real Postgres, `async_sessionmaker` + commit + cleanup — NOT a `flush()`-based fixture):
 
 ```python
 import uuid
@@ -676,7 +676,7 @@ async def test_seed_creates_login_capable_superuser(test_engine):
 
 > Fixtures: `test_engine` (from `tests/conftest.py`) is the shared async engine. Build a fresh `async_sessionmaker` off it with `commit()` + explicit cleanup — do NOT reuse the `platform_session` fixture here, which is `flush()`-based and won't persist across the sessions this test opens.
 
-- [ ] **Step 2: Run the test to verify it fails.** Run:
+- [x] **Step 2: Run the test to verify it fails.** Run:
 
 ```bash
 cd /home/liam/projects/sacco-platform
@@ -685,7 +685,7 @@ env -u DATABASE_URL pytest tests/platform_/users/test_seed_admin.py -v
 
 Expected: FAIL — `ModuleNotFoundError`/`ImportError: cannot import name 'seed_platform_admin'`.
 
-- [ ] **Step 3: Write `scripts/seed_platform_admin.py`:**
+- [x] **Step 3: Write `scripts/seed_platform_admin.py`:**
 
 ```python
 """Create (or reset) a login-capable platform superuser.
@@ -787,7 +787,7 @@ if __name__ == "__main__":
     raise SystemExit(asyncio.run(_main()))
 ```
 
-- [ ] **Step 4: Run the test to verify it passes.** Run:
+- [x] **Step 4: Run the test to verify it passes.** Run:
 
 ```bash
 cd /home/liam/projects/sacco-platform
@@ -796,7 +796,7 @@ env -u DATABASE_URL pytest tests/platform_/users/test_seed_admin.py -v
 
 Expected: PASS (both assertions — create + idempotent reset).
 
-- [ ] **Step 5: Lint/type-check the new script.** Run:
+- [x] **Step 5: Lint/type-check the new script.** Run:
 
 ```bash
 ruff check scripts/seed_platform_admin.py && mypy scripts/seed_platform_admin.py
@@ -804,7 +804,7 @@ ruff check scripts/seed_platform_admin.py && mypy scripts/seed_platform_admin.py
 
 Expected: clean (matches repo's ruff + mypy strict gate). Fix any findings.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
 ```bash
 git add scripts/seed_platform_admin.py tests/platform_/users/test_seed_admin.py
