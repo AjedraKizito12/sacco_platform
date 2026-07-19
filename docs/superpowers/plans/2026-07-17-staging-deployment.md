@@ -205,7 +205,7 @@ git commit -m "feat(deploy): production portal image + env-driven CSP"
 **Interfaces:**
 - Produces: `.env.staging` (git-ignored) consumed by `docker-compose.staging.yml` via `env_file`, and `STAGING_DOMAIN` consumed by the Caddyfile and portal build. Variable names the compose file relies on: `POSTGRES_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `JWT_KEK`, `COOKIE_SECRET`, `STAGING_DOMAIN`, `DATABASE_URL`, `REDIS_URL`, `RABBITMQ_URL`, `ELASTICSEARCH_URL`, `ALLOWED_ORIGINS`, `APP_ENV`, `PLATFORM_AUTH_MODE`, `TENANT_AUTH_MODE`, `MEMBER_AUTH_MODE`, `NEXT_PUBLIC_API_BASE_URL`, `API_INTERNAL_URL`.
 
-- [ ] **Step 1: Create `.env.staging.example`:**
+- [x] **Step 1: Create `.env.staging.example`:**
 
 ```bash
 # ─────────────────────────────────────────────────────────────────────────────
@@ -247,7 +247,7 @@ API_INTERNAL_URL=http://api:8000
 REFRESH_COOKIE_NAME=sacco_refresh
 ```
 
-- [ ] **Step 2: Verify the app reads `allowed_origins` as a list.** Run:
+- [x] **Step 2: Verify the app reads `allowed_origins` as a list.** Run:
 
 ```bash
 cd /home/liam/projects/sacco-platform && grep -n "allowed_origins" app/core/config.py
@@ -255,7 +255,7 @@ cd /home/liam/projects/sacco-platform && grep -n "allowed_origins" app/core/conf
 
 Expected: `allowed_origins: list[str]`. Pydantic settings parse a comma-separated env var into a list; the example uses a single origin (still valid). Note this confirms the env name is `ALLOWED_ORIGINS`.
 
-- [ ] **Step 3: Create `scripts/gen_staging_env.sh`:**
+- [x] **Step 3: Create `scripts/gen_staging_env.sh`:**
 
 ```bash
 #!/usr/bin/env bash
@@ -291,7 +291,7 @@ echo "Wrote $OUT (mode 600). Review it, then run scripts/deploy.sh."
 
 Then `chmod +x scripts/gen_staging_env.sh`.
 
-- [ ] **Step 4: Add gitignore entries.** Append to `.gitignore` under "Secrets / local env":
+- [x] **Step 4: Add gitignore entries.** Append to `.gitignore` under "Secrets / local env":
 
 ```
 .env.staging
@@ -299,7 +299,7 @@ caddy_data/
 caddy_config/
 ```
 
-- [ ] **Step 5: Verify generation produces valid values.** Run:
+- [x] **Step 5: Verify generation produces valid values.** Run:
 
 ```bash
 cd /home/liam/projects/sacco-platform
@@ -312,7 +312,7 @@ rm -f .env.staging   # cleanup the test artifact
 
 Expected: `JWT_KEK`/`COOKIE_SECRET` filled with random values, `STAGING_DOMAIN=example.test`, "KEK bytes: 32", ".env.staging" reported ignored.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
 ```bash
 git add .env.staging.example scripts/gen_staging_env.sh .gitignore
