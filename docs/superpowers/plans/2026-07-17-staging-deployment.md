@@ -824,7 +824,7 @@ git commit -m "feat(deploy): idempotent platform-superuser seed for first login"
 - Consumes: `.env.staging`, `docker-compose.staging.yml`.
 - Produces: `scripts/deploy.sh` (idempotent redeploy) and Make targets `staging-build`, `staging-up`, `staging-down`, `staging-logs`, `staging-seed-admin`, `deploy`.
 
-- [ ] **Step 1: Create `scripts/deploy.sh`:**
+- [x] **Step 1: Create `scripts/deploy.sh`:**
 
 ```bash
 #!/usr/bin/env bash
@@ -856,7 +856,7 @@ echo "Deploy complete. Portal: https://staging.$(grep '^STAGING_DOMAIN=' .env.st
 
 Then `chmod +x scripts/deploy.sh`.
 
-- [ ] **Step 2: Add staging targets to the `Makefile`.** Add a new section at the end, and add the target names to the top `.PHONY` line:
+- [x] **Step 2: Add staging targets to the `Makefile`.** Add a new section at the end, and add the target names to the top `.PHONY` line:
 
 ```makefile
 # ── Staging deployment ────────────────────────────────────────────────────────
@@ -884,7 +884,7 @@ deploy: ## Full redeploy (pull, build, migrate, up)
 
 Add `staging-build staging-up staging-down staging-logs staging-seed-admin deploy` to the `.PHONY:` list.
 
-- [ ] **Step 3: Verify scripts and Makefile parse.** Run:
+- [x] **Step 3: Verify scripts and Makefile parse.** Run:
 
 ```bash
 cd /home/liam/projects/sacco-platform
@@ -895,7 +895,7 @@ make -n staging-build 2>/dev/null | head -1 && echo "make target resolves"
 
 Expected: both "syntax OK" lines; the make dry-run prints the compose build command.
 
-- [ ] **Step 4: Create `docs/deployment/hetzner-staging-runbook.md`:**
+- [x] **Step 4: Create `docs/deployment/hetzner-staging-runbook.md`:**
 
 ````markdown
 # Hetzner Staging Runbook
@@ -954,7 +954,7 @@ Automated backups (data is in named volumes only), observability, rate limiting,
 CI/CD. Losing the VPS loses staging data until Phase 4 ships.
 ````
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 git add scripts/deploy.sh Makefile docs/deployment/hetzner-staging-runbook.md
