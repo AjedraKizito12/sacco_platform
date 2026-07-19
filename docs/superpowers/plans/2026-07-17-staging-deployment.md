@@ -330,7 +330,7 @@ git commit -m "feat(deploy): staging env template + secret generator"
 - Consumes: `.env.staging` (via `env_file`), the api image from `./Dockerfile`, the portal image from `admin/apps/portal/Dockerfile` (build arg `NEXT_PUBLIC_API_BASE_URL`).
 - Produces: services `postgres`, `redis`, `rabbitmq`, `elasticsearch`, `api`, `worker`, `beat`, `migrate`, `portal` on network `sacco_net`; named volumes `pgdata_staging`, `redisdata_staging`, `rabbitmqdata_staging`, `esdata_staging`. No host ports (Caddy is added in Task 4).
 
-- [ ] **Step 1: Create `docker-compose.staging.yml`:**
+- [x] **Step 1: Create `docker-compose.staging.yml`:**
 
 ```yaml
 name: sacco-staging
@@ -472,7 +472,7 @@ services:
 
 Note: `worker`/`beat` reference `image: sacco-api:staging` (no `build:`) so they reuse the image built by `api`/`migrate`. The deploy script builds before `up`.
 
-- [ ] **Step 2: Validate compose config.** Run:
+- [x] **Step 2: Validate compose config.** Run:
 
 ```bash
 cd /home/liam/projects/sacco-platform
@@ -482,7 +482,7 @@ docker compose -f docker-compose.staging.yml --env-file .env.staging config >/de
 
 Expected: "compose config OK" (no interpolation errors, all `${...}` resolved).
 
-- [ ] **Step 3: Smoke-build the images locally.** Run:
+- [x] **Step 3: Smoke-build the images locally.** Run:
 
 ```bash
 docker compose -f docker-compose.staging.yml --env-file .env.staging build api portal
@@ -490,7 +490,7 @@ docker compose -f docker-compose.staging.yml --env-file .env.staging build api p
 
 Expected: both images build (`sacco-api:staging`, `sacco-portal:staging`). This reuses the Task-1 portal build and the existing api `Dockerfile`.
 
-- [ ] **Step 4: Local stack smoke (no Caddy/TLS).** Run:
+- [x] **Step 4: Local stack smoke (no Caddy/TLS).** Run:
 
 ```bash
 docker compose -f docker-compose.staging.yml --env-file .env.staging up -d postgres redis rabbitmq elasticsearch
@@ -503,7 +503,7 @@ docker compose -f docker-compose.staging.yml --env-file .env.staging ps
 
 Expected: `migrate` exits 0; `/readyz` prints all-`ok`; `worker`/`beat`/`portal` show `Up`.
 
-- [ ] **Step 5: Tear down the smoke stack and clean up.** Run:
+- [x] **Step 5: Tear down the smoke stack and clean up.** Run:
 
 ```bash
 docker compose -f docker-compose.staging.yml --env-file .env.staging down -v
@@ -512,12 +512,20 @@ rm -f .env.staging
 
 Expected: containers + staging volumes removed; test env file deleted.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
 ```bash
 git add docker-compose.staging.yml
 git commit -m "feat(deploy): staging compose (api, worker, beat, migrate, portal, datastores)"
 ```
+
+> **Done 2026-07-19.** Booting the stack surfaced two Task-2 template bugs
+> (fixed in `.env.staging.example` + generator, committed separately as
+> `fix(deploy): staging env needs APP_SECRET_KEY + JSON ALLOWED_ORIGINS`):
+> `app_secret_key` is a required settings field that the template omitted, and
+> `allowed_origins` (list[str]) is parsed as JSON by pydantic-settings — a bare
+> URL raised a SettingsError, so `ALLOWED_ORIGINS` must be a JSON array. With
+> both fixed, migrate ran to head and `/readyz` returned all-ok.
 
 ---
 
