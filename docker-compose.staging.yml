@@ -8,6 +8,8 @@ volumes:
   redisdata_staging:
   rabbitmqdata_staging:
   esdata_staging:
+  caddy_data:
+  caddy_config:
 
 services:
   postgres:
@@ -133,3 +135,19 @@ services:
       REFRESH_COOKIE_NAME: ${REFRESH_COOKIE_NAME}
     depends_on:
       - api
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    networks: [sacco_net]
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file: .env.staging
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - portal
