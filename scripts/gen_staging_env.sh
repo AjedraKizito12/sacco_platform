@@ -9,6 +9,7 @@ OUT=.env.staging
 : "${STAGING_DOMAIN:?Set STAGING_DOMAIN=your.tld}"
 
 KEK=$(openssl rand -base64 32)
+APPSECRET=$(openssl rand -hex 32)
 COOKIE=$(openssl rand -hex 32)
 PGPW=$(openssl rand -hex 24)
 MQPW=$(openssl rand -hex 24)
@@ -16,6 +17,7 @@ MQPW=$(openssl rand -hex 24)
 sed \
   -e "s|^STAGING_DOMAIN=.*|STAGING_DOMAIN=${STAGING_DOMAIN}|" \
   -e "s|^JWT_KEK=.*|JWT_KEK=${KEK}|" \
+  -e "s|^APP_SECRET_KEY=.*|APP_SECRET_KEY=${APPSECRET}|" \
   -e "s|^COOKIE_SECRET=.*|COOKIE_SECRET=${COOKIE}|" \
   -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${PGPW}|" \
   -e "s|^RABBITMQ_PASSWORD=.*|RABBITMQ_PASSWORD=${MQPW}|" \
