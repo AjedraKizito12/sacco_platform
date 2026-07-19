@@ -68,6 +68,21 @@ Full spec: `docs/superpowers/plans/saas-launch-roadmap.md`
 
 Sequential total: ~24 weeks. Parallel (5-person team): ~16 weeks.
 
+### Infrastructure
+
+- **Staging deployment (Hetzner)** — **Done** (PR #75, on `main`, 2026-07-19).
+  Single-VPS Docker Compose staging stack: `docker-compose.staging.yml` (api +
+  worker + beat + one-shot `migrate` + portal + Postgres/Redis/RabbitMQ/ES),
+  `Caddyfile` as the only host-exposed service (auto-TLS for `staging.<domain>`
+  + `api-staging.<domain>`), `scripts/gen_staging_env.sh` (secrets →
+  `.env.staging`, git-ignored; template in `.env.staging.example`),
+  `scripts/seed_platform_admin.py` (idempotent first-login superuser),
+  `scripts/deploy.sh` + `make staging-*` / `make deploy`. Runbook:
+  `docs/deployment/hetzner-staging-runbook.md`. Spec/plan:
+  `docs/superpowers/{specs/2026-07-16,plans/2026-07-17}-staging-deployment*.md`.
+  NOT production: no backups (Phase 4), observability (Phase 5), or rate
+  limiting (Phase 6) yet — staging data is volume-only.
+
 ### Phase 2 — Admin Portal key decisions
 - **Stack**: Next.js 15 App Router + React 19, TypeScript strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), Tailwind v4 + shadcn/ui, Playwright e2e.
 - **Location**: new top-level `admin/` workspace (separate deployable, no Python code).
