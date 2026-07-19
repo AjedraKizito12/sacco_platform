@@ -1,0 +1,135 @@
+name: sacco-staging
+
+networks:
+  sacco_net:
+
+volumes:
+  pgdata_staging:
+  redisdata_staging:
+  rabbitmqdata_staging:
+  esdata_staging:
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    networks: [sacco_net]
+    volumes:
+      - pgdata_staging:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: sacco
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: sacco
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sacco -d sacco"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    networks: [sacco_net]
+    volumes:
+      - redisdata_staging:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    restart: unless-stopped
+    networks: [sacco_net]
+    volumes:
+      - rabbitmqdata_staging:/var/lib/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  elasticsearch:
+    image: elasticsearch:8.17.0
+    restart: unless-stopped
+    networks: [sacco_net]
+    volumes:
+      - esdata_staging:/usr/share/elasticsearch/data
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qv '\"status\":\"red\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+
+  migrate:
+    build: .
+    image: sacco-api:staging
+    restart: "no"
+    networks: [sacco_net]
+    env_file: .env.staging
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: .
+    image: sacco-api:staging
+    restart: unless-stopped
+    networks: [sacco_net]
+    env_file: .env.staging
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+  worker:
+    image: sacco-api:staging
+    restart: unless-stopped
+    networks: [sacco_net]
+    env_file: .env.staging
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  beat:
+    image: sacco-api:staging
+    restart: unless-stopped
+    networks: [sacco_net]
+    env_file: .env.staging
+    command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=info"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  portal:
+    build:
+      context: ./admin
+      dockerfile: apps/portal/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+    image: sacco-portal:staging
+    restart: unless-stopped
+    networks: [sacco_net]
+    environment:
+      API_INTERNAL_URL: ${API_INTERNAL_URL}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+      REFRESH_COOKIE_NAME: ${REFRESH_COOKIE_NAME}
+    depends_on:
+      - api
