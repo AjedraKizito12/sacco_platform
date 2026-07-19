@@ -1,0 +1,14 @@
+{
+	# Set ACME email via CADDY_ACME_EMAIL in .env.staging for expiry notices.
+	email {$CADDY_ACME_EMAIL}
+}
+
+staging.{$STAGING_DOMAIN} {
+	encode gzip
+	reverse_proxy portal:3000
+}
+
+api-staging.{$STAGING_DOMAIN} {
+	encode gzip
+	reverse_proxy api:8000
+}

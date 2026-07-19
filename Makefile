@@ -23,7 +23,8 @@ PYTEST := env -u DATABASE_URL pytest
         materialize-reports test test-fast lint mypy ci provision-tenant \
         platform-token tail-api tail-worker \
         admin-install admin-dev admin-build admin-test admin-lint \
-        admin-typecheck admin-storybook admin-clean admin-e2e
+        admin-typecheck admin-storybook admin-clean admin-e2e \
+        staging-build staging-up staging-down staging-logs staging-seed-admin deploy
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -158,3 +159,25 @@ admin-e2e: ## Seed + run portal Playwright e2e against a local backend on :8001
 	alembic upgrade head
 	PYTHONPATH=$(CURDIR) python scripts/e2e_seed.py
 	cd admin && NEXT_PUBLIC_API_BASE_URL=http://localhost:8001 pnpm --filter @sacco/portal e2e
+
+# ── Staging deployment ────────────────────────────────────────────────────────
+STAGING_COMPOSE := docker compose -f docker-compose.staging.yml --env-file .env.staging
+
+staging-build: ## Build staging images
+	$(STAGING_COMPOSE) build
+
+staging-up: ## Start the staging stack
+	$(STAGING_COMPOSE) up -d
+
+staging-down: ## Stop the staging stack (keeps volumes)
+	$(STAGING_COMPOSE) down
+
+staging-logs: ## Tail staging logs (SVC=api to filter)
+	$(STAGING_COMPOSE) logs -f $(SVC)
+
+staging-seed-admin: ## Create a login-capable platform superuser. EMAIL=<email>
+	@test -n "$(EMAIL)" || (echo "Usage: make staging-seed-admin EMAIL=admin@you.tld" && exit 2)
+	$(STAGING_COMPOSE) run --rm api python scripts/seed_platform_admin.py --email $(EMAIL)
+
+deploy: ## Full redeploy (pull, build, migrate, up)
+	scripts/deploy.sh

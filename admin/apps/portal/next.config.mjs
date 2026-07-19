@@ -1,23 +1,23 @@
 /** @type {import('next').NextConfig} */
+const isProd = process.env.NODE_ENV === "production";
+const apiOrigin = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+const connectSrc = ["'self'"];
+if (apiOrigin) {
+  connectSrc.push(apiOrigin);
+} else {
+  // Local dev fallback: the API runs on the host, ports 8000/8001.
+  connectSrc.push("http://localhost:8000", "http://localhost:8001", "ws://localhost:3000");
+}
+
 const cspDirectives = {
   "default-src": ["'self'"],
-  // Next.js dev needs unsafe-eval for HMR; production drops it via the
-  // middleware in sub-plan 07. unsafe-inline is required for streaming SSR
-  // bootstrap until we wire nonces (also sub-plan 07).
-  "script-src": ["'self'", "'unsafe-eval'", "'unsafe-inline'"],
+  // Dev needs unsafe-eval for HMR; production drops it.
+  "script-src": isProd ? ["'self'", "'unsafe-inline'"] : ["'self'", "'unsafe-eval'", "'unsafe-inline'"],
   "style-src": ["'self'", "'unsafe-inline'"],
   "img-src": ["'self'", "data:", "blob:"],
   "font-src": ["'self'"],
-  "connect-src": [
-    "'self'",
-    // Backend API. Sub-plan 05 reads this from NEXT_PUBLIC_API_BASE_URL and
-    // we'd ideally template it in, but headers() runs at build time. Keep
-    // permissive in dev; the production reverse-proxy enforces tighter
-    // origin policy.
-    "http://localhost:8001",
-    "http://localhost:8000",
-    "ws://localhost:3000",
-  ],
+  "connect-src": connectSrc,
   "frame-ancestors": ["'none'"],
   "form-action": ["'self'"],
   "base-uri": ["'self'"],
