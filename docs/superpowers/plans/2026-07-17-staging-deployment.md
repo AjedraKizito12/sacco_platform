@@ -539,7 +539,7 @@ git commit -m "feat(deploy): staging compose (api, worker, beat, migrate, portal
 - Consumes: `STAGING_DOMAIN` env var; internal services `portal:3000` and `api:8000`.
 - Produces: public HTTPS on `staging.${STAGING_DOMAIN}` (→ portal) and `api-staging.${STAGING_DOMAIN}` (→ api); Let's Encrypt certs persisted in `caddy_data` volume.
 
-- [ ] **Step 1: Create `Caddyfile`:**
+- [x] **Step 1: Create `Caddyfile`:**
 
 ```
 {
@@ -558,13 +558,13 @@ api-staging.{$STAGING_DOMAIN} {
 }
 ```
 
-- [ ] **Step 2: Add `CADDY_ACME_EMAIL` to `.env.staging.example`.** Append under the Domain section:
+- [x] **Step 2: Add `CADDY_ACME_EMAIL` to `.env.staging.example`.** Append under the Domain section:
 
 ```
 CADDY_ACME_EMAIL=you@example.com
 ```
 
-- [ ] **Step 3: Add the `caddy` service to `docker-compose.staging.yml`.** Add under `services:`:
+- [x] **Step 3: Add the `caddy` service to `docker-compose.staging.yml`.** Add under `services:`:
 
 ```yaml
   caddy:
@@ -591,7 +591,7 @@ And add to the top-level `volumes:` block:
   caddy_config:
 ```
 
-- [ ] **Step 4: Validate the Caddyfile syntax.** Run:
+- [x] **Step 4: Validate the Caddyfile syntax.** Run:
 
 ```bash
 cd /home/liam/projects/sacco-platform
@@ -601,7 +601,7 @@ docker run --rm -e STAGING_DOMAIN=example.test -e CADDY_ACME_EMAIL=you@example.t
 
 Expected: `Valid configuration`.
 
-- [ ] **Step 5: Re-validate the full compose config with Caddy.** Run:
+- [x] **Step 5: Re-validate the full compose config with Caddy.** Run:
 
 ```bash
 STAGING_DOMAIN=example.test scripts/gen_staging_env.sh
@@ -611,7 +611,7 @@ rm -f .env.staging
 
 Expected: "compose config OK".
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
 ```bash
 git add Caddyfile docker-compose.staging.yml .env.staging.example
