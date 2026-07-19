@@ -53,7 +53,7 @@
 - Consumes: build arg `NEXT_PUBLIC_API_BASE_URL` (a full origin, e.g. `https://api-staging.example.com`).
 - Produces: a Docker image that serves the portal on `:3000` with `node apps/portal/server.js`; its `Content-Security-Policy` header `connect-src` includes `'self'` + the API origin and, in production, omits `'unsafe-eval'`.
 
-- [ ] **Step 1: Make the CSP connect-src configurable.** In `admin/apps/portal/next.config.mjs`, replace the hardcoded `connect-src` array and the static `script-src` with env-aware logic. Change the top of the file:
+- [x] **Step 1: Make the CSP connect-src configurable.** In `admin/apps/portal/next.config.mjs`, replace the hardcoded `connect-src` array and the static `script-src` with env-aware logic. Change the top of the file:
 
 ```javascript
 /** @type {import('next').NextConfig} */
@@ -85,7 +85,7 @@ const cspDirectives = {
 
 Leave the rest of the file (`cspString`, `nextConfig`, `headers()`) unchanged.
 
-- [ ] **Step 2: Verify dev behavior is unchanged.** Run:
+- [x] **Step 2: Verify dev behavior is unchanged.** Run:
 
 ```bash
 cd admin && NODE_ENV=development node -e "import('./apps/portal/next.config.mjs').then(m => process.stdout.write(JSON.stringify(m.default.headers().then?'':'')))" 2>/dev/null; \
@@ -94,7 +94,7 @@ grep -n "connect-src" apps/portal/next.config.mjs
 
 Expected: file parses; dev fallback path present. (A full behavioral check happens in Step 6.)
 
-- [ ] **Step 3: Create `admin/.dockerignore`:**
+- [x] **Step 3: Create `admin/.dockerignore`:**
 
 ```
 node_modules
@@ -108,7 +108,7 @@ storybook-static
 .git
 ```
 
-- [ ] **Step 4: Create `admin/apps/portal/Dockerfile`.** Build context is `admin/`.
+- [x] **Step 4: Create `admin/apps/portal/Dockerfile`.** Build context is `admin/`.
 
 ```dockerfile
 # syntax=docker/dockerfile:1
@@ -149,7 +149,7 @@ EXPOSE 3000
 CMD ["node", "apps/portal/server.js"]
 ```
 
-- [ ] **Step 5: Build the image.** Run:
+- [x] **Step 5: Build the image.** Run:
 
 ```bash
 cd /home/liam/projects/sacco-platform/admin
@@ -160,7 +160,7 @@ docker build -f apps/portal/Dockerfile \
 
 Expected: build completes; final line shows the image tagged. If the build fails on a missing workspace package, confirm `.dockerignore` did not exclude `packages/`.
 
-- [ ] **Step 6: Run the image and verify the CSP + render.** Run:
+- [x] **Step 6: Run the image and verify the CSP + render.** Run:
 
 ```bash
 docker run -d --name portal-test -p 3100:3000 -e API_INTERNAL_URL=http://localhost:8000 sacco-portal:staging-test
@@ -172,13 +172,26 @@ docker rm -f portal-test
 
 Expected: CSP header contains `connect-src 'self' https://api-staging.example.com` and does **not** contain `unsafe-eval`; login route returns `200`. (Server-side API calls will fail without a reachable API — that's fine; we only assert the page renders and the header is correct.)
 
-- [ ] **Step 7: Commit.**
+- [x] **Step 7: Commit.**
 
 ```bash
 cd /home/liam/projects/sacco-platform
 git add admin/apps/portal/next.config.mjs admin/apps/portal/Dockerfile admin/.dockerignore
 git commit -m "feat(deploy): production portal image + env-driven CSP"
 ```
+
+> **Done 2026-07-19.** The portal's production `next build` had never been run
+> (dev only) and failed on two pre-existing latent bugs, fixed as part of this
+> task:
+> 1. `packages/ui/src/globals.css` does `@import "tailwindcss"` but `@sacco/ui`
+>    never declared `tailwindcss` — pnpm's strict node_modules couldn't resolve
+>    it. Fixed by adding the dep to `admin/packages/ui/package.json` (+ lockfile).
+>    Committed separately: `fix(portal): declare tailwindcss dep on @sacco/ui`.
+> 2. The Dockerfile set `NODE_ENV=production` before `pnpm install`, so pnpm
+>    skipped the devDependency build toolchain (`@tailwindcss/postcss`,
+>    `@sacco/tsconfig`, `typescript`) — the latter carries the tsconfig
+>    `extends` that defines the `@/*` path alias, so aliases failed too. Fixed
+>    with `pnpm install --frozen-lockfile --prod=false` in the Dockerfile.
 
 ---
 
