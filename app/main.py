@@ -25,6 +25,10 @@ from app.core.notifications.api import (
 from app.core.notifications.api import (
     tenant_self_router as notifications_tenant_router,
 )
+from app.core.search.api import (
+    platform_search_router,
+    tenant_search_router,
+)
 from app.modules.credit import executors as _credit_executors  # noqa: F401
 from app.modules.credit.api import member_app_router as credit_member_app_router
 from app.modules.credit.api import member_products_router as credit_member_products_router
@@ -72,10 +76,6 @@ from app.platform_.tenant_users_admin.api import (
 )
 from app.platform_.tenants import executors as _tenants_executors  # noqa: F401
 from app.platform_.tenants.api import router as platform_tenants_router
-from app.core.search.api import (
-    platform_search_router,
-    tenant_search_router,
-)
 from app.platform_.users.api import router as platform_users_router
 
 settings = get_settings()
