@@ -57,9 +57,9 @@ Full spec: `docs/superpowers/plans/saas-launch-roadmap.md`
 | Phase | What | Effort | Gates | Status |
 |-------|------|--------|-------|--------|
 | 1 | Billing & Subscription Management | L — 3 wk | closed beta | **Done** |
-| 2 | Admin / Back-Office Portal (Next.js) | XL — 6 wk | closed beta | **Next** |
+| 2 | Admin / Back-Office Portal (Next.js) | XL — 6 wk | closed beta | **Done** |
 | 3 | Notifications Framework (NullProvider initially) | M — 2 wk | closed beta, runs parallel to P2 | **Done** |
-| 4 | Backups & Disaster Recovery (pgBackRest + PITR) | M — 2 wk | production launch | Not started |
+| 4 | Backups & Disaster Recovery (pgBackRest + PITR) | M — 2 wk | production launch | **Next** |
 | 5 | Observability & Monitoring (LGTM stack) | L — 3 wk | production launch | Not started |
 | 6 | Rate Limiting & Abuse Protection | S — 1 wk | production launch (needs P5) | Not started |
 | 7 | Tenant Offboarding & Retention | M — 2 wk | public launch (needs P1, P3) | Not started |
