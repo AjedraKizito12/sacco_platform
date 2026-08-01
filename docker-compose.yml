@@ -168,6 +168,30 @@ services:
       echo minio-setup-done
       "
 
+  backup:
+    build:
+      context: .
+      dockerfile: infra/backups/Dockerfile.backup
+    restart: unless-stopped
+    networks: [sacco_net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./infra/backups/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+      # Local-only convenience: the sidecar runs pgBackRest inside the
+      # postgres container (and, for the drill, an ephemeral one) via the
+      # host Docker daemon. Production runs pgBackRest on the DB host.
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      PGHOST: postgres
+      PGUSER: sacco
+      PGPASSWORD: sacco
+      PGDATABASE: sacco
+      COMPOSE_PROJECT: sacco-platform
+
   api:
     build: .
     restart: unless-stopped

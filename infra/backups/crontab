@@ -1,0 +1,5 @@
+# min hour dom mon dow  command
+0 2 * * *   /opt/backups/scripts/backup.sh
+0 3 * * 0   /opt/backups/scripts/restore-staging.sh
+0 4 * * *   /opt/backups/scripts/prune.sh
+* * * * *   /opt/backups/scripts/poll-verify-requests.sh
