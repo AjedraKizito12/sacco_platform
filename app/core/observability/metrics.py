@@ -80,6 +80,46 @@ loans_total_gauge = logfire.metric_gauge(
     "sacco_loans_total", unit="1", description="Count of tenant loans by status"
 )
 
+# ── Custom flow counters/histograms (Task 9) ────────────────────────────────
+# Thin additive instrumentation handles used at call sites in outbox,
+# maker-checker, reporting, and auth. Labels are outcomes/types/schema only —
+# never PII, member ids, emails, or amounts.
+auth_login_attempts = logfire.metric_counter(
+    "sacco_auth_login_attempts_total",
+    unit="1",
+    description="Login attempts by outcome and actor type",
+)
+outbox_publish_duration = logfire.metric_histogram(
+    "sacco_outbox_publish_duration_seconds",
+    unit="s",
+    description="Outbox event publish latency",
+)
+outbox_dead_lettered = logfire.metric_counter(
+    "sacco_outbox_dead_lettered_total",
+    unit="1",
+    description="Count of outbox events moved to dead-letter state",
+)
+report_materialize_duration = logfire.metric_histogram(
+    "sacco_report_materialize_duration_seconds",
+    unit="s",
+    description="Reporting beat task materialization duration, by report type",
+)
+report_last_run = logfire.metric_gauge(
+    "sacco_report_last_run_timestamp",
+    unit="s",
+    description="Epoch timestamp of the last reporting beat task run, by report type",
+)
+maker_checker_decisions = logfire.metric_counter(
+    "sacco_maker_checker_decisions_total",
+    unit="1",
+    description="Maker-checker approval decisions by outcome (approved/rejected)",
+)
+maker_checker_self_reject = logfire.metric_counter(
+    "sacco_maker_checker_self_reject_total",
+    unit="1",
+    description="Count of self-approval/self-rejection attempts blocked",
+)
+
 
 async def compute_business_gauges(session: AsyncSession) -> BusinessGauges:
     """Read-only aggregation of platform-schema business gauges.

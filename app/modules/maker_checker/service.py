@@ -9,6 +9,7 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.audit.service import PlatformAuditService, TenantAuditService
+from app.core.observability import metrics
 from app.core.outbox.publisher import EventPublisher
 from app.modules.maker_checker.models.platform import (
     PlatformApprovalAction,
@@ -102,6 +103,7 @@ class ApprovalService:
     ) -> ApprovalRequestMixin:
         request = await self._get_pending(request_id)
         if actor_user_id == request.requested_by:
+            metrics.maker_checker_self_reject.add(1)
             raise ValueError("Self-approval is forbidden")
 
         action = self._act_cls(
@@ -125,6 +127,7 @@ class ApprovalService:
 
         if count >= request.required_approvals:
             request.status = "approved"
+            metrics.maker_checker_decisions.add(1, {"outcome": "approved"})
             await self._execute(request)
             from app.modules.maker_checker.notifications import (  # noqa: PLC0415
                 notify_decided,
@@ -155,6 +158,7 @@ class ApprovalService:
         self._session.add(action)
         request.status = "rejected"
         request.rejection_reason = reason
+        metrics.maker_checker_decisions.add(1, {"outcome": "rejected"})
         await self._session.flush()
 
         await EventPublisher.publish(

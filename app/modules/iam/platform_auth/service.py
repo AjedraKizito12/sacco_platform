@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 
 from app.core.config import get_settings
+from app.core.observability import metrics
 from app.modules.iam.auth_audit import write_platform_auth_event
 from app.modules.iam.lockout import is_locked, record_attempt
 from app.modules.iam.lockout import reset as reset_lockout
@@ -130,6 +131,9 @@ class PlatformAuthService:
                 actor_label=email,
                 after_state={"email": email, "reason": "user_not_found_or_inactive"},
             )
+            metrics.auth_login_attempts.add(
+                1, {"outcome": "invalid_credentials", "actor_type": "platform_user"}
+            )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # 2. Check lockout — only for users that actually exist.
@@ -141,6 +145,9 @@ class PlatformAuthService:
                 actor_id=user.id,
                 actor_label=user.email,
                 after_state={"email": email, "retry_after": retry_after},
+            )
+            metrics.auth_login_attempts.add(
+                1, {"outcome": "locked", "actor_type": "platform_user"}
             )
             raise HTTPException(
                 status_code=423,
@@ -157,6 +164,9 @@ class PlatformAuthService:
                 actor_id=user.id,
                 actor_label=user.email,
                 after_state={"reason": "bad_password"},
+            )
+            metrics.auth_login_attempts.add(
+                1, {"outcome": "invalid_credentials", "actor_type": "platform_user"}
             )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -224,6 +234,9 @@ class PlatformAuthService:
         )
 
         _log.info("platform_auth.login_success", user_id=str(user.id))
+        metrics.auth_login_attempts.add(
+            1, {"outcome": "success", "actor_type": "platform_user"}
+        )
         return PlatformTokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,

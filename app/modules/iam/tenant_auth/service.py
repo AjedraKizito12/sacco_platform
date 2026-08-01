@@ -24,6 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 
 from app.core.config import get_settings
+from app.core.observability import metrics
 from app.modules.iam.auth_audit import write_tenant_auth_event
 from app.modules.iam.lockout import is_locked, record_attempt
 from app.modules.iam.lockout import reset as reset_lockout
@@ -134,6 +135,9 @@ class TenantAuthService:
                 tenant_slug=self._slug,
                 after_state={"email": email, "reason": "user_not_found_or_inactive"},
             )
+            metrics.auth_login_attempts.add(
+                1, {"outcome": "invalid_credentials", "actor_type": "tenant_user"}
+            )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # 2. Check lockout — only for users that actually exist.
@@ -146,6 +150,9 @@ class TenantAuthService:
                 actor_label=user.email,
                 tenant_slug=self._slug,
                 after_state={"email": email, "retry_after": retry_after},
+            )
+            metrics.auth_login_attempts.add(
+                1, {"outcome": "locked", "actor_type": "tenant_user"}
             )
             raise HTTPException(
                 status_code=423,
@@ -163,6 +170,9 @@ class TenantAuthService:
                 actor_label=user.email,
                 tenant_slug=self._slug,
                 after_state={"reason": "bad_password"},
+            )
+            metrics.auth_login_attempts.add(
+                1, {"outcome": "invalid_credentials", "actor_type": "tenant_user"}
             )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -231,6 +241,9 @@ class TenantAuthService:
         )
 
         _log.info("tenant_auth.login_success", user_id=str(user.id), tenant=self._slug)
+        metrics.auth_login_attempts.add(
+            1, {"outcome": "success", "actor_type": "tenant_user"}
+        )
         return TenantTokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,

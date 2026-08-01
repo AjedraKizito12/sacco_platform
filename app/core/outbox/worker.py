@@ -17,6 +17,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
+from app.core.observability import metrics
 from app.core.outbox.models import PlatformOutboxEvent, TenantOutboxEvent
 from app.workers.celery_app import celery_app
 
@@ -94,6 +95,7 @@ async def _relay_outbox(
                         )
                         row.published_at = datetime.now(UTC)
                         row.attempts += 1
+                        metrics.outbox_publish_duration.record(time.monotonic() - t0)
                     except Exception as exc:
                         current_attempts = row.attempts  # before incrementing
                         row.attempts += 1
@@ -110,6 +112,7 @@ async def _relay_outbox(
                                 context=context,
                                 attempts=row.attempts,
                             )
+                            metrics.outbox_dead_lettered.add(1)
 
                 total_processed += len(rows)
     finally:

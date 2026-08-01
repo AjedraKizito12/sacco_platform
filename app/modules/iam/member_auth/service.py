@@ -19,6 +19,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 
 from app.core.config import get_settings
+from app.core.observability import metrics
 from app.modules.iam.auth_audit import write_member_auth_event
 from app.modules.iam.lockout import is_locked, record_attempt
 from app.modules.iam.lockout import reset as reset_lockout
@@ -138,6 +139,9 @@ class MemberAuthService:
                 tenant_slug=self._slug,
                 after_state={"reason": "not_found_or_ineligible"},
             )
+            metrics.auth_login_attempts.add(
+                1, {"outcome": "invalid_credentials", "actor_type": "member"}
+            )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         locked, retry_after = await is_locked(email, self._redis)
@@ -149,6 +153,9 @@ class MemberAuthService:
                 actor_label=member.email,
                 tenant_slug=self._slug,
                 after_state={"retry_after": retry_after},
+            )
+            metrics.auth_login_attempts.add(
+                1, {"outcome": "locked", "actor_type": "member"}
             )
             raise HTTPException(
                 status_code=423,
@@ -167,6 +174,9 @@ class MemberAuthService:
                 actor_label=member.email,
                 tenant_slug=self._slug,
                 after_state={"reason": "bad_password"},
+            )
+            metrics.auth_login_attempts.add(
+                1, {"outcome": "invalid_credentials", "actor_type": "member"}
             )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -226,6 +236,7 @@ class MemberAuthService:
             after_state={"session_id": str(session_row.id), "ip_address": ip_address},
         )
         _log.info("member_auth.login_success", member_id=str(member.id), tenant=self._slug)
+        metrics.auth_login_attempts.add(1, {"outcome": "success", "actor_type": "member"})
         return MemberTokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
