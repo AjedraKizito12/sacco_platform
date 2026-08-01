@@ -1,0 +1,42 @@
+{
+  "title": "Billing",
+  "description": "Subscription and invoice health for the platform's SaaS billing layer.",
+  "panels": [
+    {
+      "title": "Subscriptions by status",
+      "type": "stat",
+      "source": "metric",
+      "query": "sacco_subscriptions_total{status=*} — latest value per status label (active/trialing/past_due/suspended/cancelled)."
+    },
+    {
+      "title": "Subscriptions by status (trend)",
+      "type": "timeseries",
+      "source": "metric",
+      "query": "sacco_subscriptions_total{status=*} plotted over time, one series per status label, to show migration between states (e.g. active -> past_due)."
+    },
+    {
+      "title": "MRR by currency",
+      "type": "stat",
+      "source": "metric",
+      "query": "sacco_subscriptions_mrr{currency=*} — latest value per currency label. Sum of active/trialing subscriptions' plan base_price."
+    },
+    {
+      "title": "MRR trend",
+      "type": "timeseries",
+      "source": "metric",
+      "query": "sacco_subscriptions_mrr{currency=*} plotted over time, one series per currency label."
+    },
+    {
+      "title": "Outstanding invoices by status",
+      "type": "stat",
+      "source": "metric",
+      "query": "sacco_invoices_outstanding{status=*} — latest value per status label (issued/partial/overdue)."
+    },
+    {
+      "title": "Overdue invoices trend",
+      "type": "timeseries",
+      "source": "metric",
+      "query": "sacco_invoices_outstanding{status=\"overdue\"} plotted over time."
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "title": "Platform Overview",
+  "description": "Golden signals for the FastAPI app (request rate, error rate, latency percentiles) plus top-level platform business counts. First dashboard an on-call operator opens.",
+  "panels": [
+    {
+      "title": "Request rate (req/s)",
+      "type": "timeseries",
+      "source": "spans",
+      "query": "Count of root HTTP server spans (auto-instrumented FastAPI spans, e.g. `http.method`/`http.route` attributes present) bucketed per minute, over the FastAPI ASGI middleware spans Logfire captures automatically. No custom metric backs this — it is derived entirely from span data.",
+      "notes": "Backed by logfire.instrument_fastapi() auto-instrumentation, not a sacco_ metric."
+    },
+    {
+      "title": "5xx error rate (%)",
+      "type": "timeseries",
+      "source": "spans",
+      "query": "100 * (count of HTTP server spans where response status_code >= 500) / (count of all HTTP server spans), bucketed per minute, over the same auto-instrumented FastAPI spans as the request-rate panel.",
+      "notes": "Uses the span's numeric HTTP status attribute; no custom metric exists for this."
+    },
+    {
+      "title": "Latency p50 / p95 / p99 (ms)",
+      "type": "timeseries",
+      "source": "spans",
+      "query": "approx_percentile_cont(duration, 0.5 | 0.95 | 0.99) over HTTP server span durations, bucketed per minute, grouped by http.route where available.",
+      "notes": "Span duration is captured automatically by logfire.instrument_fastapi(); no custom histogram metric backs this."
+    },
+    {
+      "title": "Tenants by status",
+      "type": "stat",
+      "source": "metric",
+      "query": "sacco_tenants_total{status=*} — latest value per status label (active/suspended/provisioning/etc.)."
+    },
+    {
+      "title": "Active sessions / logins (5 min)",
+      "type": "timeseries",
+      "source": "metric",
+      "query": "sum(rate(sacco_auth_login_attempts_total{outcome=\"success\"})) over a 5-minute window, grouped by actor_type (platform_user/tenant_user/member), as a proxy for active-session churn.",
+      "notes": "There is no dedicated active-sessions gauge; this uses the successful-login counter as the closest available signal."
+    }
+  ]
+}

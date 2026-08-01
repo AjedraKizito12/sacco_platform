@@ -1,0 +1,31 @@
+{
+  "title": "Background Jobs",
+  "description": "Celery worker + beat health across all scheduled and dispatched tasks, using auto-instrumented Celery spans (no custom sacco_ metric backs this dashboard).",
+  "panels": [
+    {
+      "title": "Task run rate by task name",
+      "type": "timeseries",
+      "source": "spans",
+      "query": "Count of Celery task spans (emitted by logfire.instrument_celery()) bucketed per minute, grouped by the task-name span attribute.",
+      "notes": "Backed entirely by Celery span instrumentation, not a custom metric."
+    },
+    {
+      "title": "Task success/failure rate by task name",
+      "type": "timeseries",
+      "source": "spans",
+      "query": "Count of Celery task spans grouped by task-name and outcome (span status ok vs error/exception recorded), bucketed per minute."
+    },
+    {
+      "title": "Task duration p95 by task name",
+      "type": "timeseries",
+      "source": "spans",
+      "query": "approx_percentile_cont(duration, 0.95) over Celery task span durations, bucketed per 5 minutes, grouped by task-name span attribute."
+    },
+    {
+      "title": "Recent task failures",
+      "type": "table",
+      "source": "spans",
+      "query": "Most recent Celery task spans with an error/exception status, showing task name, exception message, and timestamp, for drilling into individual failures."
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "title": "Outbox",
+  "description": "Health of the transactional outbox that feeds RabbitMQ: queue depth per schema, publish latency, and dead-lettering.",
+  "panels": [
+    {
+      "title": "Queue depth by schema",
+      "type": "timeseries",
+      "source": "metric",
+      "query": "sacco_outbox_queue_depth{schema=*} plotted over time, one series per schema label (\"platform\" plus each active tenant schema)."
+    },
+    {
+      "title": "Queue depth by schema (current)",
+      "type": "table",
+      "source": "metric",
+      "query": "sacco_outbox_queue_depth{schema=*} — latest value per schema label, sorted descending, to spot a single tenant backing up."
+    },
+    {
+      "title": "Publish latency (p50/p95/p99)",
+      "type": "histogram",
+      "source": "metric",
+      "query": "histogram_quantile(0.5 | 0.95 | 0.99, sacco_outbox_publish_duration_seconds) over the selected time range.",
+      "notes": "This histogram has no labels; it aggregates publish latency across all schemas/event types."
+    },
+    {
+      "title": "Dead-lettered events (rate)",
+      "type": "timeseries",
+      "source": "metric",
+      "query": "rate(sacco_outbox_dead_lettered_total) bucketed per hour. Any sustained non-zero rate indicates events exceeding max publish attempts.",
+      "notes": "This counter has no labels; it is a single platform-wide series (dead-lettering happens on both platform and tenant outbox tables via the same worker code path)."
+    }
+  ]
+}
