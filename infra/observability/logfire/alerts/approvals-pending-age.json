@@ -1,0 +1,10 @@
+{
+  "name": "Approvals pending too long",
+  "severity": "warning",
+  "source": "unavailable",
+  "query": "N/A — would require a pending-age gauge, not a decision counter.",
+  "threshold": "oldest open approval request > 24h since submission",
+  "window": "n/a",
+  "channel": "email",
+  "notes": "sacco_maker_checker_decisions_total only counts approved/rejected outcomes at the moment a decision is made (app/modules/maker_checker/service.py); it carries no information about requests still sitting open in 'pending'. This alert needs a new gauge — e.g. max/avg seconds-since-submission over platform.approval_requests / tenant.approval_requests rows where status='pending', computed per operation_type — which Phase 5 does not add (record_business_gauges has no such query). Not emitted anywhere in Phase 5; staged here so the gap is tracked."
+}

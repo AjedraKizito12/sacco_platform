@@ -81,12 +81,76 @@ docker run -e LOGFIRE_TOKEN=$LOGFIRE_TOKEN -e APP_ENV=production ...
 
 ## How to Add a Metric / Dashboard / Alert
 
-This section is filled in by Phase 5 Increments 2 and 3.
+### Adding a metric
 
-- **Increment 2** (Business metrics & custom spans): Add custom spans via `app.core.observability.traces`, emit domain metrics via `app.core.observability.metrics`.
-- **Increment 3** (Dashboards & alerting): Wire Logfire dashboards and SQL-based alerts via the Logfire UI.
+1. Declare a new gauge/counter/histogram handle in
+   `app/core/observability/metrics.py` via `logfire.metric_gauge` /
+   `logfire.metric_counter` / `logfire.metric_histogram`, following the
+   `sacco_`-prefixed naming convention. Choose labels carefully — labels
+   are statuses/ids/currencies/report_type/schema only, **never PII**.
+2. Call `.set()` / `.add()` / `.record()` at the appropriate call site (a
+   beat task for a gauge like the business metrics, or inline at a flow
+   point for a counter/histogram like the outbox/maker-checker/reporting/
+   auth instrumentation).
+3. Add the new metric's name, type, labels, and source to
+   `docs/metrics-catalogue.md` — that document is the single
+   human-readable index of every `sacco_*` metric and must stay in sync
+   with `metrics.py`.
+4. If the metric backs a dashboard panel or an alert, add/update the
+   relevant JSON file(s) under `infra/observability/logfire/` (see below).
 
-For now, all telemetry is automatic (FastAPI spans, SQLAlchemy instrumentation, Celery tasks). Custom instrumentation is registered at app startup via `app/main.py` once increments 2–3 land.
+### Adding a dashboard
+
+Dashboard definitions are committed JSON under
+`infra/observability/logfire/dashboards/` (schema and authoring
+conventions documented in that directory's own `README.md`). Add a new
+`<name>.json` file there, following the existing `{title, description,
+panels[]}` shape, then apply it to the live Logfire project via the
+Logfire MCP (`dashboard_create` + `dashboard_add_panel`) or the web UI at
+deploy time.
+
+### Adding an alert
+
+Alert definitions are committed JSON under
+`infra/observability/logfire/alerts/` (schema and authoring conventions
+documented in that directory's own `README.md`). Alerts are **email-only**
+— there is no Slack/Discord/Opsgenie channel in v1. Add a new `<name>.json`
+file there following the existing `{name, severity, source, query,
+threshold, window, channel, notes}` shape, add a matching runbook under
+`docs/alert-runbooks/<name>.md` (trigger condition, likely causes,
+response steps, escalation), and cross-check every metric name the alert
+references against `docs/metrics-catalogue.md` / `metrics.py` before
+committing. If the alert needs a signal Phase 5 doesn't emit, mark
+`"source": "unavailable"` with a `notes` field stating exactly what
+instrumentation is missing — never write a query that can never fire or
+would always false-positive.
+
+### Applying committed definitions to a live Logfire project
+
+Dashboards and alerts in this repo are **source-of-truth definitions, not
+a live export** — authored before any real Logfire project existed for
+this platform. At deploy time (staging or production, once
+`LOGFIRE_TOKEN` is configured for that environment):
+
+1. An operator (or an agent with the Logfire MCP tools) reads each JSON
+   file under `infra/observability/logfire/dashboards/` and
+   `infra/observability/logfire/alerts/` and recreates the equivalent
+   dashboard/alert in the live project, via the Logfire MCP
+   (`dashboard_create`/`dashboard_add_panel`, `alert_create`) or the
+   Logfire web UI.
+2. For alerts, create the email notification channel first and wire every
+   alert to it — email is the only channel in v1.
+3. Once applied, **the live Logfire project becomes authoritative** for
+   day-to-day tuning (thresholds, panel layout, new variables). Periodically
+   re-export (`dashboard_get`/`alert_get`) and overwrite the corresponding
+   file here so the repo reflects what's actually running — this directory
+   is a reproducibility snapshot, not a continuously enforced
+   config-as-code source (Logfire has no "apply this JSON" import API at
+   time of writing).
+
+See `docs/metrics-catalogue.md` for every `sacco_*` metric (type, labels,
+source) and `docs/alert-runbooks/` for the per-alert response runbook,
+including the four staged/not-yet-backed alerts.
 
 ## Troubleshooting
 
@@ -110,5 +174,9 @@ If a user email or phone number appears in a trace, add its JSON key to `SCRUB_K
 ## References
 
 - Pydantic Logfire docs: https://docs.pydantic.dev/latest/concepts/logfire/
-- Observability spec: `docs/superpowers/specs/2026-08-01-observability-logfire.md`
+- Observability spec: `docs/superpowers/specs/2026-08-01-observability-logfire-design.md`
 - Instrumentation code: `app/core/observability/`
+- Metrics catalogue: `docs/metrics-catalogue.md`
+- Alert runbooks: `docs/alert-runbooks/`
+- Committed dashboard definitions: `infra/observability/logfire/dashboards/`
+- Committed alert definitions: `infra/observability/logfire/alerts/`

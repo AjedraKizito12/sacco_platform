@@ -1,0 +1,10 @@
+{
+  "name": "Database connection pool exhausted",
+  "severity": "critical",
+  "source": "unavailable",
+  "query": "N/A — no connection-pool utilization signal is emitted anywhere in Phase 5.",
+  "threshold": "checked-out connections at or near pool_size + max_overflow, sustained",
+  "window": "5m (suggested)",
+  "channel": "email",
+  "notes": "Phase 5 ships SQLAlchemy span instrumentation (query shape/duration via logfire.instrument_sqlalchemy) but no pool-level gauge and no server-side Postgres exporter (pg_stat_activity connection counts, pg_stat_statements). This needs either an application-level gauge reading SQLAlchemy's AsyncEngine.pool.status() emitted as a new sacco_ metric, or a dedicated postgres_exporter feeding Logfire. Not emitted by anything shipped in Phase 5 — staged here so the gap is tracked."
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Reporting beat missed schedule",
+  "severity": "critical",
+  "source": "metric",
+  "query": "now() - sacco_report_last_run_timestamp{report_type=*}, evaluated separately for each report_type label (loan portfolio, income statement, savings statement, fee collection), compared against 2x that report type's scheduled beat interval.",
+  "threshold": "> 2x the report type's scheduled interval since its last recorded run",
+  "window": "n/a — point-in-time gauge check against a per-report-type static threshold",
+  "channel": "email",
+  "notes": "sacco_report_last_run_timestamp is set at the end of each reporting beat task run (app/modules/reporting/beat.py), one series per report_type label. The exact per-report-type threshold in seconds must be filled in against the actual Celery beat schedule (app/workers/celery_app.py beat_schedule) at apply time, since report types run on different cadences — this file states the rule, not one universal number."
+}

@@ -1,0 +1,10 @@
+{
+  "name": "API error rate high",
+  "severity": "critical",
+  "source": "spans",
+  "query": "100 * (count of HTTP server spans with status_code >= 500) / (count of all HTTP server spans), over a trailing 5-minute window, across all tenant schemas.",
+  "threshold": "> 5%",
+  "window": "5m",
+  "channel": "email",
+  "notes": "Backed by logfire.instrument_fastapi() auto-instrumentation; no custom metric exists for this. Mirrors the Platform Overview dashboard's 5xx error rate panel (infra/observability/logfire/dashboards/platform-overview.json). Apply a minimum-request-count guard (e.g. total spans >= 20 in the window) when wiring this up in the Logfire UI/MCP so a single 5xx on near-zero traffic doesn't read as a 100% error rate."
+}
