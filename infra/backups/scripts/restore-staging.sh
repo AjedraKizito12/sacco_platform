@@ -36,13 +36,16 @@ fail() { finish_verification "$VERIFY_ID" failed "$1"; echo "DRILL FAIL: $1" >&2
 # 1. Ephemeral container from the archiving postgres image. Override the
 #    entrypoint so the base image does NOT initialise a fresh cluster — we
 #    restore into an empty data dir instead.
+# The repo secrets default to the local MinIO values; production overrides them
+# via the systemd EnvironmentFile (/etc/sacco/backups.env) so the same script
+# works unchanged against the real object store.
 docker run -d --name "$STAGING" --network "$NET" \
   --entrypoint bash \
-  -e PGBACKREST_REPO1_S3_KEY=sacco-minio \
-  -e PGBACKREST_REPO1_S3_KEY_SECRET=sacco-minio-secret \
-  -e PGBACKREST_REPO1_CIPHER_PASS=local-dev-cipher-change-in-prod \
-  -e PGPASSWORD=sacco \
-  sacco-platform-postgres -c "sleep infinity" >/dev/null \
+  -e "PGBACKREST_REPO1_S3_KEY=${PGBACKREST_REPO1_S3_KEY:-sacco-minio}" \
+  -e "PGBACKREST_REPO1_S3_KEY_SECRET=${PGBACKREST_REPO1_S3_KEY_SECRET:-sacco-minio-secret}" \
+  -e "PGBACKREST_REPO1_CIPHER_PASS=${PGBACKREST_REPO1_CIPHER_PASS:-local-dev-cipher-change-in-prod}" \
+  -e "PGPASSWORD=${PGPASSWORD:-sacco}" \
+  "${RESTORE_STAGING_IMAGE:-sacco-platform-postgres}" -c "sleep infinity" >/dev/null \
   || fail "could not start staging container"
 
 # 2. Copy the pgBackRest config in, then restore the latest backup into a clean

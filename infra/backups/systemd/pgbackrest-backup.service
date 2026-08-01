@@ -1,0 +1,28 @@
+# Production base-backup unit. Replaces the backup sidecar's crontab entry for
+# `backup.sh` (see infra/backups/crontab). Install into /etc/systemd/system/ on
+# the host that runs the SACCO Docker Compose stack, alongside the scripts at
+# /opt/backups/scripts/ and the env at /etc/sacco/backups.env.
+#
+# The script drives the host Docker daemon (it execs pgBackRest inside the
+# postgres container), so this unit needs Docker up and an identity with socket
+# access — hence After/Wants=docker.service and the docker-group User below.
+[Unit]
+Description=SACCO pgBackRest full base backup
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+# The invoking user must be in the docker group (or set User=root). Change to a
+# dedicated least-privilege operator on the real host.
+User=sacco
+Group=docker
+EnvironmentFile=/etc/sacco/backups.env
+ExecStart=/opt/backups/scripts/backup.sh
+# A full backup of a large cluster can take a while; do not let systemd kill it.
+TimeoutStartSec=infinity
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

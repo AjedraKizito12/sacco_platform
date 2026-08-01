@@ -1,0 +1,13 @@
+# Fires pgbackrest-backup.service nightly at 02:00 (matches the sidecar crontab).
+# Enable with: systemctl enable --now pgbackrest-backup.timer
+[Unit]
+Description=Nightly SACCO pgBackRest base backup
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+# Catch up on a missed run if the host was down at 02:00.
+Persistent=true
+Unit=pgbackrest-backup.service
+
+[Install]
+WantedBy=timers.target
