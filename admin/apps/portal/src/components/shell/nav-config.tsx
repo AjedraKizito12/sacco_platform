@@ -192,9 +192,12 @@ const PLATFORM_NAV: NavGroup[] = [
       },
       {
         label: "Operations",
-        href: "/platform/operations",
         icon: Activity,
         permission: "operations.read",
+        children: [
+          { label: "Overview", href: "/platform/operations" },
+          { label: "Backups", href: "/platform/operations/backups" },
+        ],
       },
       {
         label: "Settings",
