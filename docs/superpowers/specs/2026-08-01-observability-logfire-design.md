@@ -103,8 +103,13 @@ both span attributes and log records are covered:
 
 Keyset (case-insensitive, substring match where the SDK supports it):
 `password`, `token`, `secret`, `jwt_kek`, `hashed_password`,
-`national_id_number`, `email`, `phone`, `first_name`, `last_name`, `dob`,
-`amount` (and `*_amount`). Plus Logfire's built-in default patterns.
+`national_id_number`, `email`, `phone`, `first_name`, `last_name`, `dob`.
+Plus Logfire's built-in default patterns.
+
+**Monetary amounts are intentionally NOT scrubbed** — they aid debugging and
+are not personally identifying on their own. Amounts appear in spans and log
+records; PII that would tie an amount to a person (names, ids, contact fields)
+is scrubbed, so a leaked amount is not attributable.
 
 Additional hard settings for the strict posture:
 - SQLAlchemy/asyncpg **bind-parameter capture disabled** (statement shape only).
@@ -167,9 +172,10 @@ depends on it.
   - *Critical (page):* API error rate >5% over 5min; p99 latency >5s sustained
     10min; outbox dead-letter count grew this hour; any beat task missed 2x its
     schedule; `/readyz` 503 >2min; backup age >36h.
-  - *Warning (Slack only):* approvals pending >24h; overdue invoices +10% in
-    24h; any single tenant >10% of total requests.
-  - Channels: email + Slack webhook.
+  - *Warning:* approvals pending >24h; overdue invoices +10% in 24h; any
+    single tenant >10% of total requests.
+  - Channel: **email only** for v1 (both tiers). A Slack webhook channel is a
+    trivial add-on when a workspace is available — deferred, not designed out.
 - **Docs:** `docs/observability-runbook.md` (scrub policy, token/env setup, how
   to add a metric/dashboard/alert), `docs/metrics-catalogue.md`,
   `docs/alert-runbooks/` (one MD per alert with response steps).
