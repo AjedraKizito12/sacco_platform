@@ -1,0 +1,47 @@
+{
+  "title": "Database",
+  "description": "Query-level performance visible from SQLAlchemy instrumentation. Server-side Postgres metrics (connections, pg_stat_statements, replication lag) are NOT emitted by Phase 5 and are explicitly marked unavailable below rather than faked.",
+  "panels": [
+    {
+      "title": "Slow queries (p95/p99 duration)",
+      "type": "timeseries",
+      "source": "spans",
+      "query": "approx_percentile_cont(duration, 0.95 | 0.99) over SQLAlchemy query spans (emitted by logfire.instrument_sqlalchemy()), bucketed per minute.",
+      "notes": "Backed by SQLAlchemy engine-level query spans, not a server-side Postgres exporter."
+    },
+    {
+      "title": "Top statements by total time",
+      "type": "table",
+      "source": "spans",
+      "query": "SQLAlchemy query spans grouped by normalized statement text, summed duration and call count over the selected time range, ordered descending by total time.",
+      "notes": "This approximates a pg_stat_statements 'top by total time' view using client-side query spans, since no server-side statement-stats exporter is deployed in Phase 5."
+    },
+    {
+      "title": "Query error rate",
+      "type": "timeseries",
+      "source": "spans",
+      "query": "Count of SQLAlchemy query spans with an error/exception status, bucketed per minute, as a proxy for DB-level failures (constraint violations, deadlocks, connection errors surfaced at the query layer)."
+    },
+    {
+      "title": "Active connection count",
+      "type": "stat",
+      "source": "unavailable",
+      "query": "Would require a server-side Postgres exporter (e.g. postgres_exporter reading pg_stat_activity) — not shipped in Phase 5.",
+      "notes": "No signal currently emits this. Requires deploying a Postgres metrics exporter alongside Logfire; out of scope for Phase 5's application-level instrumentation."
+    },
+    {
+      "title": "pg_stat_statements top 10",
+      "type": "table",
+      "source": "unavailable",
+      "query": "Would require enabling the pg_stat_statements extension and a server-side exporter to surface it to Logfire — not shipped in Phase 5.",
+      "notes": "The 'Top statements by total time' panel above is the closest available approximation, derived from client-side SQLAlchemy spans rather than server-side statement statistics."
+    },
+    {
+      "title": "Replication lag",
+      "type": "timeseries",
+      "source": "unavailable",
+      "query": "Would require a server-side Postgres exporter reporting pg_stat_replication / WAL lag — not shipped in Phase 5 (single-primary deployment with no read replica currently, and no exporter regardless).",
+      "notes": "No signal currently emits this. Add a Postgres exporter and, if/when a replica exists, this panel can be backed."
+    }
+  ]
+}

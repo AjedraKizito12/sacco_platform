@@ -88,6 +88,8 @@ services:
     restart: unless-stopped
     networks: [sacco_net]
     env_file: .env.staging
+    environment:
+      LOGFIRE_TOKEN: ${LOGFIRE_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,6 +105,8 @@ services:
     restart: unless-stopped
     networks: [sacco_net]
     env_file: .env.staging
+    environment:
+      LOGFIRE_TOKEN: ${LOGFIRE_TOKEN:-}
     command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
     depends_on:
       rabbitmq:
@@ -115,6 +119,8 @@ services:
     restart: unless-stopped
     networks: [sacco_net]
     env_file: .env.staging
+    environment:
+      LOGFIRE_TOKEN: ${LOGFIRE_TOKEN:-}
     command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=info"]
     depends_on:
       rabbitmq:

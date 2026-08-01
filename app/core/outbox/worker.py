@@ -17,6 +17,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
+from app.core.observability import metrics
 from app.core.outbox.models import PlatformOutboxEvent, TenantOutboxEvent
 from app.workers.celery_app import celery_app
 
@@ -77,6 +78,11 @@ async def _relay_outbox(
                 for row in rows:
                     t0 = time.monotonic()
                     routing_key = f"{context}.{row.aggregate_type}.{row.event_type}"
+                    # Timing for the publish-duration metric is recorded AFTER
+                    # the try/except so a metrics-library fault can never fall
+                    # into the retry/dead-letter branch and misclassify an
+                    # already-published row as failed.
+                    publish_elapsed: float | None = None
                     try:
                         msg = aio_pika.Message(
                             body=json.dumps(row.payload).encode(),
@@ -94,6 +100,7 @@ async def _relay_outbox(
                         )
                         row.published_at = datetime.now(UTC)
                         row.attempts += 1
+                        publish_elapsed = time.monotonic() - t0
                     except Exception as exc:
                         current_attempts = row.attempts  # before incrementing
                         row.attempts += 1
@@ -110,6 +117,12 @@ async def _relay_outbox(
                                 context=context,
                                 attempts=row.attempts,
                             )
+                            metrics.outbox_dead_lettered.add(1)
+
+                    # Outside the try/except: a metrics fault here cannot enter
+                    # the retry/dead-letter branch above.
+                    if publish_elapsed is not None:
+                        metrics.outbox_publish_duration.record(publish_elapsed)
 
                 total_processed += len(rows)
     finally:

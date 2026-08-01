@@ -1,0 +1,10 @@
+{
+  "name": "Outbox dead-letter growth",
+  "severity": "critical",
+  "source": "metric",
+  "query": "increase(sacco_outbox_dead_lettered_total[1h]) > 0 — any growth in the dead-lettered counter within the trailing hour.",
+  "threshold": "> 0 (any increase)",
+  "window": "1h",
+  "channel": "email",
+  "notes": "sacco_outbox_dead_lettered_total is an unlabeled counter — platform and tenant outbox tables share the same worker code path (app/core/outbox/worker.py), so this is one platform-wide series. Any increment means an event exceeded its max publish attempts and needs manual replay/investigation; it never decreases."
+}

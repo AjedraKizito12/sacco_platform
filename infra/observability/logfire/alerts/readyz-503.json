@@ -1,0 +1,10 @@
+{
+  "name": "/readyz returning 503",
+  "severity": "critical",
+  "source": "unavailable",
+  "query": "N/A — cannot be built from anything Phase 5 emits.",
+  "threshold": "503 response sustained for > 2 minutes",
+  "window": "2m",
+  "channel": "email",
+  "notes": "Phase 5 instruments /readyz's per-dependency latency when the process is UP and serving requests (Task 5), but a fully-down process emits no spans/metrics for Logfire to alert on — it has nothing to poll. This requires an external uptime prober (a synthetic monitor, e.g. Better Uptime/Pingdom, or a simple cron+curl+alert script) hitting GET /readyz from outside the app on a fixed interval and forwarding sustained failures via email. Not buildable from Logfire SQL alerts alone; staged here so the gap is tracked, not silently dropped."
+}

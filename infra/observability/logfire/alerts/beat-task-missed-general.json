@@ -1,0 +1,10 @@
+{
+  "name": "Background beat task missed schedule (general)",
+  "severity": "critical",
+  "source": "unavailable",
+  "query": "N/A — would require a per-task last-run-timestamp gauge for every Celery beat task, not only reporting.",
+  "threshold": "no recorded run within 2x the task's scheduled interval",
+  "window": "n/a",
+  "channel": "email",
+  "notes": "The only last-run gauge Phase 5 emits is sacco_report_last_run_timestamp, and it is scoped to the reporting beat tasks only (see reporting-beat-missed.json for the backed alert covering that case). Other scheduled beat tasks — notification dispatch, signing-key rotation, business-gauge emission, search-index reconciliation, the deleted-doc sweep, subscription past-due/suspension sweeps, fee assessment — emit no last-run gauge at all. A general version of this alert needs a shared 'beat task heartbeat' gauge instrumented at the end of every beat task, labeled by task name, which Phase 5 does not add. Staged here so the gap is visible."
+}

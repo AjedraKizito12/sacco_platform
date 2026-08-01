@@ -1,0 +1,10 @@
+{
+  "name": "API p99 latency high",
+  "severity": "critical",
+  "source": "spans",
+  "query": "approx_percentile_cont(duration, 0.99) over HTTP server span durations, trailing 10-minute window, across all tenant schemas.",
+  "threshold": "> 5s",
+  "window": "10m",
+  "channel": "email",
+  "notes": "Backed by auto-instrumented FastAPI span durations (logfire.instrument_fastapi()); no custom histogram metric backs this. Mirrors the Platform Overview dashboard's latency percentile panel."
+}

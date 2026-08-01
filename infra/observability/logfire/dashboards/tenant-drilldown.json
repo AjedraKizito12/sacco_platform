@@ -1,0 +1,43 @@
+{
+  "title": "Tenant Drilldown",
+  "description": "Per-tenant view for support/on-call to inspect a single SACCO's request traffic and business counts. Requires a `tenant_schema` variable/filter bound at query time (populated from the span attribute set by bind_actor_context).",
+  "panels": [
+    {
+      "title": "Request rate for selected tenant",
+      "type": "timeseries",
+      "source": "spans",
+      "query": "Count of HTTP server spans where the tenant_schema span attribute equals the selected tenant's schema (set by bind_actor_context on tenant-scoped requests), bucketed per minute."
+    },
+    {
+      "title": "5xx error rate for selected tenant",
+      "type": "timeseries",
+      "source": "spans",
+      "query": "100 * (count of HTTP server spans with tenant_schema=<selected> and status_code >= 500) / (count of HTTP server spans with tenant_schema=<selected>), bucketed per minute."
+    },
+    {
+      "title": "Latency p95 for selected tenant",
+      "type": "timeseries",
+      "source": "spans",
+      "query": "approx_percentile_cont(duration, 0.95) over HTTP server spans filtered to tenant_schema=<selected>, bucketed per minute."
+    },
+    {
+      "title": "Loans by status (selected tenant)",
+      "type": "stat",
+      "source": "metric",
+      "query": "sacco_loans_total{status=*} — note this metric is a platform-wide accumulation across all tenant schemas (see app/core/observability/metrics.py:_accumulate_loan_counts), NOT filterable by a single tenant. Shown here as the closest available business signal; true per-tenant loan counts require a per-schema label, which this metric intentionally does not carry.",
+      "notes": "Known limitation: sacco_loans_total sums across schemas by design (OTel gauge last-write-wins per label set), so it cannot be sliced to one tenant. This panel is a placeholder for the aggregate figure, not a true per-tenant breakdown."
+    },
+    {
+      "title": "Selected tenant status",
+      "type": "table",
+      "source": "metric",
+      "query": "sacco_tenants_total{status=*} shown alongside the tenant list for context on the overall fleet status distribution (not filterable to a single tenant either, since it carries no per-tenant label)."
+    },
+    {
+      "title": "Outbox queue depth for selected tenant",
+      "type": "timeseries",
+      "source": "metric",
+      "query": "sacco_outbox_queue_depth{schema=<selected tenant schema>} — this metric DOES carry a per-schema label, so it is genuinely filterable to the selected tenant."
+    }
+  ]
+}

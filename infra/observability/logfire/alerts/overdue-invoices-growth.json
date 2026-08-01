@@ -1,0 +1,10 @@
+{
+  "name": "Overdue invoices growing",
+  "severity": "warning",
+  "source": "metric",
+  "query": "Percentage change in sacco_invoices_outstanding{status=\"overdue\"} comparing the current gauge value to its value 24 hours ago.",
+  "threshold": "> 10% growth",
+  "window": "24h",
+  "channel": "email",
+  "notes": "Mirrors the Billing dashboard's overdue invoices trend panel (infra/observability/logfire/dashboards/billing.json). A growing overdue count can indicate a payment-processing issue, the subscription-gate/dunning flow stalling, or a wave of tenant non-payment worth escalating to finance."
+}

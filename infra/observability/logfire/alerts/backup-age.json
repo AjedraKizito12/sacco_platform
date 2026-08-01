@@ -1,0 +1,10 @@
+{
+  "name": "Backup age exceeded",
+  "severity": "critical",
+  "source": "metric",
+  "query": "sacco_backup_age_seconds > 129600 (36h expressed in seconds) — latest gauge reading.",
+  "threshold": "> 36h (129600s)",
+  "window": "n/a — point-in-time gauge check evaluated on each business-gauge beat run",
+  "channel": "email",
+  "notes": "Emitted by record_business_gauges (app/core/observability/metrics.py) from platform.backup_runs, written exclusively by the pgBackRest sidecar (Phase 4 — see Ops module contracts in CLAUDE.md). When no succeeded backup run exists yet, the gauge reports NO_BACKUP_AGE_SENTINEL (~1 year), which reliably trips this alert instead of reading as healthy at 0."
+}

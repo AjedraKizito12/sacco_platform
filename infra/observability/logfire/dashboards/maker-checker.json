@@ -1,0 +1,32 @@
+{
+  "title": "Maker-Checker",
+  "description": "Approval workflow health: decision throughput, approve/reject mix, and blocked self-approval attempts (a security signal, not just an error count).",
+  "panels": [
+    {
+      "title": "Decisions by outcome (rate)",
+      "type": "timeseries",
+      "source": "metric",
+      "query": "sum(rate(sacco_maker_checker_decisions_total{outcome=*})) bucketed per hour, one series per outcome label (approved/rejected)."
+    },
+    {
+      "title": "Approved vs rejected (totals, current window)",
+      "type": "stat",
+      "source": "metric",
+      "query": "sum(increase(sacco_maker_checker_decisions_total{outcome=*})) over the selected dashboard time range, one value per outcome label."
+    },
+    {
+      "title": "Blocked self-approval/self-rejection attempts",
+      "type": "timeseries",
+      "source": "metric",
+      "query": "sum(rate(sacco_maker_checker_self_reject_total)) bucketed per hour. Any non-zero rate is anomalous and worth investigating (a maker attempting to check their own request).",
+      "notes": "This counter has no labels; it is a single security-relevant series."
+    },
+    {
+      "title": "Approval request submissions (spans)",
+      "type": "table",
+      "source": "spans",
+      "query": "Recent spans/log records for the maker-checker submit and approve/reject HTTP routes (/approvals/*, /platform/approvals/*), showing route, status code, and duration, for drilling into individual requests.",
+      "notes": "Supplementary drill-down view backed by auto-instrumented HTTP spans, not a custom metric."
+    }
+  ]
+}

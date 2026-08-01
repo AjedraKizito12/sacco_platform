@@ -60,7 +60,7 @@ Full spec: `docs/superpowers/plans/saas-launch-roadmap.md`
 | 2 | Admin / Back-Office Portal (Next.js) | XL — 6 wk | closed beta | **Done** |
 | 3 | Notifications Framework (NullProvider initially) | M — 2 wk | closed beta, runs parallel to P2 | **Done** |
 | 4 | Backups & Disaster Recovery (pgBackRest + PITR) | M — 2 wk | production launch | **Done** |
-| 5 | Observability & Monitoring (LGTM stack) | L — 3 wk | production launch | Not started |
+| 5 | Observability & Monitoring (Logfire) | L — 3 wk | production launch | **Done** |
 | 6 | Rate Limiting & Abuse Protection | S — 1 wk | production launch (needs P5) | Not started |
 | 7 | Tenant Offboarding & Retention | M — 2 wk | public launch (needs P1, P3) | Not started |
 | 8 | Data Portability & Member Exports | M — 2 wk | public launch (needs P3) | Not started |
@@ -114,6 +114,16 @@ L. `Idempotency-Key` auto-injected on all POST/PUT/PATCH/DELETE by the API clien
 M. No client-side data fetching for initial render. Server components fetch via the typed client; client components mutate via TanStack Query.
 N. Do NOT modify anything outside `admin/` except: `docker-compose.yml` (add admin service), `Makefile` (add `admin-*` targets), `CLAUDE.md` (append portal subsection, update Phase 2 stack to "Next.js 15"), `.gitignore` (admin entries). Backend code, alembic, docker/, scripts/, tests/, app/ stay untouched.
    - **Scope exception (Phase 4 — Backups & DR):** Phase 4 is a sanctioned exception to this rule. It edits `docker-compose.yml` (postgres archiving image + `backup` sidecar), adds `infra/backups/` (pgBackRest config, sidecar image + scripts, systemd units), `app/platform_/ops/` + platform migration 014, and the operator surface `admin/apps/portal/app/platform/(authed)/operations/backups/`. See "Ops module contracts" below.
+   - **Scope exception (Phase 5 — Observability & Monitoring):** Phase 5 is a
+     sanctioned exception to this rule. It touches `app/core/observability/`,
+     `app/main.py`, `app/workers/celery_app.py`, a handful of instrumentation
+     call sites (iam auth services, the outbox worker, the maker-checker
+     service, the reporting beat), `docker-compose*.yml` (env vars only —
+     `LOGFIRE_TOKEN` passthrough, no new services), `pyproject.toml` (the
+     `logfire` dependency), `infra/observability/logfire/` (committed
+     dashboard + alert definitions), and `docs/` (the observability runbook,
+     metrics catalogue, alert runbooks). It does NOT touch `admin/` or
+     `alembic/`. See "Observability contracts" below.
 O. The notification bell is LIVE (Phase 3 increment 3): `NotificationBell`
    (@sacco/ui, presentational) fed by `AppShellNotificationBell`, which polls
    the audience's `/…/notifications/me` feed every 60s via TanStack Query (the
@@ -844,3 +854,96 @@ the full design rationale.
 - pgBackRest never runs as root and is invoked via the postgres container
   (`docker exec -u postgres`) locally / on the DB host in prod. Do not add a
   path that runs pgBackRest from the app process or as root.
+
+## Observability contracts (Phase 5 — do not violate)
+
+- `configure_observability()` (`app/core/observability/instrument.py`) is the
+  ONLY place `logfire.configure()` is called. It is idempotent (module-level
+  `_configured` guard) — safe to call more than once (API lifespan, Celery
+  worker init, Celery beat init all call it). Do not call `logfire.configure()`
+  directly from anywhere else.
+- Scrubbing has TWO paths in `app/core/observability/scrubbing.py`, each with
+  its own keyset and redaction marker:
+  - **structlog** (`scrub_event_dict`) redacts keys substring-matching
+    `SCRUB_KEYS` to `[scrubbed]`.
+  - **Logfire spans/logs** redact **Logfire's built-in defaults ∪
+    `SCRUB_EXTRA_PATTERNS`** to `[Scrubbed due to '…']`, wired via
+    `logfire.ScrubbingOptions(extra_patterns=SCRUB_EXTRA_PATTERNS)`. There is
+    **NO callback** — a value-returning callback un-redacts Logfire's own
+    matches (cookie/jwt/authorization/…), so it is forbidden. `extra_patterns`
+    only ADDS to the defaults; it never disables them.
+  Both keysets include `actor_label` (the audit-trail display label carrying a
+  user's email) and the financial/identity keys (`member_number`,
+  `account_number`, `card_number`, `passport`, `routing_number`). Adding a
+  field that could carry PII/secret means adding it to the matching keyset —
+  do not hand-roll a separate redaction path, and never add an un-redacting
+  callback.
+- URL query strings and captured endpoint arguments are hardened at the
+  FastAPI instrumentation, NOT the keysets — Logfire's `SAFE_KEYS` never
+  scrubs `http.url` / `url.full` / `url.query` / `http.target`.
+  `logfire.instrument_fastapi()` is called with
+  `server_request_hook=_strip_query_server_request_hook` (drops the `?…` query
+  off the URL attributes) and
+  `request_attributes_mapper=_drop_request_arguments` (returns `None`, so the
+  operator-typed `fastapi.arguments.*` values are never recorded). Both live in
+  `app/core/observability/instrument.py`. Do not remove either.
+- No code sends member PII or secrets to spans, logs, or metrics. SQL bind
+  parameters are never captured (`logfire.instrument_sqlalchemy(enable_commenter=False)`,
+  SDK default) and HTTP request/response bodies/headers are never captured
+  (`logfire.instrument_fastapi()` SDK defaults — no header/body capture
+  enabled). Monetary amounts are intentionally NOT scrubbed — they are not
+  identifying without the PII fields that are already scrubbed, and they are
+  needed for debugging financial flows.
+- `send_to_logfire` is token-gated (`LOGFIRE_TOKEN` must be set) and is
+  ALWAYS off during any pytest run or when `APP_ENV=test`, regardless of
+  token presence — this is enforced in two layers: `resolve_config()`
+  (`app/core/observability/config.py`) treats `APP_ENV=test` as `send=False`,
+  and `configure_observability()` additionally checks
+  `PYTEST_CURRENT_TEST in os.environ` as a belt-and-suspenders guard so a
+  test that sets `APP_ENV=staging`/`production` still can't leak telemetry.
+  Do not remove either guard.
+- Span attributes come from `bind_actor_context()` (`app/core/observability/context.py`),
+  which binds ALL kwargs to structlog contextvars (so `AuditableMixin` still
+  sees everything for the audit trail) but sets only a safelist
+  (`_SPAN_SAFE_KEYS = {actor_type, actor_id, tenant_schema, impersonation_id,
+  request_id}`) as span attributes. `actor_label` (email) is deliberately
+  excluded from the span-safe list — it is bound to structlog contextvars
+  only and must never become a span attribute. Do not add a new key to
+  `_SPAN_SAFE_KEYS` without confirming it can't carry PII.
+- Metric names are `sacco_`-prefixed (`app/core/observability/metrics.py`).
+  Labels are statuses/ids/currencies/report_type/schema only — never PII,
+  member ids, or emails. Business gauges (`sacco_tenants_total`,
+  `sacco_subscriptions_total`, `sacco_subscriptions_mrr`,
+  `sacco_invoices_outstanding`, `sacco_backup_age_seconds`,
+  `sacco_outbox_queue_depth`, `sacco_loans_total`) are emitted ONLY by
+  `emit_business_metrics_gauges` / `record_business_gauges` on the
+  observability beat schedule — no other code path pushes these gauges.
+  `sacco_subscriptions_mrr` counts only `active`+`trialing` subscriptions,
+  matching the `dashboard-stats` MRR convention documented under the
+  Platform_ module contracts above. The remaining seven metrics
+  (`sacco_auth_login_attempts_total`, `sacco_outbox_publish_duration_seconds`,
+  `sacco_outbox_dead_lettered_total`, `sacco_report_materialize_duration_seconds`,
+  `sacco_report_last_run_timestamp`, `sacco_maker_checker_decisions_total`,
+  `sacco_maker_checker_self_reject_total`) are thin additive counters/
+  histograms instrumented directly at their call sites (outbox worker,
+  maker-checker service, reporting beat, the three auth services). See
+  `docs/metrics-catalogue.md` for the full catalogue (type, labels, source)
+  cross-checked against `metrics.py`.
+- Golden signals (request rate, HTTP error rate, latency percentiles) are
+  NOT custom metrics — they come entirely from Logfire's auto-instrumented
+  FastAPI spans (`logfire.instrument_fastapi()`). Do not add a duplicate
+  custom counter/histogram for these; query span data directly.
+- Dashboards and alerts live in Logfire, not the admin portal. Committed
+  in-repo definitions are the source of truth for what to (re)create in a
+  live Logfire project at deploy time: `infra/observability/logfire/dashboards/`
+  (8 dashboards) and `infra/observability/logfire/alerts/` (11 alert
+  definitions, 7 backed by real telemetry + 4 staged/`"source":
+  "unavailable"` placeholders documenting exactly what instrumentation is
+  missing — `/readyz` 503 detection, DB connection-pool exhaustion, a
+  general non-reporting beat-task-missed heartbeat, and approval
+  pending-age). Alerts are **email-only** in v1 — no Slack/Discord/Opsgenie
+  channel. Applying these definitions to a live Logfire project (via the
+  Logfire MCP or web UI) happens at deploy time; it is NOT wired into the
+  admin portal and is NOT an API surface. See `docs/observability-runbook.md`
+  for the full apply-at-deploy-time procedure and `docs/alert-runbooks/` for
+  the per-alert response runbook.

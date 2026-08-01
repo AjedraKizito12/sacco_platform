@@ -17,17 +17,52 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
+from collections.abc import Callable, Coroutine
 from datetime import date
+from functools import wraps
+from typing import Any
 
 import structlog
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
+from app.core.observability import metrics
 from app.workers.celery_app import celery_app
 
 _log = structlog.get_logger(__name__)
 _SCHEMA_RE = re.compile(r"^tenant_[a-z0-9_]{1,40}$")
+
+
+_MaterializeFn = Callable[[], Coroutine[Any, Any, dict[str, str]]]
+
+
+def _timed_materialization(report_type: str) -> Callable[[_MaterializeFn], _MaterializeFn]:
+    """Thin additive wrapper: records duration + last-run gauge around a
+    `_run_materialize_*` task body without altering its return value or
+    exception behaviour.
+    """
+
+    def decorator(fn: _MaterializeFn) -> _MaterializeFn:
+        @wraps(fn)
+        async def wrapper() -> dict[str, str]:
+            start = time.monotonic()
+            # Run the business body first; only its return/exception matters.
+            result = await fn()
+            # Record metrics AFTER a successful call — never in a finally — so a
+            # metrics-library fault can neither mask/replace the business
+            # exception nor alter the return value. On the failure path fn()
+            # propagates before we reach here, so no metric is recorded.
+            metrics.report_materialize_duration.record(
+                time.monotonic() - start, {"report_type": report_type}
+            )
+            metrics.report_last_run.set(time.time(), {"report_type": report_type})
+            return result
+
+        return wrapper
+
+    return decorator
 
 
 async def _materialize_trial_balance_for_tenant(
@@ -45,6 +80,7 @@ async def _materialize_trial_balance_for_tenant(
         await session.commit()
 
 
+@_timed_materialization("trial_balance")
 async def _run_materialize_trial_balance() -> dict[str, str]:
     settings = get_settings()
     engine = create_async_engine(settings.database_url)
@@ -96,6 +132,7 @@ async def _materialize_loan_portfolio_for_tenant(
         await session.commit()
 
 
+@_timed_materialization("loan_portfolio")
 async def _run_materialize_loan_portfolio() -> dict[str, str]:
     settings = get_settings()
     engine = create_async_engine(settings.database_url)
@@ -151,6 +188,7 @@ async def _materialize_income_statement_for_tenant(schema_name: str, engine: Asy
         await session.commit()
 
 
+@_timed_materialization("income_statement")
 async def _run_materialize_income_statement() -> dict[str, str]:
     settings = get_settings()
     engine = create_async_engine(settings.database_url)
@@ -201,6 +239,7 @@ async def _materialize_savings_statement_for_tenant(schema_name: str, engine: As
         await session.commit()
 
 
+@_timed_materialization("savings_statement")
 async def _run_materialize_savings_statement() -> dict[str, str]:
     settings = get_settings()
     engine = create_async_engine(settings.database_url)
@@ -249,6 +288,7 @@ async def _materialize_fee_collection_for_tenant(schema_name: str, engine: Async
         await session.commit()
 
 
+@_timed_materialization("fee_collection")
 async def _run_materialize_fee_collection() -> dict[str, str]:
     settings = get_settings()
     engine = create_async_engine(settings.database_url)

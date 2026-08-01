@@ -1,0 +1,10 @@
+{
+  "name": "Single tenant dominating request traffic",
+  "severity": "warning",
+  "source": "spans",
+  "query": "For each distinct tenant_schema span attribute value, (count of HTTP server spans carrying that tenant_schema) / (count of all HTTP server spans carrying a non-null tenant_schema attribute), over a trailing window.",
+  "threshold": "> 10% of total tenant-scoped requests attributable to one tenant_schema",
+  "window": "15m (suggested starting point; tune against real traffic at apply time)",
+  "channel": "email",
+  "notes": "tenant_schema is set as a span attribute by bind_actor_context (app/core/observability/context.py) only on tenant-scoped requests; platform-admin requests carry no tenant_schema and are excluded from the denominator. Useful for spotting a noisy-neighbor tenant or a runaway client integration before it degrades other tenants."
+}

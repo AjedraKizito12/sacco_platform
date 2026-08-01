@@ -1,0 +1,30 @@
+{
+  "title": "Reporting",
+  "description": "Freshness and performance of the scheduled reporting beat tasks (loan portfolio, income statement, savings statement, fee collection).",
+  "panels": [
+    {
+      "title": "Materialization duration (p50/p95/p99) by report type",
+      "type": "histogram",
+      "source": "metric",
+      "query": "histogram_quantile(0.5 | 0.95 | 0.99, sacco_report_materialize_duration_seconds{report_type=*}) over the selected time range, grouped by report_type label."
+    },
+    {
+      "title": "Materialization duration trend",
+      "type": "timeseries",
+      "source": "metric",
+      "query": "avg(sacco_report_materialize_duration_seconds{report_type=*}) plotted over time, one series per report_type label."
+    },
+    {
+      "title": "Last run recency by report type",
+      "type": "stat",
+      "source": "metric",
+      "query": "now() - sacco_report_last_run_timestamp{report_type=*} (seconds since last successful materialization), one value per report_type label. A large/growing value indicates the beat task has stopped running."
+    },
+    {
+      "title": "Last run timestamp trend",
+      "type": "timeseries",
+      "source": "metric",
+      "query": "sacco_report_last_run_timestamp{report_type=*} plotted over time, one series per report_type label — a step function that should advance roughly on schedule; a flat line signals a stalled beat task."
+    }
+  ]
+}
