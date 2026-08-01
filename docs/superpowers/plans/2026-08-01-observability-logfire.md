@@ -1,5 +1,18 @@
 # Phase 5 — Observability & Monitoring (Logfire) Implementation Plan
 
+> ⚠️ **SECURITY ERRATUM (post-implementation, do not re-implement the old design).**
+> This plan's original scrubbing design used a `logfire.ScrubbingOptions(callback=...)`
+> that returned `match.value` for keys outside the project keyset. That is a
+> vulnerability: Logfire's callback *un-redacts* any value it returns, so returning
+> `match.value` **disables** Logfire's built-in secret scrubbing (cookie/jwt/
+> authorization/api_key/…). The shipped implementation instead uses
+> `ScrubbingOptions(extra_patterns=SCRUB_EXTRA_PATTERNS)` (Logfire defaults ∪ project
+> patterns) with NO value-returning callback, plus a `server_request_hook` +
+> `request_attributes_mapper=None` to strip URL-query / endpoint-argument PII that
+> Logfire's SAFE_KEYS otherwise bypass. See the "Observability contracts" section of
+> `CLAUDE.md`, `docs/observability-runbook.md`, and the fix in the final commit.
+> Ignore the callback-based scrubbing described in the task bodies below.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship structured logs, distributed traces, and business metrics to Pydantic Logfire from the FastAPI API and Celery workers, with a strict metadata-only egress posture, plus dashboards, alerts, and runbooks.
