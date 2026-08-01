@@ -47,6 +47,21 @@ export default [
       },
     },
   },
+  // Root config files (next.config.mjs, etc.) run in Node, not the browser,
+  // so expose the Node globals they use. Same explicit-globals approach as the
+  // vitest block above (the `globals` package pulls in more than we need here).
+  {
+    files: ["*.config.{js,cjs,mjs}"],
+    languageOptions: {
+      globals: {
+        process: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+        module: "readonly",
+        require: "readonly",
+      },
+    },
+  },
   {
     ignores: ["node_modules", ".next", ".turbo", "next-env.d.ts"],
   },

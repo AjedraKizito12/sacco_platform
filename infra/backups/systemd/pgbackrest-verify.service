@@ -1,0 +1,28 @@
+# Production restore-verify drill unit. Replaces the sidecar crontab entry for
+# `restore-staging.sh`. It restores the latest backup into a throwaway postgres
+# container, smoke-queries it, records the result in platform.backup_verifications,
+# and tears the container down. Runs on a dedicated restore host in production so
+# a drill never contends with the live DB.
+#
+# The repo secrets (PGBACKREST_REPO1_S3_KEY / _S3_KEY_SECRET / _CIPHER_PASS) and
+# COMPOSE_PROJECT / PG* come from the EnvironmentFile — the script honours them,
+# falling back to local-dev defaults only when unset.
+[Unit]
+Description=SACCO pgBackRest restore-verify drill
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=sacco
+Group=docker
+EnvironmentFile=/etc/sacco/backups.env
+ExecStart=/opt/backups/scripts/restore-staging.sh
+# Restore + archive recovery + smoke queries; generous but bounded so a wedged
+# drill eventually fails and reports rather than hanging forever.
+TimeoutStartSec=3600
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

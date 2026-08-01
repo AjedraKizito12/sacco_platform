@@ -59,7 +59,7 @@ Full spec: `docs/superpowers/plans/saas-launch-roadmap.md`
 | 1 | Billing & Subscription Management | L — 3 wk | closed beta | **Done** |
 | 2 | Admin / Back-Office Portal (Next.js) | XL — 6 wk | closed beta | **Done** |
 | 3 | Notifications Framework (NullProvider initially) | M — 2 wk | closed beta, runs parallel to P2 | **Done** |
-| 4 | Backups & Disaster Recovery (pgBackRest + PITR) | M — 2 wk | production launch | **Next** |
+| 4 | Backups & Disaster Recovery (pgBackRest + PITR) | M — 2 wk | production launch | **Done** |
 | 5 | Observability & Monitoring (LGTM stack) | L — 3 wk | production launch | Not started |
 | 6 | Rate Limiting & Abuse Protection | S — 1 wk | production launch (needs P5) | Not started |
 | 7 | Tenant Offboarding & Retention | M — 2 wk | public launch (needs P1, P3) | Not started |
@@ -113,6 +113,7 @@ K. Maker-checker UI patterns: action buttons labeled "Request X" not "X" when th
 L. `Idempotency-Key` auto-injected on all POST/PUT/PATCH/DELETE by the API client (UUID per user intent — same UUID across retries of the same form submission).
 M. No client-side data fetching for initial render. Server components fetch via the typed client; client components mutate via TanStack Query.
 N. Do NOT modify anything outside `admin/` except: `docker-compose.yml` (add admin service), `Makefile` (add `admin-*` targets), `CLAUDE.md` (append portal subsection, update Phase 2 stack to "Next.js 15"), `.gitignore` (admin entries). Backend code, alembic, docker/, scripts/, tests/, app/ stay untouched.
+   - **Scope exception (Phase 4 — Backups & DR):** Phase 4 is a sanctioned exception to this rule. It edits `docker-compose.yml` (postgres archiving image + `backup` sidecar), adds `infra/backups/` (pgBackRest config, sidecar image + scripts, systemd units), `app/platform_/ops/` + platform migration 014, and the operator surface `admin/apps/portal/app/platform/(authed)/operations/backups/`. See "Ops module contracts" below.
 O. The notification bell is LIVE (Phase 3 increment 3): `NotificationBell`
    (@sacco/ui, presentational) fed by `AppShellNotificationBell`, which polls
    the audience's `/…/notifications/me` feed every 60s via TanStack Query (the
@@ -812,3 +813,34 @@ the full design rationale.
   `billing.confirm_payment` executor calls it with `None` because
   `ApprovalService.approve()` has already enforced maker != checker.
   Direct callers (tests, scripts) should still pass the actual user UUID.
+
+## Ops module contracts (Phase 4 — do not violate)
+
+- Backup telemetry lives in two `platform`-schema tables. `OpsService`
+  (`app/platform_/ops/service.py`) is the ONLY app-side writer of
+  `platform.backup_verifications` (it inserts the `requested` row on a portal
+  "Verify now"). `platform.backup_runs` is written EXCLUSIVELY by the backup
+  container's scripts (`infra/backups/scripts/`) via psql — the app reads
+  `backup_runs`, never writes it. Do not add app code that INSERTs/UPDATEs
+  `backup_runs`, and do not write `backup_verifications` outside `OpsService`.
+- The three `/platform/ops/backups*` endpoints (`app/platform_/ops/api.py`,
+  prefix `/platform/ops`) are `CurrentSuperuser`, direct actions (NO
+  maker-checker — a restore drill touches no live data). `POST
+  .../backups/trigger-verification` is idempotent-by-conflict: it returns
+  **409** while any verification row is `requested` or `running`
+  (`VerificationInProgress`). Do not add a force/bypass parameter.
+- The backup pipeline lives entirely in `infra/backups/` and runs against MinIO
+  locally; production is a `pgbackrest.conf` credential/endpoint swap plus the
+  systemd timers (`infra/backups/systemd/`), NOT a code change. The pgBackRest
+  binary and the S3 / cipher credentials never enter the app image — the app
+  only ever reads the two telemetry tables.
+- The restore-verify drill (`infra/backups/scripts/restore-staging.sh`) is the
+  source of truth that backups are recoverable: it restores into a throwaway
+  cluster and asserts `platform.platform_users >= 1` (never `tenants`, which can
+  be zero). A `passed` `backup_verifications` row is the signal the portal
+  surfaces (`/platform/operations/backups`, superuser). Recovery procedures are
+  documented in `docs/runbooks/` — arbitrary-timestamp PITR is a runbook
+  procedure, not an API surface.
+- pgBackRest never runs as root and is invoked via the postgres container
+  (`docker exec -u postgres`) locally / on the DB host in prod. Do not add a
+  path that runs pgBackRest from the app process or as root.

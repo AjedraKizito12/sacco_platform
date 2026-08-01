@@ -18,3 +18,4 @@ export * from "./kyc";
 export * from "./notifications";
 export * from "./theme";
 export * from "./search";
+export * from "./ops";

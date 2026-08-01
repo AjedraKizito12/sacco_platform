@@ -1,0 +1,13 @@
+# Fires pgbackrest-verify.service weekly, Sunday 03:00 (matches the sidecar
+# crontab). Enable with: systemctl enable --now pgbackrest-verify.timer
+[Unit]
+Description=Weekly SACCO pgBackRest restore-verify drill
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00
+# Catch up on a missed drill if the host was down at the scheduled time.
+Persistent=true
+Unit=pgbackrest-verify.service
+
+[Install]
+WantedBy=timers.target

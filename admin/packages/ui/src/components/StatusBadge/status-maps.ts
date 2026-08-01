@@ -22,7 +22,9 @@ export type StatusEntity =
   | "payroll_batch"
   | "report_run"
   | "kyc_submission"
-  | "notification_event";
+  | "notification_event"
+  | "backup_run"
+  | "backup_verification";
 
 interface MapEntry {
   variant: NonNullable<BadgeProps["variant"]>;
@@ -182,6 +184,19 @@ export const NOTIFICATION_EVENT_STATUS: StatusMap = {
   cancelled: { variant: "neutral", label: "Cancelled" },
 };
 
+export const BACKUP_RUN_STATUS: StatusMap = {
+  running: { variant: "info", label: "Running" },
+  succeeded: { variant: "success", label: "Succeeded" },
+  failed: { variant: "danger", label: "Failed" },
+};
+
+export const BACKUP_VERIFICATION_STATUS: StatusMap = {
+  requested: { variant: "neutral", label: "Requested" },
+  running: { variant: "info", label: "Running" },
+  passed: { variant: "success", label: "Passed" },
+  failed: { variant: "danger", label: "Failed" },
+};
+
 const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   loan: LOAN_STATUS,
   member: MEMBER_STATUS,
@@ -202,6 +217,8 @@ const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   report_run: REPORT_RUN_STATUS,
   kyc_submission: KYC_SUBMISSION_STATUS,
   notification_event: NOTIFICATION_EVENT_STATUS,
+  backup_run: BACKUP_RUN_STATUS,
+  backup_verification: BACKUP_VERIFICATION_STATUS,
 };
 
 export function resolveStatus(

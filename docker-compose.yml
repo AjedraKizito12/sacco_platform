@@ -10,20 +10,34 @@ volumes:
   rabbitmqdata:
   esdata:
   admin_node_modules:
+  miniodata:
+  minio_certs:
 
 services:
   postgres:
-    image: postgres:16
+    build:
+      context: .
+      dockerfile: infra/backups/Dockerfile.postgres
     restart: unless-stopped
     networks: [sacco_net]
     ports:
       - "5432:5432"
+    command: >
+      postgres
+      -c archive_mode=on
+      -c archive_command='pgbackrest --stanza=sacco --config=/etc/pgbackrest/pgbackrest.conf archive-push %p'
+      -c max_wal_senders=3
+      -c wal_level=replica
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./infra/backups/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
     environment:
       POSTGRES_USER: sacco
       POSTGRES_PASSWORD: sacco
       POSTGRES_DB: sacco
+      PGBACKREST_REPO1_S3_KEY: sacco-minio
+      PGBACKREST_REPO1_S3_KEY_SECRET: sacco-minio-secret
+      PGBACKREST_REPO1_CIPHER_PASS: local-dev-cipher-change-in-prod
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sacco -d sacco"]
       interval: 5s
@@ -92,6 +106,91 @@ services:
       interval: 10s
       timeout: 10s
       retries: 15
+
+  # One-shot: generate a self-signed cert for MinIO TLS (pgBackRest's S3
+  # driver is TLS-only). Cert is valid for the in-network name `minio` and
+  # `localhost` (the container's own healthcheck). Idempotent — skips if the
+  # cert already exists on the volume.
+  minio-certs:
+    image: alpine/openssl:latest
+    networks: [sacco_net]
+    volumes:
+      - minio_certs:/certs
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        if [ ! -f /certs/public.crt ]; then
+          openssl req -new -x509 -nodes -days 3650 \
+            -subj "/CN=minio" \
+            -addext "subjectAltName=DNS:minio,DNS:localhost,IP:127.0.0.1" \
+            -keyout /certs/private.key -out /certs/public.crt
+        fi
+        echo minio-certs-done
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    networks: [sacco_net]
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: sacco-minio
+      MINIO_ROOT_PASSWORD: sacco-minio-secret
+      # Override the image's built-in http `local` alias so the healthcheck
+      # speaks TLS to the server.
+      MC_HOST_local: "https://sacco-minio:sacco-minio-secret@localhost:9000"
+    volumes:
+      - miniodata:/data
+      - minio_certs:/root/.minio/certs:ro
+    depends_on:
+      minio-certs:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "mc", "--insecure", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio-setup:
+    image: minio/mc:latest
+    networks: [sacco_net]
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc --insecure alias set local https://minio:9000 sacco-minio sacco-minio-secret &&
+      mc --insecure mb --ignore-existing local/sacco-backups &&
+      mc --insecure version enable local/sacco-backups &&
+      echo minio-setup-done
+      "
+
+  backup:
+    build:
+      context: .
+      dockerfile: infra/backups/Dockerfile.backup
+    restart: unless-stopped
+    networks: [sacco_net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./infra/backups/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+      # Local-only convenience: the sidecar runs pgBackRest inside the
+      # postgres container (and, for the drill, an ephemeral one) via the
+      # host Docker daemon. Production runs pgBackRest on the DB host.
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      PGHOST: postgres
+      PGUSER: sacco
+      PGPASSWORD: sacco
+      PGDATABASE: sacco
+      COMPOSE_PROJECT: sacco-platform
 
   api:
     build: .
