@@ -160,4 +160,9 @@ export const queryKeys = {
     events: (filters?: Record<string, unknown>) =>
       ["notifications", "events", filters ?? {}] as const,
   },
+  ops: {
+    root: () => ["ops"] as const,
+    backups: () => ["ops", "backups"] as const,
+    lastVerified: () => ["ops", "lastVerified"] as const,
+  },
 } as const;
