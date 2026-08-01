@@ -48,13 +48,17 @@ def _timed_materialization(report_type: str) -> Callable[[_MaterializeFn], _Mate
         @wraps(fn)
         async def wrapper() -> dict[str, str]:
             start = time.monotonic()
-            try:
-                return await fn()
-            finally:
-                metrics.report_materialize_duration.record(
-                    time.monotonic() - start, {"report_type": report_type}
-                )
-                metrics.report_last_run.set(time.time(), {"report_type": report_type})
+            # Run the business body first; only its return/exception matters.
+            result = await fn()
+            # Record metrics AFTER a successful call — never in a finally — so a
+            # metrics-library fault can neither mask/replace the business
+            # exception nor alter the return value. On the failure path fn()
+            # propagates before we reach here, so no metric is recorded.
+            metrics.report_materialize_duration.record(
+                time.monotonic() - start, {"report_type": report_type}
+            )
+            metrics.report_last_run.set(time.time(), {"report_type": report_type})
+            return result
 
         return wrapper
 
