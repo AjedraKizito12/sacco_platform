@@ -41,6 +41,11 @@ BusinessGauges = dict[str, list[GaugeReading]]
 
 INVOICE_OUTSTANDING_STATUSES = ("issued", "partial", "overdue")
 MRR_STATUSES = ("active", "trialing")
+# Sentinel emitted when no succeeded backup run exists yet (~1 year in seconds).
+# Deliberately LARGE, not 0: total absence of a backup must reliably trip the
+# Task-11 ">36h backup age" alert. A 0.0 sentinel would read as "backup just
+# succeeded this instant" and hide the fact that no backup has ever run.
+NO_BACKUP_AGE_SENTINEL = 86400.0 * 365
 
 # ── Gauge handles ────────────────────────────────────────────────────────────
 # Only used by record_business_gauges — never by compute_business_gauges, so
@@ -135,9 +140,10 @@ async def compute_business_gauges(session: AsyncSession) -> BusinessGauges:
             ).where(BackupRun.status == "succeeded")
         )
     ).scalar()
-    # No succeeded backup run yet: sentinel 0 rather than null/negative.
+    # No succeeded backup run yet: large sentinel (see NO_BACKUP_AGE_SENTINEL)
+    # so a missing backup trips the age alert instead of reading as healthy.
     result["sacco_backup_age_seconds"] = [
-        ({}, float(backup_age) if backup_age is not None else 0.0)
+        ({}, float(backup_age) if backup_age is not None else NO_BACKUP_AGE_SENTINEL)
     ]
 
     outbox_count = (
@@ -170,8 +176,29 @@ def _apply(gauge: Any, readings: list[GaugeReading]) -> None:
         gauge.set(value, labels)
 
 
-async def _record_tenant_gauges(engine: AsyncEngine, schema: str) -> None:
-    """Compute + push sacco_loans_total and sacco_outbox_queue_depth for one tenant schema."""
+def _accumulate_loan_counts(per_schema: list[dict[str, int]]) -> dict[str, int]:
+    """Sum per-status loan counts ACROSS tenant schemas.
+
+    OTel Gauge.set() is last-write-wins per attribute set, so setting
+    sacco_loans_total{status=<s>} once per schema would leave only the
+    last schema's count. sacco_loans_total is a platform-wide total, so we
+    accumulate across schemas here and set each status exactly once.
+    """
+    total: dict[str, int] = {}
+    for counts in per_schema:
+        for status, n in counts.items():
+            total[status] = total.get(status, 0) + n
+    return total
+
+
+async def _record_tenant_gauges(engine: AsyncEngine, schema: str) -> dict[str, int]:
+    """Compute one tenant schema's gauges.
+
+    Pushes the per-schema sacco_outbox_queue_depth{schema=<name>} directly
+    (distinct label per schema — no overwrite risk). Returns the schema's
+    {loan_status: count} map so the caller can accumulate sacco_loans_total
+    across schemas (see _accumulate_loan_counts).
+    """
     from app.modules.credit.models import Loan
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -191,9 +218,8 @@ async def _record_tenant_gauges(engine: AsyncEngine, schema: str) -> None:
             )
         ).scalar_one()
 
-    for status, count in loan_rows:
-        loans_total_gauge.set(int(count), {"status": status})
     outbox_queue_depth_gauge.set(int(outbox_count), {"schema": schema})
+    return {status: int(count) for status, count in loan_rows}
 
 
 async def record_business_gauges() -> None:
@@ -214,14 +240,17 @@ async def record_business_gauges() -> None:
         _apply(backup_age_gauge, platform_gauges["sacco_backup_age_seconds"])
         _apply(outbox_queue_depth_gauge, platform_gauges["sacco_outbox_queue_depth"])
 
+        per_schema_loans: list[dict[str, int]] = []
         for schema in await _schemas(engine):
             if schema == "platform":
                 continue
             try:
-                await _record_tenant_gauges(engine, schema)
+                per_schema_loans.append(await _record_tenant_gauges(engine, schema))
             except Exception as exc:  # keep other schemas running
                 _log.warning(
                     "observability.beat_schema_failed", schema=schema, error=str(exc)
                 )
+        for status, total in _accumulate_loan_counts(per_schema_loans).items():
+            loans_total_gauge.set(total, {"status": status})
     finally:
         await engine.dispose()

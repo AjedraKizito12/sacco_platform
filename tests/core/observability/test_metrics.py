@@ -26,7 +26,11 @@ import pytest
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.core.observability.metrics import compute_business_gauges
+from app.core.observability.metrics import (
+    NO_BACKUP_AGE_SENTINEL,
+    _accumulate_loan_counts,
+    compute_business_gauges,
+)
 from app.platform_.billing.models import Invoice, Subscription, SubscriptionPlan
 from app.platform_.models import Tenant
 
@@ -85,16 +89,78 @@ async def test_compute_business_gauges_shapes(test_engine: AsyncEngine):
 
 
 @pytest.mark.asyncio
-async def test_compute_business_gauges_backup_age_sentinel_when_no_succeeded_run(
+async def test_compute_business_gauges_backup_age_large_sentinel_when_no_succeeded_run(
     test_engine: AsyncEngine,
 ):
     factory = _factory(test_engine)
+    # Ensure no succeeded backup rows exist for this assertion.
+    async with factory() as s:
+        await _platform(s)
+        await s.execute(text("DELETE FROM platform.backup_runs"))
+        await s.commit()
+
     async with factory() as session:
         await _platform(session)
         result = await compute_business_gauges(session)
 
-    # No succeeded backup_runs rows: sentinel 0, single reading, no labels.
-    assert result["sacco_backup_age_seconds"] == [({}, 0.0)]
+    # No succeeded backup_runs rows: LARGE sentinel (must trip the >36h alert),
+    # single reading, no labels — NOT 0.0 (which would read as "just backed up").
+    assert result["sacco_backup_age_seconds"] == [({}, NO_BACKUP_AGE_SENTINEL)]
+    assert NO_BACKUP_AGE_SENTINEL > 36 * 3600  # sentinel trips a >36h threshold
+
+
+@pytest.mark.asyncio
+async def test_compute_business_gauges_backup_age_small_when_recent_succeeded_run(
+    test_engine: AsyncEngine,
+):
+    factory = _factory(test_engine)
+    now = datetime.now(UTC)
+    try:
+        async with factory() as s:
+            await _platform(s)
+            await s.execute(
+                text(
+                    "INSERT INTO platform.backup_runs "
+                    "(id, backup_type, status, started_at, finished_at, created_at) "
+                    "VALUES (:id, 'full', 'succeeded', :started, :finished, :created)"
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "started": now,
+                    "finished": now,
+                    "created": now,
+                },
+            )
+            await s.commit()
+
+        async with factory() as session:
+            await _platform(session)
+            result = await compute_business_gauges(session)
+
+        readings = result["sacco_backup_age_seconds"]
+        assert len(readings) == 1
+        labels, value = readings[0]
+        assert labels == {}
+        # A just-finished backup: small age, nowhere near the no-backup sentinel.
+        assert 0 <= value < 3600
+        assert value < NO_BACKUP_AGE_SENTINEL
+    finally:
+        async with factory() as s:
+            await _platform(s)
+            await s.execute(text("DELETE FROM platform.backup_runs"))
+            await s.commit()
+
+
+def test_accumulate_loan_counts_sums_across_schemas_with_overlap():
+    # CRITICAL regression: sacco_loans_total is a platform-wide total. Two
+    # schemas sharing the 'active' status must SUM (5), not last-write-wins (2).
+    per_schema = [{"active": 3, "closed": 1}, {"active": 2}]
+    assert _accumulate_loan_counts(per_schema) == {"active": 5, "closed": 1}
+
+
+def test_accumulate_loan_counts_empty():
+    assert _accumulate_loan_counts([]) == {}
+    assert _accumulate_loan_counts([{}, {}]) == {}
 
 
 @pytest.mark.asyncio
@@ -169,6 +235,42 @@ async def test_compute_business_gauges_reflects_seeded_data(test_engine: AsyncEn
                 due_at=today,
             )
             s.add(invoice)
+
+            # A past_due subscription on a DISTINCT plan + currency (KES): its
+            # base_price MUST be excluded from MRR (active+trialing only). A
+            # separate tenant is required — past_due is a "live" status and the
+            # partial-unique index forbids two live subs per tenant.
+            excluded_tenant = Tenant(
+                slug=f"obs-{uuid.uuid4().hex[:8]}",
+                schema_name=f"tenant_obs_{uuid.uuid4().hex[:8]}",
+                name="Obs Excluded Tenant",
+                status="active",
+                is_active=True,
+                subscription_status="past_due",
+                created_at=now,
+                updated_at=now,
+            )
+            s.add(excluded_tenant)
+            await s.flush()
+
+            excluded_plan = SubscriptionPlan(
+                code=f"obs-plan-{uuid.uuid4().hex[:8]}",
+                name="Obs Excluded Plan",
+                currency="KES",
+                base_price=Decimal("99999.0000"),
+                billing_period="monthly",
+            )
+            s.add(excluded_plan)
+            await s.flush()
+
+            excluded_sub = Subscription(
+                tenant_id=excluded_tenant.id,
+                plan_id=excluded_plan.id,
+                status="past_due",
+                current_period_start=today,
+                current_period_end=today,
+            )
+            s.add(excluded_sub)
             await s.commit()
 
         async with factory() as session:
@@ -185,6 +287,17 @@ async def test_compute_business_gauges_reflects_seeded_data(test_engine: AsyncEn
             labels["currency"]: value for labels, value in result["sacco_subscriptions_mrr"]
         }
         assert mrr_by_currency.get("UGX", 0) >= 75000.0
+        # The past_due (KES) plan's base_price must NOT contribute to MRR.
+        # No KES bucket should exist at all — proving the active/trialing
+        # .where() filter is load-bearing (a dropped filter would surface KES).
+        assert "KES" not in mrr_by_currency
+
+        # past_due subscription IS counted in the raw status breakdown, though.
+        sub_status_counts = {
+            labels["status"]: value
+            for labels, value in result["sacco_subscriptions_total"]
+        }
+        assert sub_status_counts.get("past_due", 0) >= 1
 
         invoice_statuses = {
             labels["status"] for labels, _ in result["sacco_invoices_outstanding"]
