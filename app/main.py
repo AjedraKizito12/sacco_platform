@@ -1,9 +1,11 @@
 import asyncio
+import time
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any
 
 import aio_pika
+import logfire
 import structlog
 from elasticsearch import AsyncElasticsearch
 from fastapi import Depends, FastAPI, Request
@@ -25,6 +27,7 @@ from app.core.notifications.api import (
 from app.core.notifications.api import (
     tenant_self_router as notifications_tenant_router,
 )
+from app.core.observability.logging import scrub_event_dict
 from app.core.search.api import (
     platform_search_router,
     tenant_search_router,
@@ -90,6 +93,11 @@ def _configure_logging() -> None:
         structlog.processors.StackInfoRenderer(),
         structlog.processors.ExceptionRenderer(),
     ]
+    # Scrub PII/secrets before the record is rendered AND before the Logfire
+    # processor (next) sees the dict -- scrubbed keys must never ship as
+    # Logfire log record attributes.
+    processors.append(scrub_event_dict)
+    processors.append(logfire.StructlogProcessor())
     if settings.structlog_json:
         processors.append(structlog.processors.JSONRenderer())
     else:
@@ -112,6 +120,9 @@ _log = structlog.get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
+    from app.core.observability import configure_observability
+    configure_observability(service="api", app=app)
+
     app.state.redis = Redis.from_url(settings.redis_url, decode_responses=False)
 
     # Refuse stub auth in production.
@@ -228,46 +239,54 @@ async def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-async def _check_postgres() -> str:
+async def _check_postgres() -> dict[str, object]:
     from sqlalchemy import text
 
+    start = time.perf_counter()
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
-        return "ok"
+        status = "ok"
     except Exception as exc:
-        return f"error: {exc}"
+        status = f"error: {exc}"
+    return {"status": status, "latency_ms": round((time.perf_counter() - start) * 1000, 1)}
 
 
-async def _check_redis(redis_client: Redis) -> str:
+async def _check_redis(redis_client: Redis) -> dict[str, object]:
+    start = time.perf_counter()
     try:
         await redis_client.ping()
-        return "ok"
+        status = "ok"
     except Exception as exc:
-        return f"error: {exc}"
+        status = f"error: {exc}"
+    return {"status": status, "latency_ms": round((time.perf_counter() - start) * 1000, 1)}
 
 
-async def _check_rabbitmq() -> str:
+async def _check_rabbitmq() -> dict[str, object]:
+    start = time.perf_counter()
     try:
         conn = await asyncio.wait_for(
             aio_pika.connect_robust(settings.rabbitmq_url),
             timeout=3.0,
         )
         await conn.close()
-        return "ok"
+        status = "ok"
     except Exception as exc:
-        return f"error: {exc}"
+        status = f"error: {exc}"
+    return {"status": status, "latency_ms": round((time.perf_counter() - start) * 1000, 1)}
 
 
-async def _check_elasticsearch() -> str:
+async def _check_elasticsearch() -> dict[str, object]:
+    start = time.perf_counter()
     es = AsyncElasticsearch(settings.elasticsearch_url)
     try:
         await asyncio.wait_for(es.cluster.health(), timeout=3.0)
-        return "ok"
+        status = "ok"
     except Exception as exc:
-        return f"error: {exc}"
+        status = f"error: {exc}"
     finally:
         await es.close()
+    return {"status": status, "latency_ms": round((time.perf_counter() - start) * 1000, 1)}
 
 
 @app.get("/readyz", tags=["ops"])
@@ -285,7 +304,7 @@ async def readyz(request: Request) -> JSONResponse:
         "rabbitmq": rabbitmq,
         "elasticsearch": elasticsearch,
     }
-    all_ok = all(v == "ok" for v in checks.values())
+    all_ok = all(check["status"] == "ok" for check in checks.values())
     return JSONResponse(
         status_code=200 if all_ok else 503,
         content={"status": "ok" if all_ok else "degraded", "checks": checks},

@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 
 from app.core.config import get_settings
 from app.core.db import get_platform_session
+from app.core.observability import bind_actor_context
 from app.platform_.models import PlatformUser
 
 _log = structlog.get_logger(__name__)
@@ -74,7 +75,7 @@ else:
             raise HTTPException(status_code=403, detail="Platform actor is inactive")
 
         # Bind to structlog context vars so AuditableMixin picks up actor identity.
-        structlog.contextvars.bind_contextvars(
+        bind_actor_context(
             actor_type="platform_user",
             actor_id=str(user.id),
             actor_label=user.email,

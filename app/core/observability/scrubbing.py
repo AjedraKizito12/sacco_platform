@@ -5,6 +5,9 @@ from typing import Any
 SCRUB_KEYS: frozenset[str] = frozenset({
     "password", "token", "secret", "jwt_kek", "hashed_password",
     "national_id_number", "email", "phone", "first_name", "last_name", "dob",
+    # Email-bearing display label (e.g. "user@example.com (impersonating)");
+    # telemetry-sensitive even though it's needed in the structlog/audit trail.
+    "actor_label",
 })
 
 _REDACTION = "[scrubbed]"

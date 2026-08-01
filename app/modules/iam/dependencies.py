@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 
 from app.core.config import get_settings
 from app.core.db import get_platform_session, get_tenant_session
+from app.core.observability import bind_actor_context
 from app.modules.iam.keys.service import KeyService
 from app.modules.iam.sessions.models import MemberSession, PlatformSession, TenantSession
 from app.modules.iam.sessions.service import SessionService
@@ -97,7 +98,7 @@ async def get_current_platform_user_jwt(
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
-    structlog.contextvars.bind_contextvars(
+    bind_actor_context(
         actor_type="platform_user",
         actor_id=str(user.id),
         actor_label=user.email,
@@ -150,7 +151,7 @@ async def get_current_tenant_user_stub(
         bind_kwargs["impersonation_id"] = str(user.impersonation_id)
         # Annotate the label so log lines and audit show this is impersonation.
         bind_kwargs["actor_label"] = f"{user.email} (impersonating)"
-    structlog.contextvars.bind_contextvars(**bind_kwargs)
+    bind_actor_context(**bind_kwargs)
 
     return user
 
@@ -223,7 +224,7 @@ async def get_current_tenant_user_jwt(
     if user.impersonation_id is not None:
         bind_kwargs["impersonation_id"] = str(user.impersonation_id)
         bind_kwargs["actor_label"] = f"{user.email} (impersonating)"
-    structlog.contextvars.bind_contextvars(**bind_kwargs)
+    bind_actor_context(**bind_kwargs)
 
     return user
 
@@ -254,7 +255,7 @@ async def get_current_member_stub(
     if not (member.portal_enabled and member.status == "active"):
         raise HTTPException(status_code=403, detail="Member portal access is not active")
 
-    structlog.contextvars.bind_contextvars(
+    bind_actor_context(
         actor_type="member",
         actor_id=str(member.id),
         actor_label=member.email or member.member_number,
@@ -316,7 +317,7 @@ async def get_current_member_jwt(
     if not (member.portal_enabled and member.status == "active"):
         raise HTTPException(status_code=403, detail="Member portal access is not active")
 
-    structlog.contextvars.bind_contextvars(
+    bind_actor_context(
         actor_type="member",
         actor_id=str(member.id),
         actor_label=member.email or member.member_number,
