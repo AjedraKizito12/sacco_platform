@@ -1,6 +1,11 @@
 # Phase 5 — Observability & Monitoring (Design)
 
-**Status:** Approved (brainstorming, 2026-07-12)
+> **SUPERSEDED (2026-08-01)** by
+> `docs/superpowers/specs/2026-08-01-observability-logfire-design.md`.
+> Phase 5 pivoted from self-hosted LGTM to Pydantic Logfire. This document is
+> retained for historical context only; it was never implemented.
+
+**Status:** Superseded (was: Approved, brainstorming 2026-07-12)
 **Roadmap:** `docs/superpowers/plans/saas-launch-roadmap.md` §Phase 5
 **Register:** cross-cutting infrastructure + a thin config surface. Not a bounded context.
 
