@@ -1,4 +1,7 @@
+import os
+
 from celery import Celery
+from celery.signals import beat_init, worker_process_init
 
 from app.core.config import get_settings
 
@@ -158,3 +161,19 @@ celery_app.conf.update(
         },
     },
 )
+
+
+def _init_observability(service: str | None = None) -> None:
+    from app.core.observability import configure_observability
+    svc = service or ("beat" if os.environ.get("SACCO_BEAT") else "worker")
+    configure_observability(service=svc)
+
+
+@worker_process_init.connect  # type: ignore[misc]
+def _on_worker_init(**_: object) -> None:
+    _init_observability(service="worker")
+
+
+@beat_init.connect  # type: ignore[misc]
+def _on_beat_init(**_: object) -> None:
+    _init_observability(service="beat")
