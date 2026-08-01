@@ -11,6 +11,7 @@ celery_app = Celery(
     "sacco",
     broker=settings.redis_url,  # Redis as broker (rabbitmq for events, redis for tasks)
     include=[
+        "app.core.observability.beat",
         "app.core.notifications.beat",
         "app.core.search.reconcile",
         "app.core.search.sweep",
@@ -39,6 +40,10 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     beat_schedule={
+        "emit-business-metrics-gauges": {
+            "task": "app.core.observability.beat.emit_business_metrics_gauges",
+            "schedule": 60.0,
+        },
         "reconcile-search-indexes": {
             "task": "app.core.search.reconcile.reconcile_search_indexes",
             "schedule": 45.0,
