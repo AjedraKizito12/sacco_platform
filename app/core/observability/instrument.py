@@ -6,15 +6,62 @@ from typing import Any, Literal, cast
 import logfire
 
 from app.core.observability.config import resolve_config
-from app.core.observability.scrubbing import scrubbing_callback
+from app.core.observability.scrubbing import SCRUB_EXTRA_PATTERNS
 
 _configured = False
 _libraries_instrumented = False
 _fastapi_instrumented = False
 
+# URL-ish server-span attributes that may carry a raw request URL including the
+# query string. Logfire's SAFE_KEYS list (logfire/_internal/scrubbing.py) treats
+# these as never-scrubbed, so operator-typed member PII in a query string
+# (e.g. GET /search?q=<national-id>) would egress unscrubbed. The
+# `_strip_query_server_request_hook` below drops the query portion at span
+# start, before any exporter sees it.
+_URL_QUERY_ATTRS = ("http.url", "http.target", "url.full")
+
 
 def _in_pytest() -> bool:
     return "PYTEST_CURRENT_TEST" in os.environ
+
+
+def _strip_query_server_request_hook(span: Any, scope: Any) -> None:
+    """OTel FastAPI `server_request_hook`: strip the query string off the
+    HTTP server span's URL attributes.
+
+    # SECURITY: url.full / http.url / http.target / url.query are in Logfire's
+    # SAFE_KEYS and are NEVER scrubbed. Free-text operator endpoints
+    # (GET /search?q=…, list filters) put member PII in the query string, which
+    # would otherwise egress in clear. The hook receives the LIVE span at
+    # request start (attributes already populated by the ASGI instrumentor) and
+    # overwrites them with the path-only form via set_attribute.
+    """
+    if span is None or not getattr(span, "is_recording", lambda: False)():
+        return
+    attrs = span.attributes or {}
+    for key in _URL_QUERY_ATTRS:
+        value = attrs.get(key)
+        if isinstance(value, str) and "?" in value:
+            span.set_attribute(key, value.split("?", 1)[0])
+    # url.query, if present, is the query string on its own — blank it.
+    if isinstance(attrs.get("url.query"), str) and attrs.get("url.query"):
+        span.set_attribute("url.query", "")
+
+
+def _drop_request_arguments(request: Any, attributes: Any) -> None:
+    """OTel FastAPI `request_attributes_mapper`: drop the captured endpoint
+    argument values from the server span.
+
+    # SECURITY: logfire.instrument_fastapi records the RESOLVED endpoint
+    # arguments under `fastapi.arguments.values`/`.errors`. For free-text
+    # operator endpoints (GET /search?q=…, list filters keyed q/name/etc.)
+    # those values are operator-typed member PII that Logfire's key-name
+    # scrubber cannot catch (the param key `q` matches nothing). Returning None
+    # records no argument attributes — consistent with the strict/metadata-only
+    # egress posture. Validation-error shapes are dropped too because they echo
+    # the raw input value.
+    """
+    return None
 
 
 def configure_observability(service: str, app: object | None = None) -> None:
@@ -45,7 +92,7 @@ def configure_observability(service: str, app: object | None = None) -> None:
             environment=cfg.environment,
             token=cfg.token,
             send_to_logfire=effective_send,
-            scrubbing=logfire.ScrubbingOptions(callback=scrubbing_callback),
+            scrubbing=logfire.ScrubbingOptions(extra_patterns=SCRUB_EXTRA_PATTERNS),
             console=console,
         )
         _configured = True
@@ -79,5 +126,9 @@ def instrument_all(app: object | None = None) -> None:
         # request/response body capture. `app` is typed loosely (object) here
         # to avoid a hard FastAPI import dependency in this module; the
         # caller (app/main.py, Task 5) always passes a real FastAPI instance.
-        logfire.instrument_fastapi(cast(Any, app))
+        logfire.instrument_fastapi(
+            cast(Any, app),
+            server_request_hook=_strip_query_server_request_hook,
+            request_attributes_mapper=_drop_request_arguments,
+        )
         _fastapi_instrumented = True

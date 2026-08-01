@@ -862,17 +862,34 @@ the full design rationale.
   `_configured` guard) — safe to call more than once (API lifespan, Celery
   worker init, Celery beat init all call it). Do not call `logfire.configure()`
   directly from anywhere else.
-- The scrub keyset in `app/core/observability/scrubbing.py` (`SCRUB_KEYS`) is
-  the single source of truth for redaction, used by both the structlog
-  processor (`scrub_event_dict`) and the Logfire scrubbing callback
-  (`scrubbing_callback`). It includes `actor_label` (the audit-trail display
-  label that carries a user's email, e.g. `"user@example.com
-  (impersonating)"`). Adding any field that could carry PII or a secret means
-  adding its key name to `SCRUB_KEYS` — do not hand-roll a separate redaction
-  path.
+- Scrubbing has TWO paths in `app/core/observability/scrubbing.py`, each with
+  its own keyset and redaction marker:
+  - **structlog** (`scrub_event_dict`) redacts keys substring-matching
+    `SCRUB_KEYS` to `[scrubbed]`.
+  - **Logfire spans/logs** redact **Logfire's built-in defaults ∪
+    `SCRUB_EXTRA_PATTERNS`** to `[Scrubbed due to '…']`, wired via
+    `logfire.ScrubbingOptions(extra_patterns=SCRUB_EXTRA_PATTERNS)`. There is
+    **NO callback** — a value-returning callback un-redacts Logfire's own
+    matches (cookie/jwt/authorization/…), so it is forbidden. `extra_patterns`
+    only ADDS to the defaults; it never disables them.
+  Both keysets include `actor_label` (the audit-trail display label carrying a
+  user's email) and the financial/identity keys (`member_number`,
+  `account_number`, `card_number`, `passport`, `routing_number`). Adding a
+  field that could carry PII/secret means adding it to the matching keyset —
+  do not hand-roll a separate redaction path, and never add an un-redacting
+  callback.
+- URL query strings and captured endpoint arguments are hardened at the
+  FastAPI instrumentation, NOT the keysets — Logfire's `SAFE_KEYS` never
+  scrubs `http.url` / `url.full` / `url.query` / `http.target`.
+  `logfire.instrument_fastapi()` is called with
+  `server_request_hook=_strip_query_server_request_hook` (drops the `?…` query
+  off the URL attributes) and
+  `request_attributes_mapper=_drop_request_arguments` (returns `None`, so the
+  operator-typed `fastapi.arguments.*` values are never recorded). Both live in
+  `app/core/observability/instrument.py`. Do not remove either.
 - No code sends member PII or secrets to spans, logs, or metrics. SQL bind
   parameters are never captured (`logfire.instrument_sqlalchemy(enable_commenter=False)`,
-  SDK default) and HTTP request/response bodies are never captured
+  SDK default) and HTTP request/response bodies/headers are never captured
   (`logfire.instrument_fastapi()` SDK defaults — no header/body capture
   enabled). Monetary amounts are intentionally NOT scrubbed — they are not
   identifying without the PII fields that are already scrubbed, and they are

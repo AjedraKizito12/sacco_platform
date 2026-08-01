@@ -19,24 +19,50 @@ Telemetry egress to Logfire is controlled by the `send_to_logfire` setting in `a
 
 ## Data Scrubbing Policy
 
-All telemetry is scrubbed before egress to remove secrets and PII. The **authoritative scrub keyset** lives in `app/core/observability/scrubbing.py` (`SCRUB_KEYS` constant).
+All telemetry is scrubbed before egress to remove secrets and PII. There are **two distinct scrubbing paths**, each with its own keyset and redaction marker; both live in `app/core/observability/scrubbing.py`.
 
-### Scrubbing Rules
+### Path 1 — structlog processor (`scrub_event_dict`)
 
-- **Keys always scrubbed** (value replaced with `***SCRUBBED***`):
-  - Authentication: `password`, `token`, `jwt`, `refresh_token`, `access_token`, `authorization`, `api_key`, `secret`
-  - User identity: `email`, `phone`, `actor_label` (carries user email in audit trails)
-  - Sensitive profile: `national_id_number`, `passport_number`, `phone_number`
-  - Financial: `account_number`, `card_number`, `routing_number`
+Runs over structlog event dicts. Any key that **substring-matches** (case-insensitively) an entry in `SCRUB_KEYS` has its value replaced with the literal string **`[scrubbed]`**. The `event` message key is never touched.
 
-- **Keys NOT scrubbed** (intentionally retained to aid debugging):
-  - Monetary amounts (`amount`, `balance`, `principal`, `interest`, `penalty`) — these are not identifying without the scrubbed PII
-  - Request/response bodies — binary; capture headers only, never body content
-  - SQL bind parameters — never captured (SQLAlchemy instrumentation is off by default)
+`SCRUB_KEYS` (the exact, authoritative set):
+
+```
+password, token, secret, jwt_kek, hashed_password,
+national_id_number, email, phone, first_name, last_name, dob,
+actor_label,
+member_number, account_number, card_number, passport, routing_number
+```
+
+`actor_label` carries a user email (e.g. `"user@example.com (impersonating)"`) and is scrubbed here even though it is retained in the structlog contextvars for the `AuditableMixin` audit trail.
+
+### Path 2 — Logfire span/log scrubbing (`ScrubbingOptions`)
+
+Runs over span/log attributes inside Logfire before egress. The effective keyset is **Logfire's built-in `DEFAULT_PATTERNS` ∪ our `SCRUB_EXTRA_PATTERNS`** — we ADD to the defaults, we never replace or disable them.
+
+- **Logfire defaults** (always on): `password`, `passwd`, `auth`, `authorization`, `credential`, `private_key`, `api_key`, `session`, `cookie`, `social_security`, `credit_card`, `csrf`, `xsrf`, `jwt`, `ssn`, … (see `logfire/_internal/scrubbing.py`).
+- **`SCRUB_EXTRA_PATTERNS`** (our additions, regex substrings matched against attribute key paths): `national_id`, `first_name`, `last_name`, `\bdob\b`, `actor_label`, `email`, `phone`, `member_number`, `account_number`, `card_number`, `passport`, `routing_number`.
+
+When a key matches, Logfire replaces the value with **`[Scrubbed due to '<matched-substring>']`**. We pass **no callback** — a callback that returned a value would *un-redact* Logfire's own matches, so it is intentionally absent (the previous callback did exactly that and was removed in the final egress-hardening pass).
+
+### URL / query-string caveat (SAFE_KEYS)
+
+Logfire's scrubber has a `SAFE_KEYS` allow-list it **never** scrubs, including `http.url`, `http.target`, `http.route`, `url.full`, `url.path`, `url.query`, and `db.statement`. The FastAPI/ASGI instrumentation records the request URL (with query string) and the resolved endpoint arguments. Free-text operator endpoints (`GET /search?q=…`, `GET /platform/search?q=…`, list filters) accept operator-typed member PII, which would land in those never-scrubbed attributes.
+
+Two SDK-supported hooks on `logfire.instrument_fastapi` close this in `app/core/observability/instrument.py`:
+
+- **`server_request_hook` (`_strip_query_server_request_hook`)** — strips the `?…` query portion off `http.url` / `http.target` / `url.full` and blanks `url.query` on the live server span at request start, keeping the path only.
+- **`request_attributes_mapper` (`_drop_request_arguments`)** — returns `None` so the resolved endpoint arguments (`fastapi.arguments.values` / `.errors`) are not recorded at all; those echo operator-typed query/path values (e.g. a search term) that Logfire's key-name scrubber cannot catch (the param key `q` matches no pattern). Consistent with the strict/metadata-only egress posture.
+
+### Keys NOT scrubbed (intentionally retained to aid debugging)
+
+- Monetary amounts (`amount`, `balance`, `principal`, `interest`, `penalty`) — not identifying without the scrubbed PII.
+- Request/response bodies and headers — never captured (`capture_headers` / `record_send_receive` default `False`).
+- SQL bind parameters — never captured (SQLAlchemy instrumentation runs with parameter capture off).
 
 ### Metadata Retention
 
-Scrubbing is metadata-only: operation names, status codes, latencies, error types, and structured fields (except those in `SCRUB_KEYS`) are preserved. This provides observability without exfiltrating secrets or PII.
+Scrubbing is metadata-only: operation names, status codes, latencies, error types, route templates, and structured fields (except those matched above) are preserved. This provides observability without exfiltrating secrets or PII.
 
 ## Per-Environment Setup
 
@@ -169,7 +195,12 @@ Check:
 
 ### PII Leaked in Traces
 
-If a user email or phone number appears in a trace, add its JSON key to `SCRUB_KEYS` in `app/core/observability/scrubbing.py` and re-deploy. All future traces will scrub that key.
+If a user email or phone number appears in a trace, add the offending key to the right path in `app/core/observability/scrubbing.py`:
+
+- For a **span/log attribute** (Logfire path), add a regex substring to `SCRUB_EXTRA_PATTERNS`. It is combined with Logfire's defaults; the value will render as `[Scrubbed due to '…']`.
+- For a **structlog field** (console/JSON logs), add the key to `SCRUB_KEYS`. The value will render as `[scrubbed]`.
+
+If PII appears in a **URL / query string or a captured endpoint argument**, the fix is the `server_request_hook` / `request_attributes_mapper` in `app/core/observability/instrument.py`, not the keysets — those attributes are in Logfire's never-scrubbed `SAFE_KEYS` (see the URL/query-string caveat above). Re-deploy after any change; scrubbing applies to future traces only.
 
 ## References
 
