@@ -199,6 +199,9 @@ services:
     ports:
       - "8000:8000"
     env_file: .env
+    environment:
+      LOGFIRE_TOKEN: ${LOGFIRE_TOKEN:-}
+      APP_ENV: ${APP_ENV:-development}
     depends_on:
       postgres:
         condition: service_healthy
