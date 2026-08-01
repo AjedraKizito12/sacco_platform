@@ -65,10 +65,23 @@ directly inside the sidecar:
 docker compose exec -T backup /opt/backups/scripts/restore-staging.sh
 ```
 
-The drill restores the latest base + WAL into a throwaway Postgres, runs smoke
-queries (`platform.tenants` count > 0 and a known tenant row count), records
-PASS/FAIL + duration into `platform.backup_verifications`, and tears the
-throwaway cluster down unconditionally.
+The drill restores the latest base + WAL into a throwaway Postgres (holding
+the base image's entrypoint open so it restores into an empty data dir rather
+than initialising a fresh cluster), starts the restored cluster so it completes
+archive recovery and auto-promotes, then smoke-queries it. The hard invariant is
+`platform.platform_users >= 1` — migration 002 always seeds the bootstrap
+superuser, so a faithfully restored platform schema has at least that row (a
+fresh platform can legitimately have zero tenants, so the tenant count is
+reported in the detail, not asserted). It records PASS/FAIL + a
+`platform_users=… tenants=…` detail into `platform.backup_verifications` and
+tears the throwaway cluster down unconditionally.
+
+> The drill drives the host Docker daemon over the mounted socket, so it
+> `docker cp`s the pgBackRest config into the staging container rather than
+> bind-mounting the sidecar's own path (which does not exist on the host), and
+> runs restore/start as the `postgres` user (pgBackRest refuses to run as root).
+> Production runs the drill on a dedicated restore host via the systemd units,
+> not this Docker-socket shortcut.
 
 ## Production swap (checklist)
 
