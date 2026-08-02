@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import jwt as pyjwt
-import structlog
 from redis.asyncio import Redis
 
 from app.core.config import get_settings
@@ -19,8 +18,6 @@ if TYPE_CHECKING:
 
     from fastapi import Request
     from sqlalchemy.ext.asyncio import AsyncSession
-
-_log = structlog.get_logger(__name__)
 
 _JWK_CACHE_TTL_SECONDS = 300
 
@@ -69,7 +66,13 @@ def _client_ip(request: object, *, trusted_proxy: bool) -> str:
         xff: str | None = headers.get("x-forwarded-for")
         if xff:
             return xff.split(",")[0].strip()
+    # ``Request.client`` is ``Address | None`` and is legitimately ``None`` in
+    # real deployments (unix sockets, some proxy/ASGI setups). Guard here so
+    # ``_client_ip`` — and therefore ``derive_identity`` — can never raise into
+    # the request path.
     client = request.client  # type: ignore[attr-defined]
+    if client is None:
+        return "unknown"
     host: str = client.host
     return host
 

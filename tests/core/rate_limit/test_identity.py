@@ -31,3 +31,22 @@ def test_client_ip_falls_back_when_no_xff_header():
             host = "172.17.0.1"
 
     assert _client_ip(R(), trusted_proxy=True) == "172.17.0.1"
+
+
+def test_client_ip_returns_unknown_when_client_is_none_and_no_xff():
+    # Request.client is Address | None; None in real deployments (unix
+    # sockets, some proxy/ASGI setups). Must not raise.
+    class R:
+        headers: dict[str, str] = {}
+        client = None
+
+    assert _client_ip(R(), trusted_proxy=True) == "unknown"
+    assert _client_ip(R(), trusted_proxy=False) == "unknown"
+
+
+def test_client_ip_uses_xff_even_when_client_is_none():
+    class R:
+        headers = {"x-forwarded-for": "9.9.9.9, 10.0.0.1"}
+        client = None
+
+    assert _client_ip(R(), trusted_proxy=True) == "9.9.9.9"
