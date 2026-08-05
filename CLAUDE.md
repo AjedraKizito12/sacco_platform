@@ -61,7 +61,7 @@ Full spec: `docs/superpowers/plans/saas-launch-roadmap.md`
 | 3 | Notifications Framework (NullProvider initially) | M — 2 wk | closed beta, runs parallel to P2 | **Done** |
 | 4 | Backups & Disaster Recovery (pgBackRest + PITR) | M — 2 wk | production launch | **Done** |
 | 5 | Observability & Monitoring (Logfire) | L — 3 wk | production launch | **Done** |
-| 6 | Rate Limiting & Abuse Protection | S — 1 wk | production launch (needs P5) | Not started |
+| 6 | Rate Limiting & Abuse Protection | S — 1 wk | production launch (needs P5) | **Done** |
 | 7 | Tenant Offboarding & Retention | M — 2 wk | public launch (needs P1, P3) | Not started |
 | 8 | Data Portability & Member Exports | M — 2 wk | public launch (needs P3) | Not started |
 | 9 | External Security Assessment & Hardening | L — 3 wk | public launch (needs P1,P2,P4,P6) | Not started |
@@ -124,6 +124,19 @@ N. Do NOT modify anything outside `admin/` except: `docker-compose.yml` (add adm
      dashboard + alert definitions), and `docs/` (the observability runbook,
      metrics catalogue, alert runbooks). It does NOT touch `admin/` or
      `alembic/`. See "Observability contracts" below.
+   - **Scope exception (Phase 6 — Rate Limiting & Abuse Protection):** Phase 6
+     is a sanctioned exception to this rule. It adds `app/core/rate_limit/`
+     and `app/platform_/rate_limits/`, and touches `app/main.py` (middleware +
+     router wiring), `app/core/config.py` (the two `RATE_LIMIT_*` settings),
+     `app/core/observability/metrics.py` (the two `sacco_rate_limit_*`
+     handles), the admin portal
+     `admin/apps/portal/app/platform/(authed)/settings/rate-limits/` (+ the
+     `@sacco/schemas` rate-limit types and the `@sacco/api-client` rateLimits
+     resource/query-keys), `infra/observability/logfire/alerts/` (the
+     block-rate alert), and `docs/` (rate-limit policies, metrics catalogue,
+     alert runbook). It does NOT touch `alembic/` — there is no migration
+     (per-plan overrides reuse `subscription_plans.features`). See "Rate
+     limiting contracts" below.
 O. The notification bell is LIVE (Phase 3 increment 3): `NotificationBell`
    (@sacco/ui, presentational) fed by `AppShellNotificationBell`, which polls
    the audience's `/…/notifications/me` feed every 60s via TanStack Query (the
@@ -936,14 +949,63 @@ the full design rationale.
 - Dashboards and alerts live in Logfire, not the admin portal. Committed
   in-repo definitions are the source of truth for what to (re)create in a
   live Logfire project at deploy time: `infra/observability/logfire/dashboards/`
-  (8 dashboards) and `infra/observability/logfire/alerts/` (11 alert
-  definitions, 7 backed by real telemetry + 4 staged/`"source":
+  (8 dashboards) and `infra/observability/logfire/alerts/` (12 alert
+  definitions, 8 backed by real telemetry + 4 staged/`"source":
   "unavailable"` placeholders documenting exactly what instrumentation is
   missing — `/readyz` 503 detection, DB connection-pool exhaustion, a
   general non-reporting beat-task-missed heartbeat, and approval
-  pending-age). Alerts are **email-only** in v1 — no Slack/Discord/Opsgenie
+  pending-age). The 8th real-telemetry alert is the Phase 6
+  `rate-limit-block-rate.json` (`sacco_rate_limit_blocks_total`). Alerts are
+  **email-only** in v1 — no Slack/Discord/Opsgenie
   channel. Applying these definitions to a live Logfire project (via the
   Logfire MCP or web UI) happens at deploy time; it is NOT wired into the
   admin portal and is NOT an API surface. See `docs/observability-runbook.md`
   for the full apply-at-deploy-time procedure and `docs/alert-runbooks/` for
   the per-alert response runbook.
+
+## Rate limiting contracts (Phase 6 — do not violate)
+
+- **Enforcement is a single HTTP middleware** (`RateLimitMiddleware` in
+  `app/core/rate_limit/middleware.py`), wired in `app/main.py` to run inside
+  `request_id_middleware` (a 429 still carries `X-Request-ID`) but before
+  routing/auth deps. It is the ONLY enforcement path. Do not add per-route
+  limit checks. `RATE_LIMIT_ENABLED` (default `true`) short-circuits it to a
+  pure pass-through when false.
+- **Identity is verify-only** (`derive_identity`). The JWT signature + `exp`
+  + `aud` are verified, and a valid token keys the request `u:<audience>:<sub>`.
+  The session/JTI revocation check is deliberately NOT done here — it stays in
+  the auth dependencies. An invalid/absent token keys on the trusted client IP
+  (`ip:<addr>`). Do not add the jti/session check to the limiter.
+- **Client IP** derives from the left-most `X-Forwarded-For` hop when
+  `RATE_LIMIT_TRUSTED_PROXY` is on (default), else the socket peer. Never trust
+  `X-Forwarded-For` without a trusted proxy in front.
+- **Fail-open, always.** Any Redis error in the bucket path allows the request,
+  sets `sacco_rate_limit_redis_health=0`, and WARN-logs. The limiter must never
+  fail closed. A spike in `sacco_rate_limit_blocks_total` means the limiter is
+  working; `redis_health=0` is the outage signal.
+- **The token bucket is one atomic Redis Lua `EVAL`**
+  (`redis_bucket.lua` via `bucket.py:check_bucket`). No check-then-set in
+  Python. The read-only per-tenant live view uses `peek_remaining_many`
+  (pipelined `HMGET` + Python-side refill), NOT `check_bucket(cost=0)` — the
+  Lua HSET+EXPIREs unconditionally, so a `cost=0` call would materialise a
+  bucket per user on every admin page load.
+- **Metric labels are `{policy, audience}` only** — never `user_id`, member
+  ids, or emails (Phase-5 metric contract). The two instruments
+  (`sacco_rate_limit_blocks_total`, `sacco_rate_limit_redis_health`) are
+  emitted only by the middleware; see `docs/metrics-catalogue.md`.
+- **Per-plan overrides are the ONLY override mechanism** — a
+  `rate_limit_overrides` map under `subscription_plans.features` JSONB
+  (`{policy_name: {limit?, window_seconds?}}`), applied by `resolve_policy`
+  for `tenant`/`member` audiences, Redis-cached 300s. No per-tenant ad-hoc
+  overrides, no migration, no new table. `anonymous`/`platform` audiences
+  never carry overrides.
+- **429 body/headers are fixed:** `{"detail": "Rate limit exceeded",
+  "retry_after": N}` + `Retry-After` + `X-RateLimit-{Limit,Remaining,Reset}`;
+  2xx responses carry the `X-RateLimit-*` triple.
+- The default policy table lives in `app/core/rate_limit/policies.py`
+  (`_RULES`, exposed read-only via `list_default_policies` /
+  `list_authenticated_policies`). The read-only operator surface is
+  `GET /platform/rate-limits*` (`CurrentAdmin`, `app/platform_/rate_limits/`)
+  + the portal page at `/platform/settings/rate-limits`; these are
+  observability only and cannot change any limit. Full reference:
+  `docs/rate-limit-policies.md`.
