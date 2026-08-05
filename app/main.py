@@ -76,6 +76,7 @@ from app.platform_.impersonations import executors as _impersonation_executors  
 from app.platform_.impersonations.api import router as impersonations_router
 from app.platform_.kyc.api import router as platform_kyc_router
 from app.platform_.ops.api import router as ops_router
+from app.platform_.rate_limits.api import router as rate_limits_router
 from app.platform_.tenant_users_admin.api import (
     router as tenant_users_admin_router,
 )
@@ -220,6 +221,7 @@ app.include_router(platform_kyc_router)
 app.include_router(tenant_users_admin_router)
 app.include_router(platform_admin_router)
 app.include_router(ops_router)
+app.include_router(rate_limits_router)
 app.include_router(platform_audit_router)
 app.include_router(tenant_audit_router)
 app.include_router(platform_search_router)

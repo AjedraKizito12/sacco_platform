@@ -45,3 +45,30 @@ def match_policy(path: str, audience: Audience) -> Policy:
             return policy
     # Unreachable in practice (each audience has a "*" catch-all) but keep total.
     return Policy("authenticated_default", 300, 60)
+
+
+def _distinct_by_name(policies: list[Policy]) -> list[Policy]:
+    seen: set[str] = set()
+    out: list[Policy] = []
+    for policy in policies:
+        if policy.name not in seen:
+            seen.add(policy.name)
+            out.append(policy)
+    return out
+
+
+def list_default_policies() -> list[Policy]:
+    """All code-default policies (deduped by name, table order preserved).
+
+    The read-only ``GET /platform/rate-limits`` config endpoint renders this
+    rather than reaching into ``_RULES``.
+    """
+    return _distinct_by_name([policy for _scope, _glob, policy in _RULES])
+
+
+def list_authenticated_policies() -> list[Policy]:
+    """The distinct policies that apply to an authenticated (tenant/member)
+    user — the set the per-tenant live view peeks per user."""
+    return _distinct_by_name(
+        [policy for scope, _glob, policy in _RULES if scope == "authenticated"]
+    )
