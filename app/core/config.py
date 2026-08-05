@@ -80,6 +80,13 @@ class Settings(BaseSettings):
     auth_lockout_window_minutes: int = 15    # sliding window for counting attempts
     auth_lockout_duration_minutes: int = 30  # how long the account stays locked
 
+    # Rate limiting (Phase 6)
+    rate_limit_enabled: bool = True
+    # Trust X-Forwarded-For for client IP derivation. Only safe when a
+    # trusted reverse proxy (e.g. Caddy) is guaranteed to set/overwrite this
+    # header — never trust it directly from the internet.
+    rate_limit_trusted_proxy: bool = True
+
     @field_validator("jwt_kek")
     @classmethod
     def validate_jwt_kek(cls, v: str) -> str:

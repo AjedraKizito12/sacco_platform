@@ -28,6 +28,7 @@ from app.core.notifications.api import (
     tenant_self_router as notifications_tenant_router,
 )
 from app.core.observability.logging import scrub_event_dict
+from app.core.rate_limit import RateLimitMiddleware
 from app.core.search.api import (
     platform_search_router,
     tenant_search_router,
@@ -75,6 +76,7 @@ from app.platform_.impersonations import executors as _impersonation_executors  
 from app.platform_.impersonations.api import router as impersonations_router
 from app.platform_.kyc.api import router as platform_kyc_router
 from app.platform_.ops.api import router as ops_router
+from app.platform_.rate_limits.api import router as rate_limits_router
 from app.platform_.tenant_users_admin.api import (
     router as tenant_users_admin_router,
 )
@@ -164,6 +166,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Registered after CORS but before the request_id decorator below. Starlette
+# builds the middleware stack in REVERSE registration order (last-registered
+# = outermost), so this arrangement puts request_id outermost (its
+# contextvar is bound — and its X-Request-ID header applied on the way out —
+# around every other middleware, including a 429 short-circuit from here),
+# RateLimitMiddleware just inside it (runs before routing/auth deps), and
+# CORS innermost of the three.
+app.add_middleware(RateLimitMiddleware)
+
 
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next: Any) -> Any:
@@ -210,6 +221,7 @@ app.include_router(platform_kyc_router)
 app.include_router(tenant_users_admin_router)
 app.include_router(platform_admin_router)
 app.include_router(ops_router)
+app.include_router(rate_limits_router)
 app.include_router(platform_audit_router)
 app.include_router(tenant_audit_router)
 app.include_router(platform_search_router)

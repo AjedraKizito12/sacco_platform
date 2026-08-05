@@ -22,6 +22,7 @@ import { kyc } from "./kyc";
 import { notifications } from "./notifications";
 import { search } from "./search";
 import { ops } from "./ops";
+import { rateLimits } from "./rateLimits";
 
 export function buildResources(api: FetchClient) {
   return {
@@ -48,6 +49,7 @@ export function buildResources(api: FetchClient) {
     notifications: notifications(api),
     search: search(api),
     ops: ops(api),
+    rateLimits: rateLimits(api),
   } as const;
 }
 

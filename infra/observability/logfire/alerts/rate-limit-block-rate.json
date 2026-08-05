@@ -1,0 +1,10 @@
+{
+  "name": "Rate-limit block rate elevated",
+  "severity": "warning",
+  "source": "metric",
+  "query": "increase(sacco_rate_limit_blocks_total[1m]) > 100 — the total count of requests rejected with 429 by the rate limiter (summed across all {policy, audience} label sets) growing by more than 100 within a trailing minute. Break out by the policy and audience labels in the alert/dashboard to see which bucket is driving it.",
+  "threshold": "> 100 blocks/min sustained",
+  "window": "1m",
+  "channel": "email",
+  "notes": "sacco_rate_limit_blocks_total is a counter incremented in app/core/rate_limit/middleware.py each time a request is rejected, labelled {policy, audience} only (never user_id/PII). A sustained spike usually means either a credential-stuffing/scraping attempt against an anonymous policy (auth_login / anonymous_default) or a mis-tuned limit that is throttling legitimate traffic (an authenticated policy) — the audience label disambiguates. It does NOT indicate a limiter outage: a Redis failure fails OPEN (allows the request) and instead sets sacco_rate_limit_redis_health=0, which is a separate signal. The 100/min threshold is a starting point; tune it against real traffic once the limiter is live (a busy anonymous login endpoint under a real attack will far exceed it, while a quiet deployment may want a lower bar)."
+}

@@ -40,6 +40,11 @@ export default async function SettingsPage() {
           title="Notifications"
           desc="Email and SMS provider configuration."
         />
+        <SettingCard
+          href="/platform/settings/rate-limits"
+          title="Rate limits"
+          desc="Per-window request budgets and per-plan overrides."
+        />
         {canSecurity ? (
           <SettingCard
             href="/platform/settings/security"

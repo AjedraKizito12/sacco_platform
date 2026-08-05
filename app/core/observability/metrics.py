@@ -119,6 +119,16 @@ maker_checker_self_reject = logfire.metric_counter(
     unit="1",
     description="Count of self-approval/self-rejection attempts blocked",
 )
+rate_limit_blocks = logfire.metric_counter(
+    "sacco_rate_limit_blocks_total",
+    unit="1",
+    description="Count of requests rejected by the rate limiter, by policy and audience",
+)
+rate_limit_redis_health = logfire.metric_gauge(
+    "sacco_rate_limit_redis_health",
+    unit="1",
+    description="1 if the last rate-limit bucket check reached Redis, 0 if it failed (fail-open)",
+)
 
 
 async def compute_business_gauges(session: AsyncSession) -> BusinessGauges:

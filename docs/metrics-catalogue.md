@@ -61,6 +61,17 @@ SQLAlchemy query shape/duration comes from auto-instrumented SQLAlchemy spans
 (`logfire.instrument_sqlalchemy(enable_commenter=False)`) — no bind
 parameters captured.
 
+## Rate limiting (Phase 6 — instrumented in the middleware)
+
+Emitted by `app/core/rate_limit/middleware.py` on the request path. Labels are
+policy names and audience buckets only — never `user_id`, member ids, or
+emails (the block metric deliberately carries no per-user dimension).
+
+| Metric | Type | Labels | Source / how computed |
+|---|---|---|---|
+| `sacco_rate_limit_blocks_total` | counter | `policy`, `audience` | Incremented once each time the middleware rejects a request with 429 (`not result.allowed`). `policy` is the resolved policy name (e.g. `auth_login`, `authenticated_default`); `audience` is `anonymous` / `tenant` / `member` / `platform`. Never labelled with the client IP or user id. |
+| `sacco_rate_limit_redis_health` | gauge | *(none)* | Set to `1` after every successful bucket check and to `0` in the fail-open path when the Redis token-bucket call raises (`except Exception`). Last-write-wins, so it reflects the outcome of the most recent rate-limited request process-wide. `0` means the limiter is failing open (allowing traffic un-limited), which is the outage signal — distinct from a spike in `sacco_rate_limit_blocks_total`, which means the limiter is actively working. |
+
 ## Alert signals NOT yet emitted (honesty section)
 
 The following signals a monitoring plan would naturally want are **not**

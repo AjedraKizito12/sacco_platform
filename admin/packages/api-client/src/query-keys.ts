@@ -165,4 +165,10 @@ export const queryKeys = {
     backups: () => ["ops", "backups"] as const,
     lastVerified: () => ["ops", "lastVerified"] as const,
   },
+  rateLimits: {
+    root: () => ["rateLimits"] as const,
+    config: () => ["rateLimits", "config"] as const,
+    tenantLive: (tenantId: string) =>
+      ["rateLimits", "tenantLive", tenantId] as const,
+  },
 } as const;

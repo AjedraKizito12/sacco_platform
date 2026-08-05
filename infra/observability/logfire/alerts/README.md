@@ -60,8 +60,9 @@ Field notes:
   - `spans` — Logfire's auto-instrumented trace/span data (FastAPI
     instrumentation from Phase 5 Increment 1). No custom metric exists for
     these.
-  - `metric` — one of the 14 custom `sacco_*` OTel instruments emitted by
-    `app/core/observability/metrics.py` (Phase 5 Increments 2-3). See
+  - `metric` — one of the 16 custom `sacco_*` OTel instruments emitted by
+    `app/core/observability/metrics.py` (Phase 5 Increments 2-3, plus the two
+    `sacco_rate_limit_*` instruments added in Phase 6). See
     `docs/metrics-catalogue.md` for the full list.
   - `unavailable` — the alert is a placeholder. The signal it would need
     is not emitted by anything shipped in Phase 5 (or, for `/readyz`,
@@ -86,6 +87,7 @@ Field notes:
 | `reporting-beat-missed.json` | critical | metric | `sacco_report_last_run_timestamp` stale by > 2x a report type's schedule |
 | `overdue-invoices-growth.json` | warning | metric | `sacco_invoices_outstanding{status="overdue"}` grew > 10% in 24h |
 | `single-tenant-traffic-share.json` | warning | spans | one `tenant_schema` > 10% of tenant-scoped request volume |
+| `rate-limit-block-rate.json` | warning | metric | `sacco_rate_limit_blocks_total` grew > 100/min (429s), sliced by `{policy, audience}` |
 | `readyz-503.json` | critical | **unavailable** | `/readyz` 503 sustained > 2m — needs an external uptime prober |
 | `db-connection-pool-exhausted.json` | critical | **unavailable** | DB pool exhaustion — needs a pool gauge or a Postgres exporter |
 | `beat-task-missed-general.json` | critical | **unavailable** | any non-reporting beat task missed schedule — needs a general heartbeat gauge |
