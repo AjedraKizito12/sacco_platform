@@ -69,9 +69,10 @@ async def list_tenants(
     session: Session,
     actor: CurrentSupport,
     status: str | None = Query(None),
+    lifecycle_state: str | None = Query(None),
 ) -> list[TenantOut]:
     svc = TenantService(session)
-    tenants = await svc.list_tenants(status=status)
+    tenants = await svc.list_tenants(status=status, lifecycle_state=lifecycle_state)
     return [TenantOut.model_validate(t) for t in tenants]
 
 

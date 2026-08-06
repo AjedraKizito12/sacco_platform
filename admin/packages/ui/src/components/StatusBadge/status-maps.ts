@@ -7,6 +7,7 @@ export type StatusEntity =
   | "loan"
   | "member"
   | "tenant"
+  | "tenant_lifecycle"
   | "savings_account"
   | "fee_assessment"
   | "approval_request"
@@ -67,6 +68,17 @@ export const TENANT_STATUS: StatusMap = {
   failed: { variant: "danger", label: "Failed" },
   deprovisioning: { variant: "warning", label: "Deprovisioning" },
   archived: { variant: "neutral", label: "Archived" },
+};
+
+// Phase 7 — tenant offboarding lifecycle_state (distinct from the `status`
+// column above; the two dimensions can differ, e.g. status=active while
+// lifecycle_state=read_only).
+export const TENANT_LIFECYCLE_STATUS: StatusMap = {
+  active: { variant: "success", label: "Active" },
+  cancelled: { variant: "warning", label: "Cancelled" },
+  read_only: { variant: "info", label: "Read-only" },
+  archived: { variant: "neutral", label: "Archived" },
+  hard_deleted: { variant: "neutral", label: "Hard-deleted" },
 };
 
 export const SAVINGS_ACCOUNT_STATUS: StatusMap = {
@@ -201,6 +213,7 @@ const ENTITY_MAPS: Record<StatusEntity, StatusMap> = {
   loan: LOAN_STATUS,
   member: MEMBER_STATUS,
   tenant: TENANT_STATUS,
+  tenant_lifecycle: TENANT_LIFECYCLE_STATUS,
   savings_account: SAVINGS_ACCOUNT_STATUS,
   fee_assessment: FEE_ASSESSMENT_STATUS,
   approval_request: APPROVAL_REQUEST_STATUS,
