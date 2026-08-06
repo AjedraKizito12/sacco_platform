@@ -27,11 +27,16 @@ export default async function PlatformTenantsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-[var(--text-h3)] font-semibold">Tenants</h1>
-        {canCreate ? (
-          <Button asChild>
-            <Link href="/platform/tenants/new">New tenant</Link>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="secondary">
+            <Link href="/platform/tenants/archived">Archived</Link>
           </Button>
-        ) : null}
+          {canCreate ? (
+            <Button asChild>
+              <Link href="/platform/tenants/new">New tenant</Link>
+            </Button>
+          ) : null}
+        </div>
       </div>
       <Card className="p-0">
         <TenantsTable rows={rows} />

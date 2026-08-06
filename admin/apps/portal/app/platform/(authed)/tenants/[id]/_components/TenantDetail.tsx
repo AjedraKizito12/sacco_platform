@@ -22,6 +22,7 @@ export function TenantDetail({
   auditBar,
   makerCheckerBanner,
   kycSection,
+  offboardingSection,
 }: {
   tenant: TenantOut;
   canRetry: boolean;
@@ -32,6 +33,7 @@ export function TenantDetail({
   auditBar: ReactNode;
   makerCheckerBanner: ReactNode;
   kycSection?: ReactNode;
+  offboardingSection?: ReactNode;
 }) {
   // Live-updates while the tenant is mid-provision; settles once terminal.
   const live = useTenantProvisioning(tenant.id, tenant);
@@ -113,6 +115,8 @@ export function TenantDetail({
       </Card>
 
       {kycSection}
+
+      {offboardingSection}
 
       {auditBar}
     </div>
