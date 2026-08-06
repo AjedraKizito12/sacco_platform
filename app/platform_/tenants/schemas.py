@@ -1,8 +1,9 @@
 import re
 import uuid
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import AliasChoices, BaseModel, EmailStr, Field, field_validator
 
 _SLUG_RE = re.compile(r"^[a-z0-9-]{1,40}$")
 
@@ -42,6 +43,16 @@ class TenantOut(BaseModel):
     provisioning_started_at: datetime | None
     provisioning_completed_at: datetime | None
     seed_version: int
+    # Phase 7 — offboarding lifecycle + archival telemetry.
+    lifecycle_state: str
+    cancelled_at: datetime | None
+    read_only_at: datetime | None
+    archived_at: datetime | None
+    hard_deleted_at: datetime | None
+    retention_hold_until: datetime | None
+    archive_storage_key: str | None
+    archive_size_bytes: int | None
+    archive_checksum: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -70,3 +81,31 @@ class AssignPlanIn(BaseModel):
 
     plan_id: uuid.UUID
     start_date: datetime | None = None
+
+
+class TenantCancelIn(BaseModel):
+    """Body of POST /platform/tenants/{id}/cancel (offboarding)."""
+
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class ExtendRetentionIn(BaseModel):
+    """Body of POST /platform/tenants/{id}/extend-retention."""
+
+    hold_until: datetime
+
+
+class TenantLifecycleEventOut(BaseModel):
+    """One row of the tenant offboarding timeline."""
+
+    id: uuid.UUID
+    from_state: str
+    to_state: str
+    occurred_at: datetime
+    reason: str | None
+    actor_id: uuid.UUID | None
+    metadata: dict[str, Any] = Field(
+        validation_alias=AliasChoices("event_metadata", "metadata")
+    )
+
+    model_config = {"from_attributes": True, "populate_by_name": True}

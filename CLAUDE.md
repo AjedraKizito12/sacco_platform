@@ -804,9 +804,10 @@ the full design rationale.
   `get_platform_session` is NOT gated — operators must be able to manage
   tenants in any state.
 - Hard cancellation (`SubscriptionService.cancel(cancel_at_period_end=False)`)
-  is only callable from the `billing.cancel_subscription` executor.
-  Direct calls from HTTP handlers are forbidden. Soft cancellation
-  (`cancel_at_period_end=True`) does not require maker-checker.
+  is only callable from the `billing.cancel_subscription` executor and from the
+  `tenant.cancel` offboarding executor (Phase 7), which has already cleared
+  quorum-2 maker-checker. Direct calls from HTTP handlers are forbidden. Soft
+  cancellation (`cancel_at_period_end=True`) does not require maker-checker.
 - HTTP API surface lives in `app/platform_/billing/api.py`, exposing two
   routers: `platform_router` at `/platform/billing/*` and `tenant_router`
   at `/billing/me/*`. Both are mounted from `app/main.py`. Do not add
