@@ -87,6 +87,13 @@ class Settings(BaseSettings):
     # header — never trust it directly from the internet.
     rate_limit_trusted_proxy: bool = True
 
+    # Tenant offboarding & retention (Phase 7) — days spent in each lifecycle
+    # state before the daily beat advances it. Per-tenant deviation only via
+    # tenants.retention_hold_until.
+    offboarding_read_only_days: int = 7      # cancelled → read_only
+    offboarding_archive_days: int = 83       # read_only → archived
+    offboarding_hard_delete_days: int = 2555  # archived → hard_deleted (~7y)
+
     @field_validator("jwt_kek")
     @classmethod
     def validate_jwt_kek(cls, v: str) -> str:
