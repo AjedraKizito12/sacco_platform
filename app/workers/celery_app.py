@@ -1,6 +1,7 @@
 import os
 
 from celery import Celery
+from celery.schedules import crontab
 from celery.signals import beat_init, worker_process_init
 
 from app.core.config import get_settings
@@ -21,6 +22,7 @@ celery_app = Celery(
         "app.platform_.provisioning.tasks",
         "app.platform_.billing.beat",
         "app.platform_.billing.consumer",
+        "app.platform_.tenants.beat",
         "app.modules.iam.beat",
         "app.modules.fees.consumer",
         "app.modules.fees.beat",
@@ -67,6 +69,18 @@ celery_app.conf.update(
                 "consume_offboarding_notification_events"
             ),
             "schedule": 60.0,  # every minute
+        },
+        "offboarding-cancelled-to-read-only": {
+            "task": "app.platform_.tenants.beat.transition_cancelled_to_read_only",
+            "schedule": crontab(hour=0, minute=0),  # daily 00:00 UTC
+        },
+        "offboarding-read-only-to-archived": {
+            "task": "app.platform_.tenants.beat.transition_read_only_to_archived",
+            "schedule": crontab(hour=0, minute=30),  # daily 00:30 UTC
+        },
+        "offboarding-archived-to-hard-deleted": {
+            "task": "app.platform_.tenants.beat.transition_archived_to_hard_deleted",
+            "schedule": crontab(hour=1, minute=0),  # daily 01:00 UTC
         },
         "dispatch-pending-notifications": {
             "task": "app.core.notifications.beat.dispatch_pending_notifications",
