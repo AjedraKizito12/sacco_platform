@@ -36,9 +36,46 @@ export interface TenantOut {
   provisioning_started_at: string | null;
   provisioning_completed_at: string | null;
   seed_version: number;
+  // Phase 7 — offboarding lifecycle + archival telemetry.
+  lifecycle_state: string;
+  cancelled_at: string | null;
+  read_only_at: string | null;
+  archived_at: string | null;
+  hard_deleted_at: string | null;
+  retention_hold_until: string | null;
+  archive_storage_key: string | null;
+  archive_size_bytes: number | null;
+  archive_checksum: string | null;
   created_at: string;
   updated_at: string;
 }
+
+// Mirrors TenantLifecycleEventOut — one row of the offboarding timeline.
+export interface TenantLifecycleEventOut {
+  id: string;
+  from_state: string;
+  to_state: string;
+  occurred_at: string;
+  reason: string | null;
+  actor_id: string | null;
+  metadata: Record<string, unknown>;
+}
+
+// Mirrors TenantCancelIn — reason 10..500 chars (same shape as suspend).
+export const tenantCancelSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Give a reason of at least 10 characters")
+    .max(500, "Reason must be 500 characters or fewer"),
+});
+export type TenantCancelInput = z.infer<typeof tenantCancelSchema>;
+
+// Mirrors ExtendRetentionIn — an ISO timestamp for the new legal-hold date.
+export const extendRetentionSchema = z.object({
+  hold_until: z.string().min(1, "Choose a date"),
+});
+export type ExtendRetentionInput = z.infer<typeof extendRetentionSchema>;
 
 /**
  * Derives a slug suggestion from a tenant name: lowercase, non-alphanumeric

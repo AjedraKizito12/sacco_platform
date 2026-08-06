@@ -68,6 +68,47 @@ async def _resolve_tenant_schema(slug: str, redis_client: Redis) -> str:
     return schema_name
 
 
+_READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+async def _check_offboarding_gate(slug: str, method: str) -> None:
+    """Reject requests against tenants in an offboarding lifecycle state.
+
+    Runs before the subscription gate. Offboarding never sets is_active=false,
+    so a read_only tenant stays resolvable — access is governed here by
+    lifecycle_state, not is_active:
+        active (or no row) → allow
+        read_only          → allow reads (GET/HEAD/OPTIONS), else 403
+        cancelled          → 403 Forbidden
+        archived           → 403 Forbidden
+        hard_deleted       → 403 Forbidden
+
+    Raises:
+        HTTPException(403): read_only write, or cancelled/archived/hard_deleted.
+    """
+    async with engine.connect() as conn:
+        result = await conn.execute(
+            text("SELECT lifecycle_state FROM platform.tenants WHERE slug = :slug"),
+            {"slug": slug},
+        )
+        row = result.fetchone()
+    if row is None:
+        # Defensive — _resolve_tenant_schema already 404s for missing tenants.
+        return
+
+    state: str = row[0]
+    if state == "active":
+        return
+    if state == "read_only":
+        if method in _READ_METHODS:
+            return
+        raise HTTPException(
+            status_code=403, detail="Tenant is read-only (offboarding)."
+        )
+    # cancelled | archived | hard_deleted
+    raise HTTPException(status_code=403, detail="Tenant has been offboarded.")
+
+
 async def _check_subscription_gate(slug: str) -> None:
     """Reject requests for tenants whose subscription has lapsed.
 
@@ -150,6 +191,10 @@ async def get_tenant_session(
 
     redis_client: Redis = request.app.state.redis
     schema_name = await _resolve_tenant_schema(slug, redis_client)
+
+    # Offboarding gate — runs before the subscription gate. Method-aware:
+    # read_only tenants allow reads but block writes.
+    await _check_offboarding_gate(slug, request.method)
 
     # Subscription gate — runs on every tenant-scoped request.
     await _check_subscription_gate(slug)

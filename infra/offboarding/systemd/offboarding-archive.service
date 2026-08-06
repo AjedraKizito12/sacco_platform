@@ -1,0 +1,27 @@
+# Physical tenant-archival unit. Runs archive.sh: pg_dump -> age -> upload ->
+# DROP SCHEMA for every tenant the app has flagged (lifecycle_state='archived',
+# archive_checksum IS NULL). Install into /etc/systemd/system/ on the DB host
+# alongside the scripts at /opt/offboarding/ and the env at
+# /etc/sacco/offboarding.env (S3 creds + AGE_RECIPIENT — host-only secrets).
+#
+# The script execs pg_dump inside the postgres container, so this unit needs
+# Docker up and an identity with socket access.
+[Unit]
+Description=SACCO tenant offboarding — physical archive (pg_dump/encrypt/upload/drop)
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+# The invoking user must be in the docker group (or set User=root). Change to a
+# dedicated least-privilege operator on the real host.
+User=sacco
+Group=docker
+EnvironmentFile=/etc/sacco/offboarding.env
+ExecStart=/opt/offboarding/archive.sh
+TimeoutStartSec=infinity
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

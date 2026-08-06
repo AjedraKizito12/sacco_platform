@@ -20,7 +20,7 @@ function tenant(over: Partial<TenantOut>): TenantOut {
     name: "Kampala Teachers", status: "provisioning", is_active: false,
     provisioning_state: "create_schema", failed_step: null, failure_reason: null,
     provisioning_started_at: "2026-06-11T00:00:00Z", provisioning_completed_at: null,
-    seed_version: 1, created_at: "2026-06-11T00:00:00Z", updated_at: "2026-06-11T00:00:00Z",
+    seed_version: 1, lifecycle_state: "active", cancelled_at: null, read_only_at: null, archived_at: null, hard_deleted_at: null, retention_hold_until: null, archive_storage_key: null, archive_size_bytes: null, archive_checksum: null, created_at: "2026-06-11T00:00:00Z", updated_at: "2026-06-11T00:00:00Z",
     ...over,
   };
 }

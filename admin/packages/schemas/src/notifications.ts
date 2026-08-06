@@ -33,6 +33,10 @@ export const PORTAL_NOTIFICATION_CATALOG: readonly NotificationCatalogRow[] = [
   { code: "kyc_submission_rejected", label: "KYC needs changes", audiences: MEMBER, channels: BOTH },
   { code: "loan_application_approved", label: "Loan application approved", audiences: MEMBER, channels: BOTH },
   { code: "loan_application_rejected", label: "Loan application declined", audiences: MEMBER, channels: BOTH },
+  { code: "tenant_offboarding_cancelled", label: "Account cancelled", audiences: TENANT, channels: BOTH },
+  { code: "tenant_offboarding_read_only", label: "Account read-only", audiences: TENANT, channels: BOTH },
+  { code: "tenant_offboarding_archived", label: "Account archived", audiences: TENANT, channels: BOTH },
+  { code: "tenant_offboarding_restored", label: "Account restored", audiences: TENANT, channels: BOTH },
 ];
 
 export function catalogForAudience(

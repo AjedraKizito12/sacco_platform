@@ -1,0 +1,10 @@
+{
+  "name": "Tenant offboarding archive stuck",
+  "severity": "warning",
+  "source": "unavailable",
+  "query": "N/A — count of platform.tenants where lifecycle_state='archived' AND archive_checksum IS NULL AND archived_at < now() - interval '24h'. No such gauge is emitted by anything shipped in Phase 5/6/7.",
+  "threshold": "> 0 (any tenant stuck awaiting physical archival for more than 24h)",
+  "window": "n/a (point-in-time gauge check, suggested hourly)",
+  "channel": "email",
+  "notes": "Phase 7 sets lifecycle_state='archived' via the daily beat; the infra-side pipeline (infra/offboarding/archive.sh) then pg_dumps the schema and fills archive_checksum. If that host-side job is broken (missing age/aws creds, S3 outage, container gone), tenants pile up in archived+checksum-null and are never physically dumped — a silent failure with no in-app signal. Making this real needs a new sacco_ gauge (e.g. sacco_offboarding_archive_pending{age_bucket}) emitted on the observability beat by a query against platform.tenants, OR a systemd OnFailure hook on offboarding-archive.service that posts to Logfire. Staged here so the gap is tracked; see docs/alert-runbooks/offboarding-archive-stuck.md."
+}

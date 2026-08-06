@@ -45,10 +45,14 @@ class TenantService:
         result = await self._s.execute(select(Tenant).where(Tenant.id == tenant_id))
         return result.scalar_one_or_none()
 
-    async def list_tenants(self, *, status: str | None = None) -> list[Tenant]:
+    async def list_tenants(
+        self, *, status: str | None = None, lifecycle_state: str | None = None
+    ) -> list[Tenant]:
         q = select(Tenant).order_by(Tenant.created_at.desc())
         if status:
             q = q.where(Tenant.status == status)
+        if lifecycle_state:
+            q = q.where(Tenant.lifecycle_state == lifecycle_state)
         return list((await self._s.execute(q)).scalars().all())
 
     async def mark_retry(self, tenant_id: uuid.UUID) -> Tenant:

@@ -15,10 +15,17 @@ from app.platform_.billing.exceptions import (
 from app.platform_.billing.schemas import SubscriptionOut
 from app.platform_.billing.services import SubscriptionService
 from app.platform_.provisioning.tasks import provision_tenant
+from app.platform_.tenants.offboarding_service import (
+    OffboardingError,
+    OffboardingService,
+)
 from app.platform_.tenants.schemas import (
     AssignPlanIn,
     CreateTenantRequest,
+    ExtendRetentionIn,
+    TenantCancelIn,
     TenantCreateResponse,
+    TenantLifecycleEventOut,
     TenantOut,
     TenantPatchIn,
     TenantSuspendIn,
@@ -62,9 +69,10 @@ async def list_tenants(
     session: Session,
     actor: CurrentSupport,
     status: str | None = Query(None),
+    lifecycle_state: str | None = Query(None),
 ) -> list[TenantOut]:
     svc = TenantService(session)
-    tenants = await svc.list_tenants(status=status)
+    tenants = await svc.list_tenants(status=status, lifecycle_state=lifecycle_state)
     return [TenantOut.model_validate(t) for t in tenants]
 
 
@@ -214,3 +222,97 @@ async def assign_plan(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     await session.commit()
     return SubscriptionOut.model_validate(sub)
+
+
+# ── Offboarding lifecycle (Phase 7) ──────────────────────────────────────────
+
+
+@router.post("/{tenant_id}/cancel", status_code=202)
+async def cancel_tenant(
+    tenant_id: uuid.UUID,
+    body: TenantCancelIn,
+    session: Session,
+    actor: CurrentSuperuser,
+) -> dict[str, str]:
+    """Submit a tenant-cancel (offboarding) approval request.
+
+    Maker-checker required (quorum 2). The executor at
+    @approval_executor("tenant.cancel") runs on approval: it flips
+    lifecycle_state active → cancelled and hard-cancels billing.
+    """
+    from app.modules.maker_checker.service import ApprovalService
+
+    tenant = await TenantService(session).get(tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if tenant.lifecycle_state != "active":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Tenant lifecycle_state is '{tenant.lifecycle_state}'; "
+            "cannot cancel.",
+        )
+
+    approval = await ApprovalService(session).submit(
+        operation_type="tenant.cancel",
+        payload={
+            "tenant_id": str(tenant_id),
+            "reason": body.reason,
+            "requested_by": str(actor.id),
+        },
+        requested_by=actor.id,
+        required_approvals=2,
+    )
+    await session.commit()
+    return {
+        "status": "pending_approval",
+        "approval_request_id": str(approval.id),
+    }
+
+
+@router.post("/{tenant_id}/restore", response_model=TenantOut)
+async def restore_tenant(
+    tenant_id: uuid.UUID,
+    session: Session,
+    actor: CurrentSuperuser,
+) -> TenantOut:
+    """Restore a not-yet-physically-archived tenant to active. Direct (no MC)."""
+    try:
+        tenant = await OffboardingService(session).restore(
+            tenant_id=tenant_id, actor_id=actor.id
+        )
+    except OffboardingError as exc:
+        msg = str(exc)
+        if "not found" in msg:
+            raise HTTPException(status_code=404, detail=msg) from exc
+        raise HTTPException(status_code=409, detail=msg) from exc
+    await session.commit()
+    return TenantOut.model_validate(tenant)
+
+
+@router.post("/{tenant_id}/extend-retention", response_model=TenantOut)
+async def extend_retention(
+    tenant_id: uuid.UUID,
+    body: ExtendRetentionIn,
+    session: Session,
+    actor: CurrentSuperuser,
+) -> TenantOut:
+    """Extend the retention window (legal hold). Direct (no maker-checker)."""
+    try:
+        tenant = await OffboardingService(session).extend_retention(
+            tenant_id=tenant_id, actor_id=actor.id, hold_until=body.hold_until
+        )
+    except OffboardingError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    await session.commit()
+    return TenantOut.model_validate(tenant)
+
+
+@router.get("/{tenant_id}/lifecycle", response_model=list[TenantLifecycleEventOut])
+async def get_tenant_lifecycle(
+    tenant_id: uuid.UUID,
+    session: Session,
+    actor: CurrentSupport,
+) -> list[TenantLifecycleEventOut]:
+    """Return the tenant's offboarding lifecycle timeline (oldest first)."""
+    events = await OffboardingService(session).lifecycle_events(tenant_id=tenant_id)
+    return [TenantLifecycleEventOut.model_validate(e) for e in events]

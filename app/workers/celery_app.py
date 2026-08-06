@@ -1,6 +1,7 @@
 import os
 
 from celery import Celery
+from celery.schedules import crontab
 from celery.signals import beat_init, worker_process_init
 
 from app.core.config import get_settings
@@ -13,6 +14,7 @@ celery_app = Celery(
     include=[
         "app.core.observability.beat",
         "app.core.notifications.beat",
+        "app.core.notifications.offboarding_consumer",
         "app.core.search.reconcile",
         "app.core.search.sweep",
         "app.core.outbox.worker",
@@ -20,6 +22,7 @@ celery_app = Celery(
         "app.platform_.provisioning.tasks",
         "app.platform_.billing.beat",
         "app.platform_.billing.consumer",
+        "app.platform_.tenants.beat",
         "app.modules.iam.beat",
         "app.modules.fees.consumer",
         "app.modules.fees.beat",
@@ -59,6 +62,25 @@ celery_app.conf.update(
         "consume-billing-notification-events": {
             "task": "app.platform_.billing.consumer.consume_billing_notification_events",
             "schedule": 60.0,  # every minute
+        },
+        "consume-offboarding-notification-events": {
+            "task": (
+                "app.core.notifications.offboarding_consumer."
+                "consume_offboarding_notification_events"
+            ),
+            "schedule": 60.0,  # every minute
+        },
+        "offboarding-cancelled-to-read-only": {
+            "task": "app.platform_.tenants.beat.transition_cancelled_to_read_only",
+            "schedule": crontab(hour=0, minute=0),  # daily 00:00 UTC
+        },
+        "offboarding-read-only-to-archived": {
+            "task": "app.platform_.tenants.beat.transition_read_only_to_archived",
+            "schedule": crontab(hour=0, minute=30),  # daily 00:30 UTC
+        },
+        "offboarding-archived-to-hard-deleted": {
+            "task": "app.platform_.tenants.beat.transition_archived_to_hard_deleted",
+            "schedule": crontab(hour=1, minute=0),  # daily 01:00 UTC
         },
         "dispatch-pending-notifications": {
             "task": "app.core.notifications.beat.dispatch_pending_notifications",

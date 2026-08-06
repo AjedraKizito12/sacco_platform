@@ -2,8 +2,12 @@ import type { FetchClient } from "../client";
 
 export function tenants(api: FetchClient) {
   return {
-    list: (query?: { status?: string }) =>
+    list: (query?: { status?: string; lifecycle_state?: string }) =>
       api.GET("/platform/tenants" as never, { params: { query } } as never),
+    listArchived: () =>
+      api.GET("/platform/tenants" as never, {
+        params: { query: { lifecycle_state: "archived" } },
+      } as never),
     get: (id: string) =>
       api.GET("/platform/tenants/{tenant_id}" as never, {
         params: { path: { tenant_id: id } },
@@ -33,6 +37,25 @@ export function tenants(api: FetchClient) {
       api.POST("/platform/tenants/{tenant_id}/assign-plan" as never, {
         params: { path: { tenant_id: id } },
         body,
+      } as never),
+    // Phase 7 offboarding lifecycle
+    cancel: (id: string, body: { reason: string }) =>
+      api.POST("/platform/tenants/{tenant_id}/cancel" as never, {
+        params: { path: { tenant_id: id } },
+        body,
+      } as never),
+    restore: (id: string) =>
+      api.POST("/platform/tenants/{tenant_id}/restore" as never, {
+        params: { path: { tenant_id: id } },
+      } as never),
+    extendRetention: (id: string, body: { hold_until: string }) =>
+      api.POST("/platform/tenants/{tenant_id}/extend-retention" as never, {
+        params: { path: { tenant_id: id } },
+        body,
+      } as never),
+    lifecycle: (id: string) =>
+      api.GET("/platform/tenants/{tenant_id}/lifecycle" as never, {
+        params: { path: { tenant_id: id } },
       } as never),
     // Tenant-user admin (Phase 1.7 #7)
     listUsers: (id: string) =>

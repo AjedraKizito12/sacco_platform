@@ -62,7 +62,7 @@ Full spec: `docs/superpowers/plans/saas-launch-roadmap.md`
 | 4 | Backups & Disaster Recovery (pgBackRest + PITR) | M — 2 wk | production launch | **Done** |
 | 5 | Observability & Monitoring (Logfire) | L — 3 wk | production launch | **Done** |
 | 6 | Rate Limiting & Abuse Protection | S — 1 wk | production launch (needs P5) | **Done** |
-| 7 | Tenant Offboarding & Retention | M — 2 wk | public launch (needs P1, P3) | Not started |
+| 7 | Tenant Offboarding & Retention | M — 2 wk | public launch (needs P1, P3) | **Done** |
 | 8 | Data Portability & Member Exports | M — 2 wk | public launch (needs P3) | Not started |
 | 9 | External Security Assessment & Hardening | L — 3 wk | public launch (needs P1,P2,P4,P6) | Not started |
 
@@ -137,6 +137,21 @@ N. Do NOT modify anything outside `admin/` except: `docker-compose.yml` (add adm
      alert runbook). It does NOT touch `alembic/` — there is no migration
      (per-plan overrides reuse `subscription_plans.features`). See "Rate
      limiting contracts" below.
+   - **Scope exception (Phase 7 — Tenant Offboarding & Retention):** Phase 7
+     is a sanctioned exception. It adds `app/platform_/tenants/`
+     (`offboarding_service.py`, `events.py`, `beat.py`) + touches
+     `app/platform_/models.py` (Tenant lifecycle columns +
+     `TenantLifecycleEvent`) and that module's `api.py`/`schemas.py`/
+     `executors.py`/`service.py`, `app/core/db.py` (the read_only gate),
+     `app/core/config.py` (three `OFFBOARDING_*` settings),
+     `app/core/notifications/` (`offboarding_consumer.py` + 4 catalog/seed
+     rows), `app/workers/celery_app.py` (the consumer + 3 transition beats),
+     `alembic/platform/015`, `infra/offboarding/` (archival scripts + systemd),
+     the admin portal (`tenants/[id]` offboarding section + `tenants/archived`
+     list + `@sacco/schemas`/`@sacco/api-client`/`StatusBadge` tenant-lifecycle
+     types + the `platform.tenants.offboard` permission),
+     `infra/observability/logfire/alerts/` (the archive-stuck alert), and
+     `docs/`. See "Tenant offboarding contracts" below.
 O. The notification bell is LIVE (Phase 3 increment 3): `NotificationBell`
    (@sacco/ui, presentational) fed by `AppShellNotificationBell`, which polls
    the audience's `/…/notifications/me` feed every 60s via TanStack Query (the
@@ -804,9 +819,10 @@ the full design rationale.
   `get_platform_session` is NOT gated — operators must be able to manage
   tenants in any state.
 - Hard cancellation (`SubscriptionService.cancel(cancel_at_period_end=False)`)
-  is only callable from the `billing.cancel_subscription` executor.
-  Direct calls from HTTP handlers are forbidden. Soft cancellation
-  (`cancel_at_period_end=True`) does not require maker-checker.
+  is only callable from the `billing.cancel_subscription` executor and from the
+  `tenant.cancel` offboarding executor (Phase 7), which has already cleared
+  quorum-2 maker-checker. Direct calls from HTTP handlers are forbidden. Soft
+  cancellation (`cancel_at_period_end=True`) does not require maker-checker.
 - HTTP API surface lives in `app/platform_/billing/api.py`, exposing two
   routers: `platform_router` at `/platform/billing/*` and `tenant_router`
   at `/billing/me/*`. Both are mounted from `app/main.py`. Do not add
@@ -949,12 +965,13 @@ the full design rationale.
 - Dashboards and alerts live in Logfire, not the admin portal. Committed
   in-repo definitions are the source of truth for what to (re)create in a
   live Logfire project at deploy time: `infra/observability/logfire/dashboards/`
-  (8 dashboards) and `infra/observability/logfire/alerts/` (12 alert
-  definitions, 8 backed by real telemetry + 4 staged/`"source":
+  (8 dashboards) and `infra/observability/logfire/alerts/` (13 alert
+  definitions, 8 backed by real telemetry + 5 staged/`"source":
   "unavailable"` placeholders documenting exactly what instrumentation is
   missing — `/readyz` 503 detection, DB connection-pool exhaustion, a
-  general non-reporting beat-task-missed heartbeat, and approval
-  pending-age). The 8th real-telemetry alert is the Phase 6
+  general non-reporting beat-task-missed heartbeat, approval pending-age,
+  and the Phase 7 offboarding-archive-stuck backlog). The 8th
+  real-telemetry alert is the Phase 6
   `rate-limit-block-rate.json` (`sacco_rate_limit_blocks_total`). Alerts are
   **email-only** in v1 — no Slack/Discord/Opsgenie
   channel. Applying these definitions to a live Logfire project (via the
@@ -1009,3 +1026,46 @@ the full design rationale.
   + the portal page at `/platform/settings/rate-limits`; these are
   observability only and cannot change any limit. Full reference:
   `docs/rate-limit-policies.md`.
+
+## Tenant offboarding contracts (Phase 7 — do not violate)
+
+- `OffboardingService` (`app/platform_/tenants/offboarding_service.py`) is the
+  ONLY writer of `tenants.lifecycle_state`, `cancelled_at`, `read_only_at`,
+  `archived_at`, `hard_deleted_at`, `retention_hold_until`, and the ONLY
+  inserter of `tenant_lifecycle_events`. This extends the existing "only
+  `TenantService`/`SubscriptionService` mutate tenant columns" rule.
+- Offboarding **NEVER** sets `is_active = false`. `_resolve_tenant_schema`
+  filters `is_active = true`; a `read_only` tenant must stay resolvable so GETs
+  reach the gate. Access is governed by `lifecycle_state`, not `is_active`.
+- `subscription_status` stays owned solely by `SubscriptionService`.
+  Offboarding `cancel` stops billing via
+  `SubscriptionService.cancel(cancel_at_period_end=False)` in the same
+  transaction; it never writes `subscription_status` directly. (Billing
+  hard-cancel is now callable from the `tenant.cancel` executor too — see the
+  billing contract amendment.)
+- The read_only gate (`_check_offboarding_gate` in `app/core/db.py`) runs
+  BEFORE the subscription gate and is method-aware: `read_only` allows
+  GET/HEAD/OPTIONS and 403s writes; `cancelled`/`archived`/`hard_deleted` 403
+  everything. `get_platform_session` is NOT gated.
+- Maker-checker: `cancel` → `tenant.cancel` executor, **quorum 2**, superuser.
+  `restore` and `extend-retention` are direct, superuser. `restore` is refused
+  (409 `OffboardingError`) once `archive_checksum IS NOT NULL` (physically
+  archived). These four endpoints + `GET .../lifecycle` (support+) and the
+  `?lifecycle_state=` list filter are the ONLY offboarding HTTP surfaces.
+- Time-based transitions are three daily beat sweeps
+  (`app/platform_/tenants/beat.py`, 00:00/00:30/01:00 UTC) calling the
+  `OffboardingService.sweep_*` methods. Windows are settings
+  (`OFFBOARDING_READ_ONLY_DAYS=7`, `OFFBOARDING_ARCHIVE_DAYS=83`,
+  `OFFBOARDING_HARD_DELETE_DAYS=2555`); per-tenant deviation only via
+  `retention_hold_until`.
+- Each transition (cancelled/read_only/archived/restored — NOT hard_deleted)
+  publishes a platform-outbox event; `notifications.offboarding_consumer`
+  bridges it to tenant-admin feeds (mirror of `billing_consumer`). Notices
+  only — no secrets/PII.
+- **Physical archival (pg_dump → age-encrypt → upload → DROP SCHEMA) is
+  infra-side only** (`infra/offboarding/`, nightly systemd). The app sets
+  `lifecycle_state='archived'`; the pipeline is the ONLY code that DROPs a
+  tenant schema and the ONLY writer of `archive_storage_key`/
+  `archive_size_bytes`/`archive_checksum`. No `pg_dump`, `age`, S3 client, or
+  `DROP SCHEMA` in app code. Restoring a physically archived tenant is a manual
+  runbook, not an API surface. Full reference: `docs/tenant-offboarding.md`.

@@ -1,0 +1,14 @@
+# Fires offboarding-delete-archive.service weekly (Sundays 04:00 UTC). Purging
+# is low-volume and non-urgent — a weekly cadence keeps the retention window
+# enforced without daily object-store churn.
+# Enable with: systemctl enable --now offboarding-delete-archive.timer
+[Unit]
+Description=Weekly SACCO tenant offboarding archive purge
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+Persistent=true
+Unit=offboarding-delete-archive.service
+
+[Install]
+WantedBy=timers.target

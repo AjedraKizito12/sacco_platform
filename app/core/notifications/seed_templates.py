@@ -27,6 +27,10 @@ _TITLES: dict[str, str] = {
     "kyc_submission_rejected": "Your KYC submission needs changes",
     "loan_application_approved": "Your loan application was approved",
     "loan_application_rejected": "Your loan application was declined",
+    "tenant_offboarding_cancelled": "Your SACCO account has been cancelled",
+    "tenant_offboarding_read_only": "Your SACCO account is now read-only",
+    "tenant_offboarding_archived": "Your SACCO account has been archived",
+    "tenant_offboarding_restored": "Your SACCO account has been restored",
 }
 
 _BODIES: dict[str, str] = {
@@ -61,6 +65,28 @@ _BODIES: dict[str, str] = {
     ),
     "loan_application_approved": "Your loan application for {{ amount }} was approved.",
     "loan_application_rejected": "Your loan application was declined: {{ reason }}",
+    "tenant_offboarding_cancelled": (
+        "{{ tenant_name }}'s account was cancelled on {{ occurred_at }}. "
+        "Access is now restricted. Contact the platform administrator to restore it."
+    ),
+    "tenant_offboarding_read_only": (
+        "{{ tenant_name }}'s account entered read-only mode on {{ occurred_at }}. "
+        "You can still view records, but changes are disabled."
+    ),
+    "tenant_offboarding_archived": (
+        "{{ tenant_name }}'s account was archived on {{ occurred_at }}. "
+        "Data is retained per policy; contact support to retrieve it."
+    ),
+    "tenant_offboarding_restored": (
+        "{{ tenant_name }}'s account was restored to active on {{ occurred_at }}."
+    ),
+}
+
+# Shared allow-list for the four tenant offboarding notices.
+_OFFBOARDING_VARS: dict[str, str] = {
+    "tenant_name": "SACCO tenant name",
+    "to_state": "new lifecycle state",
+    "occurred_at": "ISO 8601 timestamp",
 }
 
 _VARIABLES: dict[str, dict[str, str]] = {
@@ -89,6 +115,10 @@ _VARIABLES: dict[str, dict[str, str]] = {
     "kyc_submission_rejected": {"reason": "reviewer's reason"},
     "loan_application_approved": {"amount": "approved amount"},
     "loan_application_rejected": {"reason": "rejection reason"},
+    "tenant_offboarding_cancelled": _OFFBOARDING_VARS,
+    "tenant_offboarding_read_only": _OFFBOARDING_VARS,
+    "tenant_offboarding_archived": _OFFBOARDING_VARS,
+    "tenant_offboarding_restored": _OFFBOARDING_VARS,
 }
 
 

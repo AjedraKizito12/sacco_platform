@@ -22,6 +22,8 @@ export const queryKeys = {
     detail: (id: string) => ["tenants", "detail", id] as const,
     users: (id: string) => ["tenants", "users", id] as const,
     kyc: (id: string) => ["tenants", "kyc", id] as const,
+    lifecycle: (id: string) => ["tenants", "lifecycle", id] as const,
+    archived: () => ["tenants", "archived"] as const,
   },
   billing: {
     root: () => ["billing"] as const,

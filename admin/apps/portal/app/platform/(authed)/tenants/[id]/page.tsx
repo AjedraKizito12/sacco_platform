@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation";
-import type { OrganizationKycOut, TenantOut } from "@sacco/schemas";
+import type {
+  OrganizationKycOut,
+  TenantLifecycleEventOut,
+  TenantOut,
+} from "@sacco/schemas";
 import { TenantKycSection } from "./_components/TenantKycSection";
+import { OffboardingSection } from "./_components/OffboardingSection";
 import {
   getPlatformPageContext,
   requirePlatformPermission,
@@ -27,6 +32,13 @@ export default async function TenantDetailPage({
     resources.tenants.get(id) as Promise<{ data?: TenantOut; error?: unknown }>
   );
   if (!data) notFound();
+
+  // Offboarding lifecycle timeline (platform schema, always available).
+  const lifecycleRes = await (resources.tenants.lifecycle(id) as Promise<{
+    data?: TenantLifecycleEventOut[];
+    error?: unknown;
+  }>);
+  const lifecycleEvents = lifecycleRes.data ?? [];
 
   // Org KYC lives in the tenant schema; the read fails while a tenant is
   // still provisioning (schema/table absent) or failed. KYC is informational
@@ -55,6 +67,13 @@ export default async function TenantDetailPage({
       canManageUsers={userHasPermission(user, "platform.tenants.users.read")}
       auditBar={<AuditBarConnected entityType="tenant" entityId={data.id} />}
       makerCheckerBanner={<MakerCheckerBannerConnected entityType="tenant" entityId={data.id} />}
+      offboardingSection={
+        <OffboardingSection
+          tenant={data}
+          events={lifecycleEvents}
+          canOffboard={userHasPermission(user, "platform.tenants.offboard")}
+        />
+      }
       kycSection={
         kyc ? (
           <TenantKycSection

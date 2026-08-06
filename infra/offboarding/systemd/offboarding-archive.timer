@@ -1,0 +1,15 @@
+# Fires offboarding-archive.service nightly at 03:00 UTC — one hour after the
+# 02:00 base backup (pgbackrest-backup.timer) so the heavy pg_dump + DROP SCHEMA
+# never contends with the nightly backup on a shared DB host.
+# Enable with: systemctl enable --now offboarding-archive.timer
+[Unit]
+Description=Nightly SACCO tenant offboarding archive
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+# Catch up on a missed run if the host was down at 03:00.
+Persistent=true
+Unit=offboarding-archive.service
+
+[Install]
+WantedBy=timers.target

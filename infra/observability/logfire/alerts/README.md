@@ -92,9 +92,11 @@ Field notes:
 | `db-connection-pool-exhausted.json` | critical | **unavailable** | DB pool exhaustion — needs a pool gauge or a Postgres exporter |
 | `beat-task-missed-general.json` | critical | **unavailable** | any non-reporting beat task missed schedule — needs a general heartbeat gauge |
 | `approvals-pending-age.json` | warning | **unavailable** | oldest pending approval > 24h — needs a pending-age gauge, not a decision counter |
+| `offboarding-archive-stuck.json` | warning | **unavailable** | tenant in `archived` with `archive_checksum IS NULL` > 24h — needs a backlog gauge or a systemd OnFailure hook |
 
-Seven of eleven alerts are backed by telemetry Phase 5 actually emits;
-four are staged placeholders documenting exactly what future
-instrumentation would be needed to make them real. See
+Eight of thirteen alerts are backed by telemetry the platform actually
+emits (Phase 5 metrics/spans + the Phase 6 rate-limit metric); five are
+staged placeholders documenting exactly what future instrumentation would
+be needed to make them real. See
 `docs/metrics-catalogue.md` for the full metric catalogue and
 `docs/alert-runbooks/` for the response runbook per alert.
