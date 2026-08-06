@@ -1,0 +1,21 @@
+# Retention-purge unit. Runs delete-archive.sh: removes the encrypted archive
+# object for tenants the app has advanced to lifecycle_state='hard_deleted'
+# (past the ~7-year window) and nulls archive_storage_key. Install alongside
+# offboarding-archive.service.
+[Unit]
+Description=SACCO tenant offboarding — purge hard-deleted archives
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=sacco
+Group=docker
+EnvironmentFile=/etc/sacco/offboarding.env
+ExecStart=/opt/offboarding/delete-archive.sh
+TimeoutStartSec=infinity
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target
