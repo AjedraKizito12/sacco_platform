@@ -35,6 +35,10 @@ EXPECTED_CODES = (
     "kyc_submission_rejected",
     "loan_application_approved",
     "loan_application_rejected",
+    "tenant_offboarding_cancelled",
+    "tenant_offboarding_read_only",
+    "tenant_offboarding_archived",
+    "tenant_offboarding_restored",
 )
 
 
@@ -60,7 +64,7 @@ async def _set_path(s: AsyncSession) -> None:
     await s.execute(text(f"SET LOCAL search_path TO {SCHEMA}, platform"))
 
 
-def test_catalog_has_all_13_codes_with_valid_shapes() -> None:
+def test_catalog_has_all_codes_with_valid_shapes() -> None:
     assert tuple(s.code for s in NOTIFICATION_CATALOG) == EXPECTED_CODES
     for spec in NOTIFICATION_CATALOG:
         assert spec.default_channels

@@ -56,8 +56,9 @@ class OffboardingService:
         actor_id: uuid.UUID | None,
         reason: str | None = None,
         metadata: dict[str, Any] | None = None,
+        publish: bool = True,
     ) -> None:
-        """Flip lifecycle_state, stamp the matching *_at, and audit the move."""
+        """Flip lifecycle_state, stamp the matching *_at, audit + notify the move."""
         from_state = tenant.lifecycle_state
         tenant.lifecycle_state = to_state
         col = _AT_COLUMN.get(to_state)
@@ -73,6 +74,10 @@ class OffboardingService:
                 event_metadata=metadata or {},
             )
         )
+        if publish:
+            from app.platform_.tenants.events import publish_lifecycle_event
+
+            await publish_lifecycle_event(self._s, tenant=tenant, to_state=to_state)
 
     # ── Operator-driven transitions ─────────────────────────────────────────
 

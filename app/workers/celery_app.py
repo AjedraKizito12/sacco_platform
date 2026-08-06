@@ -13,6 +13,7 @@ celery_app = Celery(
     include=[
         "app.core.observability.beat",
         "app.core.notifications.beat",
+        "app.core.notifications.offboarding_consumer",
         "app.core.search.reconcile",
         "app.core.search.sweep",
         "app.core.outbox.worker",
@@ -58,6 +59,13 @@ celery_app.conf.update(
         },
         "consume-billing-notification-events": {
             "task": "app.platform_.billing.consumer.consume_billing_notification_events",
+            "schedule": 60.0,  # every minute
+        },
+        "consume-offboarding-notification-events": {
+            "task": (
+                "app.core.notifications.offboarding_consumer."
+                "consume_offboarding_notification_events"
+            ),
             "schedule": 60.0,  # every minute
         },
         "dispatch-pending-notifications": {

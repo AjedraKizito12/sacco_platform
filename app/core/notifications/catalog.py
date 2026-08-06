@@ -35,6 +35,10 @@ NOTIFICATION_CATALOG: tuple[NotificationEventSpec, ...] = (
     NotificationEventSpec("kyc_submission_rejected", _EMAIL_IN_APP, ("member",)),
     NotificationEventSpec("loan_application_approved", _EMAIL_IN_APP, ("member",)),
     NotificationEventSpec("loan_application_rejected", _EMAIL_IN_APP, ("member",)),
+    NotificationEventSpec("tenant_offboarding_cancelled", _EMAIL_IN_APP, ("tenant_user",)),
+    NotificationEventSpec("tenant_offboarding_read_only", _EMAIL_IN_APP, ("tenant_user",)),
+    NotificationEventSpec("tenant_offboarding_archived", _EMAIL_IN_APP, ("tenant_user",)),
+    NotificationEventSpec("tenant_offboarding_restored", _EMAIL_IN_APP, ("tenant_user",)),
 )
 
 BY_CODE: dict[str, NotificationEventSpec] = {s.code: s for s in NOTIFICATION_CATALOG}
