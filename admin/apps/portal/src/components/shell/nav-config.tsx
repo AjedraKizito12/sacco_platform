@@ -1,16 +1,27 @@
 import type { ComponentType } from "react";
 import {
   Activity,
+  BadgeCheck,
   Banknote,
+  Bell,
   Building2,
   CheckCircle2,
+  Clock,
+  CreditCard,
   FileText,
+  Gauge,
+  HardDrive,
   History,
+  KeyRound,
   Landmark,
+  Layers,
   LayoutGrid,
   ListChecks,
+  Palette,
   PieChart,
   Receipt,
+  Repeat,
+  ScrollText,
   Settings,
   ShieldCheck,
   User,
@@ -34,6 +45,8 @@ export interface NavItem {
   children?: NavLeaf[];
   /** UX-only permission gate (API still enforces). */
   permission?: string;
+  /** Placeholder for a not-yet-built feature: shown disabled with a "Soon" pill. */
+  comingSoon?: boolean;
 }
 
 export interface NavGroup {
@@ -168,16 +181,35 @@ const PLATFORM_NAV: NavGroup[] = [
         permission: "platform.users.read",
       },
       {
-        label: "Billing",
-        icon: Banknote,
-        permission: "billing.read",
-        children: [
-          { label: "Plans", href: "/platform/billing/plans" },
-          { label: "Subscriptions", href: "/platform/billing/subscriptions" },
-          { label: "Invoices", href: "/platform/billing/invoices" },
-          { label: "Payments", href: "/platform/billing/payments" },
-        ],
+        label: "Roles & Permissions",
+        icon: KeyRound,
+        permission: "platform.users.read",
+        comingSoon: true,
       },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      { label: "Plans", href: "/platform/billing/plans", icon: Layers, permission: "billing.read" },
+      {
+        label: "Subscriptions",
+        href: "/platform/billing/subscriptions",
+        icon: Repeat,
+        permission: "billing.read",
+      },
+      { label: "Invoices", href: "/platform/billing/invoices", icon: Receipt, permission: "billing.read" },
+      {
+        label: "Payments",
+        href: "/platform/billing/payments",
+        icon: CreditCard,
+        permission: "billing.read",
+      },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
       {
         label: "Approvals",
         href: "/platform/approvals",
@@ -185,40 +217,79 @@ const PLATFORM_NAV: NavGroup[] = [
         permission: "approvals.read",
       },
       {
-        label: "Audit",
-        href: "/platform/audit",
-        icon: History,
-        permission: "audit.read",
+        label: "Backups",
+        href: "/platform/operations/backups",
+        icon: HardDrive,
+        permission: "operations.read",
       },
       {
-        label: "Operations",
+        label: "Scheduled Jobs",
+        icon: Clock,
+        permission: "operations.read",
+        comingSoon: true,
+      },
+    ],
+  },
+  {
+    label: "Monitoring",
+    items: [
+      { label: "Audit Logs", href: "/platform/audit", icon: History, permission: "audit.read" },
+      {
+        label: "System Health",
         icon: Activity,
         permission: "operations.read",
+        comingSoon: true,
+      },
+      {
+        label: "Activity Log",
+        icon: ScrollText,
+        permission: "audit.read",
+        comingSoon: true,
+      },
+      {
+        label: "Rate limits",
+        href: "/platform/settings/rate-limits",
+        icon: Gauge,
+        permission: "settings.read",
+      },
+    ],
+  },
+  {
+    label: "Settings",
+    items: [
+      {
+        label: "Security",
+        href: "/platform/settings/security",
+        icon: ShieldCheck,
+        permission: "settings.read",
+      },
+      {
+        label: "Notifications",
+        icon: Bell,
+        permission: "settings.read",
         children: [
-          { label: "Overview", href: "/platform/operations" },
-          { label: "Backups", href: "/platform/operations/backups" },
+          { label: "Preferences", href: "/platform/settings/notifications" },
+          { label: "Templates", href: "/platform/notifications/templates" },
+          { label: "Events", href: "/platform/notifications/events" },
         ],
       },
       {
-        label: "Settings",
-        href: "/platform/settings",
-        icon: Settings,
+        label: "KYC Configuration",
+        href: "/platform/settings/kyc",
+        icon: BadgeCheck,
         permission: "settings.read",
-        children: [
-          { label: "Billing", href: "/platform/settings/billing" },
-          { label: "Notifications", href: "/platform/settings/notifications" },
-          {
-            label: "Notification templates",
-            href: "/platform/notifications/templates",
-          },
-          {
-            label: "Notification events",
-            href: "/platform/notifications/events",
-          },
-          { label: "SACCO KYC", href: "/platform/settings/kyc" },
-          { label: "Security", href: "/platform/settings/security" },
-          { label: "Appearance", href: "/platform/settings/appearance" },
-        ],
+      },
+      {
+        label: "Billing Configuration",
+        href: "/platform/settings/billing",
+        icon: Wallet,
+        permission: "settings.read",
+      },
+      {
+        label: "Appearance",
+        href: "/platform/settings/appearance",
+        icon: Palette,
+        permission: "settings.read",
       },
     ],
   },

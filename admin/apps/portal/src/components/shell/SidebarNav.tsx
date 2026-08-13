@@ -57,6 +57,39 @@ function Leaf({
   );
 }
 
+function DisabledLeaf({
+  item,
+  collapsed,
+}: {
+  item: NavItem;
+  collapsed: boolean;
+}) {
+  const Icon = item.icon;
+  return (
+    <div
+      aria-disabled="true"
+      title={collapsed ? `${item.label} (coming soon)` : "Coming soon"}
+      className={cn(
+        rowBase,
+        "cursor-not-allowed opacity-55 hover:bg-transparent hover:text-[color:var(--text-secondary)]",
+        collapsed && "justify-center px-0",
+      )}
+    >
+      <span className="inline-flex shrink-0 items-center text-[var(--icon-default)]">
+        <Icon size={ICON} strokeWidth={1.75} />
+      </span>
+      {collapsed ? null : (
+        <>
+          <span className="truncate">{item.label}</span>
+          <span className="ml-auto shrink-0 rounded-full bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--text-tertiary)]">
+            Soon
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Parent({
   item,
   collapsed,
@@ -149,12 +182,13 @@ function Item({
   collapsed: boolean;
   isActive: (href: string) => boolean;
 }) {
-  const node =
-    item.children && item.children.length > 0 ? (
-      <Parent item={item} collapsed={collapsed} isActive={isActive} />
-    ) : (
-      <Leaf item={item} collapsed={collapsed} active={item.href ? isActive(item.href) : false} />
-    );
+  const node = item.comingSoon ? (
+    <DisabledLeaf item={item} collapsed={collapsed} />
+  ) : item.children && item.children.length > 0 ? (
+    <Parent item={item} collapsed={collapsed} isActive={isActive} />
+  ) : (
+    <Leaf item={item} collapsed={collapsed} active={item.href ? isActive(item.href) : false} />
+  );
   return item.permission ? (
     <PermissionGuard permission={item.permission}>{node}</PermissionGuard>
   ) : (
