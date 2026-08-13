@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 from typing import Any, Literal, cast
 
@@ -117,7 +118,13 @@ def instrument_all(app: object | None = None) -> None:
         # parameters by default; never enable parameter capture here.
         logfire.instrument_sqlalchemy(enable_commenter=False)
         logfire.instrument_redis()
-        logfire.instrument_httpx()
+        # httpx is a test-only dependency — the app makes no outbound httpx
+        # calls at runtime, so it is absent from the production image.
+        # logfire.instrument_httpx() hard-requires the httpx package and would
+        # crash boot if it isn't importable; instrument it only when present so
+        # a future runtime httpx dependency lights up automatically.
+        if importlib.util.find_spec("httpx") is not None:
+            logfire.instrument_httpx()
         logfire.instrument_celery()
         _libraries_instrumented = True
 
